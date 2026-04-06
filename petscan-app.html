@@ -367,19 +367,24 @@ input[type=file]{display:none;}
 
 <script>
 // ── DATA ──
-const USERS=[
-  {id:'admin',email:'admin@petscan.de',pw:'admin123',role:'admin',name:'Administrator',praxis:'Petscan GmbH',plan:'Admin'},
-  {id:'u1',email:'dr.mueller@tierklinik.de',pw:'demo123',role:'customer',name:'Dr. Anna Müller',praxis:'Tierklinik München-Mitte',plan:'Professional'},
-  {id:'u2',email:'info@kleintierpraxis.de',pw:'demo123',role:'customer',name:'Dr. Stefan Schmidt',praxis:'Kleintierpraxis Schmidt',plan:'Starter'},
-];
+// Demo-Daten für Offline-Fallback entfernt — Authentifizierung läuft über /api/auth/login
 const REPORTS=JSON.parse(localStorage.getItem('ps_reports')||'[]');
 const saveReports=()=>localStorage.setItem('ps_reports',JSON.stringify(REPORTS));
 
 // ── AUTH ──
 let ME=null,loginRole='customer';
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded',async ()=>{
   const h=document.getElementById('l-hint');
   if(h) h.textContent='Demo: dr.mueller\u0040tierklinik.de / demo123';
+  // Auto-Login falls Token vorhanden
+  const token=localStorage.getItem('ps_token');
+  if(token){
+    try{
+      const res=await fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+token}});
+      if(res.ok){const d=await res.json();ME=d.user;showApp();}
+      else{localStorage.removeItem('ps_token');}
+    }catch(e){}
+  }
 });
 function setRole(role,btn){
   loginRole=role;
@@ -409,7 +414,15 @@ function triggerGoogle(){
   ME=USERS[1];
   setTimeout(showApp,1400);
 }
-function doLogout(){ME=null;document.getElementById('as').classList.remove('active');document.getElementById('ls').classList.add('active');document.getElementById('l-pw').value='';}
+function doLogout(){
+  const token=localStorage.getItem('ps_token');
+  if(token) fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+token}});
+  localStorage.removeItem('ps_token');
+  ME=null;
+  document.getElementById('as').classList.remove('active');
+  document.getElementById('ls').classList.add('active');
+  document.getElementById('l-pw').value='';
+}
 
 function showApp(){
   document.getElementById('ls').classList.remove('active');
@@ -575,8 +588,8 @@ Nutze ## h2, ### h3, **fett**, Tabellen. Schreibe präzise und klinisch. Haftung
   try{
     const res=await fetch('/api/analyse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system,messages:[{role:'user',content}]})});
     const data=await res.json();
-    if(data.error) throw new Error(data.error.message);
-    const text=data.content.find(c=>c.type==='text')?.text||'';
+    if(data.error) throw new Error(data.error);
+    const text=data.report_text||'';
     const sev=detectSev(text);
     const report={id:'r'+Date.now(),userId:ME.id,species:AN.species,region:AN.region,mode:AN.mode,severity:sev,report_text:text,img_a:AN.imgA?.url||'',img_b:AN.imgB?.url||'',created_at:new Date().toISOString()};
     REPORTS.push(report);saveReports();updateReportBadge();
