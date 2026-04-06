@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Petscan Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0e14;--s1:#10141c;--s2:#161b25;--s3:#1d2433;
+  --border:#232c3d;--border2:#2e3a50;
+  --blue:#3b7bf8;--blue-d:#2a66e0;--blue-bg:rgba(59,123,248,.1);
+  --green:#22c55e;--green-bg:rgba(34,197,94,.1);
+  --amber:#f59e0b;--amber-bg:rgba(245,158,11,.1);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.1);
+  --text:#dce6f5;--text2:#8a9ab8;--text3:#404d66;
+  --f:'Inter',system-ui,sans-serif;
+  --r:6px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:14px;}
+button{font-family:'Inter',system-ui,sans-serif;cursor:pointer;border:none;background:none;}
+input,textarea,select{font-family:'Inter',system-ui,sans-serif;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--s1);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+.screen{display:none;height:100vh;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* ── LOGIN ── */
+#ls{align-items:center;justify-content:center;background:var(--bg);position:relative;overflow:hidden;}
+#ls::before{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse 65% 50% at 50% 0%,rgba(59,123,248,.07),transparent 65%);}
+.lw{position:relative;z-index:1;width:400px;}
+.l-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+.l-brand-icon{width:36px;height:36px;border-radius:9px;background:var(--blue);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(59,123,248,.3);}
+.l-brand-icon svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;}
+.l-brand-name{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.l-brand-badge{font-family:var(--f);font-size:10px;background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,.22);padding:2px 8px;border-radius:4px;letter-spacing:1px;}
+.l-card{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:28px;box-shadow:0 4px 24px rgba(0,0,0,.5);}
+.l-h{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.l-s{font-size:12.5px;color:var(--text2);margin-bottom:22px;}
+.fg{margin-bottom:14px;}
+.fl{display:block;font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:.2px;}
+.fi{width:100%;padding:9px 11px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;transition:border-color .15s;}
+.fi:focus{outline:none;border-color:var(--blue);}
+.fi::placeholder{color:var(--text3);}
+.l-submit{width:100%;padding:10px;border-radius:var(--r);background:var(--blue);color:#fff;font-size:13px;font-weight:700;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.l-submit:hover{background:var(--blue-d);}
+.l-submit svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;}
+.l-err{background:var(--red-bg);border:1px solid rgba(239,68,68,.22);border-radius:var(--r);padding:8px 11px;font-size:12px;color:var(--red);margin-bottom:12px;}
+.l-hint{font-family:var(--f);font-size:11px;color:var(--text3);text-align:center;margin-top:14px;}
+
+/* ── APP ── */
+#as{flex-direction:column;}
+
+/* TOP */
+.top{height:52px;background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:12px;flex-shrink:0;z-index:50;}
+.top-brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.top-bi{width:26px;height:26px;border-radius:6px;background:var(--blue);display:flex;align-items:center;justify-content:center;}
+.top-bi svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2;}
+.top-badge{font-family:var(--f);font-size:9px;background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,.2);padding:2px 6px;border-radius:4px;letter-spacing:1px;}
+.top-sp{flex:1;}
+.top-search{position:relative;}
+.top-search svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:13px;height:13px;fill:none;stroke:var(--text3);stroke-width:2;}
+.top-search input{padding:6px 10px 6px 28px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text);width:200px;transition:all .15s;}
+.top-search input:focus{outline:none;border-color:var(--blue);width:240px;}
+.top-acts{display:flex;align-items:center;gap:8px;}
+.top-ib{width:32px;height:32px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;background:var(--s2);border:1px solid var(--border);color:var(--text2);transition:all .15s;cursor:pointer;position:relative;}
+.top-ib:hover{border-color:var(--border2);color:var(--text);}
+.top-ib svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;}
+.top-nd{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--red);border:1.5px solid var(--s1);}
+.top-user{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 6px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);}
+.top-avatar{width:24px;height:24px;border-radius:50%;background:var(--blue-bg);border:1px solid rgba(59,123,248,.3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--blue);}
+.top-uname{font-size:12px;font-weight:600;color:var(--text);}
+.top-logout{padding:5px 10px;border-radius:var(--r);border:1px solid var(--border);font-size:12px;font-weight:500;color:var(--text2);transition:all .15s;}
+.top-logout:hover{border-color:var(--red);color:var(--red);}
+
+/* BODY */
+.app-body{flex:1;display:grid;grid-template-columns:220px 1fr;overflow:hidden;}
+
+/* SIDEBAR */
+.sidebar{background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.sb-sec{padding:16px 10px 6px;}
+.sb-lbl{font-family:var(--f);font-size:9.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--text3);padding:0 8px;margin-bottom:4px;}
+.nb{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r);font-size:13px;font-weight:500;color:var(--text2);transition:all .12s;width:100%;text-align:left;margin-bottom:1px;}
+.nb:hover{background:var(--s2);color:var(--text);}
+.nb.on{background:var(--blue-bg);color:var(--blue);}
+.nb svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;flex-shrink:0;}
+.nb-badge{margin-left:auto;font-family:var(--f);font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;background:var(--red-bg);color:var(--red);}
+.sb-bot{margin-top:auto;padding:12px;border-top:1px solid var(--border);}
+.sb-ver{font-family:var(--f);font-size:10px;color:var(--text3);padding:6px 8px;}
+
+/* MAIN */
+.main{display:flex;flex-direction:column;overflow:hidden;}
+.page-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:var(--s1);}
+.page-title{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.2px;}
+.ph-sp{flex:1;}
+.act-btn{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--r);font-size:12px;font-weight:600;transition:all .15s;}
+.act-btn svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;}
+.ab-p{background:var(--blue);color:#fff;}
+.ab-p:hover{background:var(--blue-d);}
+.ab-g{border:1px solid var(--border);color:var(--text2);background:var(--s2);}
+.ab-g:hover{border-color:var(--border2);color:var(--text);}
+.page-content{flex:1;overflow-y:auto;padding:20px;}
+
+/* KPI */
+.kpi-g{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px;}
+.kpi{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:15px 16px;}
+.kpi-lbl{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin-bottom:9px;}
+.kpi-val{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.5px;line-height:1;}
+.kpi-d{font-size:11px;margin-top:5px;display:flex;align-items:center;gap:3px;}
+.kpi-d.up{color:var(--green);}
+.kpi-d.n{color:var(--text3);}
+.kpi-d svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.5;}
+
+/* CARD */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.card-h{padding:12px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.card-t{font-size:13px;font-weight:600;color:var(--text);}
+.csp{flex:1;}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;}
+th{padding:9px 13px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);background:var(--s2);border-bottom:1px solid var(--border);}
+td{padding:10px 13px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text2);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:rgba(255,255,255,.012);}
+td strong{color:var(--text);font-weight:600;}
+
+/* BADGE */
+.b{display:inline-flex;align-items:center;padding:2px 7px;border-radius:10px;font-size:10.5px;font-weight:600;font-family:var(--f);}
+.bg{background:var(--green-bg);color:var(--green);}
+.bb{background:var(--blue-bg);color:var(--blue);}
+.ba{background:var(--amber-bg);color:var(--amber);}
+.br{background:var(--red-bg);color:var(--red);}
+.bgy{background:var(--s2);color:var(--text3);border:1px solid var(--border);}
+
+/* SEARCH BOX */
+.srch{padding:6px 10px 6px 28px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text);width:200px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23404d66' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:8px center;}
+.srch:focus{outline:none;border-color:var(--blue);}
+
+/* SM BUTTONS */
+.smb{padding:3px 8px;border-radius:4px;font-size:10.5px;font-weight:600;cursor:pointer;font-family:var(--f);transition:all .12s;margin-right:3px;}
+.smb-b{background:var(--blue-bg);color:var(--blue);}
+.smb-b:hover{background:var(--blue);color:#fff;}
+.smb-g{background:var(--green-bg);color:var(--green);}
+.smb-g:hover{background:var(--green);color:#fff;}
+.smb-r{background:var(--red-bg);color:var(--red);}
+.smb-r:hover{background:var(--red);color:#fff;}
+.smb-a{background:var(--amber-bg);color:var(--amber);}
+
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;}
+
+/* PIPELINE */
+.pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.pipe-col{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:11px;}
+.pipe-col-t{font-family:var(--f);font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin-bottom:9px;}
+.lead-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:10px 11px;margin-bottom:6px;}
+.lc-name{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.lc-email{font-size:11px;color:var(--text3);font-family:var(--f);}
+.lc-note{font-size:11px;color:var(--text2);margin-top:4px;line-height:1.4;}
+.lc-date{font-size:10px;color:var(--text3);margin-top:3px;}
+.lc-acts{display:flex;gap:3px;margin-top:7px;flex-wrap:wrap;}
+
+/* ACTIVITY */
+.act-list{display:flex;flex-direction:column;}
+.act-item{display:flex;align-items:flex-start;gap:9px;padding:10px 15px;border-bottom:1px solid var(--border);}
+.act-item:last-child{border-bottom:none;}
+.act-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.act-msg{font-size:12.5px;color:var(--text2);line-height:1.45;}
+.act-msg strong{color:var(--text);font-weight:600;}
+.act-t{font-size:11px;color:var(--text3);font-family:var(--f);margin-top:2px;}
+
+/* BARS */
+.bars{display:flex;align-items:flex-end;gap:6px;height:80px;padding:0 4px;}
+.bw{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.bar{width:100%;background:var(--blue-bg);border-radius:3px 3px 0 0;border:1px solid rgba(59,123,248,.18);transition:background .2s;}
+.bar:hover{background:var(--blue);}
+.bl{font-family:var(--f);font-size:9px;color:var(--text3);}
+.bv{font-family:var(--f);font-size:9px;color:var(--text3);}
+
+/* SETTINGS */
+.st-sec{margin-bottom:24px;}
+.st-h{font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.st-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border);}
+.st-row:last-child{border-bottom:none;}
+.st-lbl{font-size:13px;color:var(--text);font-weight:500;}
+.st-desc{font-size:11px;color:var(--text3);margin-top:2px;}
+.toggle{width:40px;height:22px;border-radius:11px;background:var(--s3);border:1px solid var(--border);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--blue);}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle.on::after{transform:translateX(18px);}
+
+/* FORM */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-g{margin-bottom:13px;}
+.form-l{display:block;font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:5px;}
+.form-i{width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12.5px;transition:border-color .15s;}
+.form-i:focus{outline:none;border-color:var(--blue);}
+.form-s{width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12.5px;}
+.form-ta{width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12.5px;resize:vertical;min-height:68px;line-height:1.5;}
+
+/* MODAL */
+.m-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.m-ov.h{display:none;}
+.modal{background:var(--s1);border:1px solid var(--border);border-radius:10px;width:100%;max-width:500px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.6);}
+.m-h{padding:15px 19px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.m-t{font-size:14px;font-weight:700;color:var(--text);}
+.m-cl{padding:3px;color:var(--text3);cursor:pointer;border-radius:4px;}
+.m-cl:hover{color:var(--text);}
+.m-cl svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;display:block;}
+.m-b{padding:17px 19px;overflow-y:auto;flex:1;}
+.m-f{padding:12px 19px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;}
+.m-btn{padding:7px 14px;border-radius:var(--r);font-size:12.5px;font-weight:600;transition:all .15s;}
+.m-p{background:var(--blue);color:#fff;}
+.m-p:hover{background:var(--blue-d);}
+.m-g{border:1px solid var(--border);color:var(--text2);background:var(--s2);}
+
+/* NOTIF PANEL */
+.np{position:absolute;top:100%;right:0;width:300px;background:var(--s1);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.55);z-index:300;overflow:hidden;display:none;margin-top:4px;}
+.np.open{display:block;}
+.np-h{padding:10px 13px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text);}
+.ni{padding:10px 13px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;}
+.ni:last-child{border-bottom:none;}
+.ni:hover{background:var(--s2);}
+.ni-t{font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.ni-d{font-size:11px;color:var(--text2);}
+.ni-ts{font-size:10px;color:var(--text3);font-family:var(--f);margin-top:2px;}
+.ndot{width:6px;height:6px;border-radius:50%;background:var(--blue);flex-shrink:0;}
+
+/* TOAST */
+.toast{position:fixed;bottom:18px;right:18px;z-index:2000;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:9px 14px;font-size:12.5px;font-weight:500;color:var(--text);box-shadow:0 4px 20px rgba(0,0,0,.55);display:flex;align-items:center;gap:7px;transform:translateY(50px);opacity:0;transition:all .32s cubic-bezier(.34,1.56,.64,1);}
+.toast.show{transform:none;opacity:1;}
+.t-dot{width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;}
+
+/* PROGRESS BAR */
+.prog-wrap{margin:8px 0;}
+.prog-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;}
+.prog-lbl{color:var(--text2);font-weight:600;}
+.prog-val{font-family:var(--f);color:var(--text3);}
+.prog-track{height:5px;background:var(--s3);border-radius:3px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="screen active" id="ls">
+  <div class="lw">
+    <div class="l-brand">
+      <div class="l-brand-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 9l4-4 4 4M17 9l4-4-4-4"/><line x1="12" y1="3" x2="12" y2="21"/></svg></div>
+      <div class="l-brand-name">Petscan</div>
+      <div class="l-brand-badge">ADMIN</div>
+    </div>
+    <div class="l-card">
+      <div class="l-h">Administrator-Zugang</div>
+      <div class="l-s">Nur für autorisierte Administratoren zugänglich.</div>
+      <div id="l-err" class="l-err" style="display:none"></div>
+      <div class="fg"><label class="fl">E-Mail</label><input class="fi" type="email" id="l-em" placeholder="admin@petscan.de"></div>
+      <div class="fg"><label class="fl">Passwort</label><input class="fi" type="password" id="l-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="l-submit" onclick="doLogin()">
+        <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Anmelden
+      </button>
+    </div>
+    <div class="l-hint" id="l-hint"></div>
+    <div style="text-align:center;margin-top:10px;font-size:12px;color:var(--text3)"><a href="petscan-landing-final.html" style="color:#7eb3ff;font-weight:600">← Zurück zur Website</a></div>
+  </div>
+</div>
+
+<!-- ADMIN APP -->
+<div class="screen" id="as">
+  <div style="display:flex;flex-direction:column;width:100%;height:100%">
+    <!-- TOP -->
+    <div class="top">
+      <div class="top-brand">
+        <div class="top-bi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 9l4-4 4 4M17 9l4-4-4-4"/><line x1="12" y1="3" x2="12" y2="21"/></svg></div>
+        Petscan
+      </div>
+      <div class="top-badge">ADMIN</div>
+      <div class="top-sp"></div>
+      <div class="top-search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="Suchen …" oninput="globalSearch(this.value)">
+      </div>
+      <div class="top-acts">
+        <div class="top-ib" onclick="toggleNP()" id="np-btn" style="position:relative">
+          <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <div class="top-nd"></div>
+          <div class="np" id="np-panel">
+            <div class="np-h">Benachrichtigungen</div>
+            <div class="ni"><div style="display:flex;gap:7px;align-items:flex-start"><div class="ndot" style="margin-top:3px;flex-shrink:0"></div><div><div class="ni-t">Neuer Lead: Pferdeklinik Nord</div><div class="ni-d">Interesse am Professional Plan</div><div class="ni-ts">vor 12 Min</div></div></div></div>
+            <div class="ni"><div style="display:flex;gap:7px;align-items:flex-start"><div class="ndot" style="margin-top:3px;flex-shrink:0"></div><div><div class="ni-t">Neue Registrierung</div><div class="ni-d">Neuer Tierarzt hat sich angemeldet</div><div class="ni-ts">vor 1 Std</div></div></div></div>
+            <div class="ni"><div style="display:flex;gap:7px;align-items:flex-start"><div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:3px"></div><div><div class="ni-t">Monatsbericht März</div><div class="ni-d">247 Analysen, 8 neue Kunden</div><div class="ni-ts">heute 08:00</div></div></div></div>
+          </div>
+        </div>
+        <div class="top-ib" onclick="nav('settings')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+        <div class="top-user">
+          <div class="top-avatar">A</div>
+          <div class="top-uname">Admin</div>
+        </div>
+        <a href="petscan-app.html" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text2);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>KI-Plattform</a>
+<a href="petscan-landing-final.html" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text2);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Website</a>
+<button class="top-logout" onclick="doLogout()">Abmelden</button>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="app-body">
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="sb-sec">
+          <div class="sb-lbl">Übersicht</div>
+          <button class="nb on" data-v="dashboard" onclick="nav('dashboard',this)">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard
+          </button>
+          <button class="nb" data-v="analytics" onclick="nav('analytics',this)">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics
+          </button>
+        </div>
+        <div class="sb-sec">
+          <div class="sb-lbl">Verwaltung</div>
+          <button class="nb" data-v="customers" onclick="nav('customers',this)">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Kunden<span class="nb-badge" id="sb-c">0</span>
+          </button>
+          <button class="nb" data-v="leads" onclick="nav('leads',this)">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Leads<span class="nb-badge" id="sb-l">0</span>
+          </button>
+          <button class="nb" data-v="reports" onclick="nav('reports',this)">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Befunde
+          </button>
+        </div>
+        <div class="sb-sec">
+          <div class="sb-lbl">System</div>
+          <button class="nb" data-v="settings" onclick="nav('settings',this)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Einstellungen
+          </button>
+          <button class="nb" data-v="audit" onclick="nav('audit',this)">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Audit-Log
+          </button>
+        </div>
+        <div class="sb-bot"><div class="sb-ver">v1.0.0 · Petscan Admin</div></div>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main">
+        <div class="page-head" id="ph">
+          <span class="page-title" id="ph-t">Dashboard</span>
+          <div class="ph-sp"></div>
+          <button class="act-btn ab-g" onclick="openAddLeadModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Lead</button>
+          <button class="act-btn ab-p" id="main-act" onclick="openAddCustomerModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Kunde anlegen</button>
+        </div>
+        <div class="page-content" id="pc"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="m-ov h" id="m-ov">
+  <div class="modal">
+    <div class="m-h"><span class="m-t" id="m-t">–</span><button class="m-cl" onclick="cModal()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="m-b" id="m-b"></div>
+    <div class="m-f" id="m-f"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="t-dot"></div><span id="t-msg"></span></div>
+
+<script>
+// DATA
+const D={
+  customers:[
+    {id:'c1',name:'Dr. Anna Müller',email:'dr.mueller@tierklinik.de',praxis:'Tierklinik München-Mitte',plan:'Professional',analyses:47,revenue:149,joined:'2024-03-15',lastLogin:'2025-04-05',active:true},
+    {id:'c2',name:'Dr. Stefan Schmidt',email:'info@kleintierpraxis.de',praxis:'Kleintierpraxis Schmidt',plan:'Starter',analyses:22,revenue:49,joined:'2024-05-02',lastLogin:'2025-04-01',active:true},
+    {id:'c3',name:'Dr. Julia Weber',email:'vetberlin@example.de',praxis:'Veterinärklinik Berlin',plan:'Professional',analyses:89,revenue:149,joined:'2024-06-10',lastLogin:'2025-04-05',active:true},
+    {id:'c4',name:'Dr. Marcus Klein',email:'m.klein@tierarzt.de',praxis:'Tierarztpraxis Klein',plan:'Starter',analyses:11,revenue:49,joined:'2025-01-18',lastLogin:'2025-03-28',active:false},
+    {id:'c5',name:'Dr. Lisa Hoffmann',email:'lisa@pferdeklinik.de',praxis:'Pferdeklinik Hoffmann',plan:'Professional',analyses:134,revenue:149,joined:'2024-02-01',lastLogin:'2025-04-06',active:true},
+  ],
+  leads:[
+    {id:'l1',name:'Pferdeklinik Nord',contact:'Dr. Hans Meyer',email:'h.meyer@pferdeklinik-nord.de',msg:'Interesse am Professional Plan, 3 Tierärzte',status:'new',source:'Website',created:'2025-04-05'},
+    {id:'l2',name:'VetCenter Hamburg',contact:'Dr. Klaus Bauer',email:'k.bauer@vetcenter.de',msg:'Demo-Anfrage für gesamtes Team',status:'contacted',source:'Empfehlung',created:'2025-03-28'},
+    {id:'l3',name:'Kleintierpraxis Braun',contact:'Dr. Sandra Braun',email:'braun@praxis.de',msg:'Frage zur API-Integration',status:'demo',source:'Google',created:'2025-03-20'},
+    {id:'l4',name:'TiergesundheitCenter',contact:'Dr. Peter Vogel',email:'p.vogel@tgc.de',msg:'Enterprise-Anfrage, 10+ Nutzer',status:'proposal',source:'Messe',created:'2025-03-10'},
+  ],
+  reports:[
+    {id:'r1',cid:'c1',customer:'Dr. Anna Müller',species:'Hund',region:'Thorax',severity:'mid',created:'2025-04-05T10:23:00'},
+    {id:'r2',cid:'c3',customer:'Dr. Julia Weber',species:'Katze',region:'Abdomen',severity:'high',created:'2025-04-04T14:45:00'},
+    {id:'r3',cid:'c5',customer:'Dr. Lisa Hoffmann',species:'Pferd',region:'Extremitäten',severity:'low',created:'2025-04-04T09:12:00'},
+    {id:'r4',cid:'c1',customer:'Dr. Anna Müller',species:'Hund',region:'Schädel',severity:'low',created:'2025-04-03T16:30:00'},
+    {id:'r5',cid:'c2',customer:'Dr. Stefan Schmidt',species:'Katze',region:'Thorax',severity:'mid',created:'2025-04-03T11:05:00'},
+  ],
+  audit:[
+    {action:'Login',user:'admin',detail:'Sitzung gestartet',time:'2025-04-06T07:45:00',type:'auth'},
+    {action:'Kunde angelegt',user:'admin',detail:'dr.mueller@tierklinik.de',time:'2025-04-05T08:00:00',type:'create'},
+    {action:'Lead-Status geändert',user:'admin',detail:'VetCenter → Kontaktiert',time:'2025-04-04T15:22:00',type:'update'},
+    {action:'Befund gelöscht',user:'admin',detail:'ID: r3',time:'2025-04-04T10:11:00',type:'delete'},
+    {action:'Plan geändert',user:'admin',detail:'Dr. Klein: Starter → Pro',time:'2025-04-03T14:00:00',type:'update'},
+  ]
+};
+const mrr=()=>D.customers.filter(c=>c.active).reduce((s,c)=>s+c.revenue,0);
+const total=()=>D.customers.reduce((s,c)=>s+c.analyses,0);
+const newL=()=>D.leads.filter(l=>l.status==='new').length;
+
+// AUTH
+document.addEventListener('DOMContentLoaded',()=>{
+  const h=document.getElementById('l-hint');
+  if(h) h.textContent='Demo: admin'+'\u0040'+'petscan.de / admin123';
+});
+function doLogin(){
+  const em=document.getElementById('l-em').value.trim();
+  const pw=document.getElementById('l-pw').value;
+  const err=document.getElementById('l-err');
+  if(em==='admin@petscan.de'&&pw==='admin123'){
+    err.style.display='none';
+    document.getElementById('ls').classList.remove('active');
+    document.getElementById('as').classList.add('active');
+    document.getElementById('as').style.display='flex';
+    init();
+  } else { err.style.display='block'; err.textContent='Falsche Anmeldedaten.'; }
+}
+function doLogout(){
+  document.getElementById('as').classList.remove('active');
+  document.getElementById('as').style.display='none';
+  document.getElementById('ls').classList.add('active');
+  document.getElementById('l-pw').value='';
+}
+function init(){ updBadges(); rDash(); }
+
+// NAV
+function nav(view,btn){
+  if(btn){document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+  const titles={dashboard:'Dashboard',analytics:'Analytics',customers:'Kunden',leads:'Lead-Pipeline',reports:'Alle Befunde',settings:'Einstellungen',audit:'Audit-Log'};
+  document.getElementById('ph-t').textContent=titles[view]||view;
+  ({dashboard:rDash,analytics:rAnalytics,customers:()=>rCustomers(),leads:rLeads,reports:rReports,settings:rSettings,audit:rAudit}[view]||rDash)();
+}
+function updBadges(){
+  document.getElementById('sb-c').textContent=D.customers.filter(c=>c.active).length;
+  document.getElementById('sb-l').textContent=newL();
+}
+function globalSearch(q){if(!q)return;rCustomers(q.toLowerCase());}
+
+// DASHBOARD
+function rDash(){
+  const wd=[12,18,14,22,31,27,19],days=['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const mx=Math.max(...wd);
+  document.getElementById('pc').innerHTML=`
+    <div class="kpi-g">
+      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${D.customers.filter(c=>c.active).length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
+      <div class="kpi"><div class="kpi-lbl">Offene Leads</div><div class="kpi-val">${D.leads.length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>${newL()} neu</div></div>
+      <div class="kpi"><div class="kpi-lbl">Gesamtanalysen</div><div class="kpi-val">${total()}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+${D.reports.length} diese Woche</div></div>
+      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrr()} €</div><div class="kpi-d n">monatlich</div></div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-h"><span class="card-t">Analysen diese Woche</span><span style="font-family:var(--f);font-size:10px;color:var(--text3);margin-left:auto">143 gesamt</span></div>
+        <div style="padding:14px"><div class="bars">${wd.map((v,i)=>`<div class="bw"><div class="bv">${v}</div><div class="bar" style="height:${Math.round((v/mx)*64)+8}px"></div><div class="bl">${days[i]}</div></div>`).join('')}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><span class="card-t">Aktivität</span></div>
+        <div class="act-list">${D.audit.slice(0,5).map(a=>`<div class="act-item"><div class="act-dot" style="background:${a.type==='create'?'var(--green)':a.type==='delete'?'var(--red)':a.type==='auth'?'var(--blue)':'var(--amber)'}"></div><div><div class="act-msg"><strong>${a.action}</strong> — ${a.detail}</div><div class="act-t">${fF(a.time)}</div></div></div>`).join('')}</div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-h"><span class="card-t">Top-Kunden</span><div class="csp"></div><button class="smb smb-b" onclick="nav('customers',document.querySelector('[data-v=customers]'))">Alle</button></div>
+        <table><thead><tr><th>Name</th><th>Plan</th><th>Analysen</th><th>Status</th></tr></thead><tbody>
+          ${[...D.customers].sort((a,b)=>b.analyses-a.analyses).slice(0,4).map(c=>`<tr><td><strong>${c.name}</strong><br><span style="font-size:11px;color:var(--text3)">${c.praxis}</span></td><td><span class="b ${c.plan==='Professional'?'bb':'bgy'}">${c.plan}</span></td><td style="font-family:var(--f)">${c.analyses}</td><td><span class="b ${c.active?'bg':'bgy'}">${c.active?'Aktiv':'Inaktiv'}</span></td></tr>`).join('')}
+        </tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-h"><span class="card-t">Lead-Pipeline</span><div class="csp"></div><button class="smb smb-b" onclick="nav('leads',document.querySelector('[data-v=leads]'))">Alle</button></div>
+        <table><thead><tr><th>Lead</th><th>Quelle</th><th>Status</th></tr></thead><tbody>
+          ${D.leads.map(l=>`<tr><td><strong>${l.name}</strong><br><span style="font-size:11px;color:var(--text3)">${l.contact}</span></td><td style="font-size:11px">${l.source}</td><td><span class="b ${lBadge(l.status)}">${lLabel(l.status)}</span></td></tr>`).join('')}
+        </tbody></table>
+      </div>
+    </div>`;
+}
+
+// ANALYTICS
+function rAnalytics(){
+  const months=['Okt','Nov','Dez','Jan','Feb','Mär'];
+  const mData=[3,5,6,8,9,11],rData=[34,67,89,112,143,187];
+  const mMax=Math.max(...mData),rMax=Math.max(...rData);
+  document.getElementById('pc').innerHTML=`
+    <div class="g3">
+      <div class="kpi"><div class="kpi-lbl">Conversion Rate</div><div class="kpi-val">28<span style="font-size:16px">%</span></div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>Lead → Kunde</div></div>
+      <div class="kpi"><div class="kpi-lbl">Ø Analysen / Kunde</div><div class="kpi-val">${Math.round(total()/D.customers.length)}</div><div class="kpi-d n">pro Monat</div></div>
+      <div class="kpi"><div class="kpi-lbl">Churn Rate</div><div class="kpi-val">4<span style="font-size:16px">%</span></div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>Niedrig</div></div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-h"><span class="card-t">Kundenwachstum (6 Monate)</span></div>
+        <div style="padding:14px"><div class="bars" style="height:100px">${mData.map((v,i)=>`<div class="bw"><div class="bv">${v}</div><div class="bar" style="height:${Math.round((v/mMax)*80)+8}px;background:var(--green-bg);border-color:rgba(34,197,94,.2)"></div><div class="bl">${months[i]}</div></div>`).join('')}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><span class="card-t">Analysen-Wachstum (6 Monate)</span></div>
+        <div style="padding:14px"><div class="bars" style="height:100px">${rData.map((v,i)=>`<div class="bw"><div class="bv">${v}</div><div class="bar" style="height:${Math.round((v/rMax)*80)+8}px"></div><div class="bl">${months[i]}</div></div>`).join('')}</div></div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-h"><span class="card-t">Plan-Verteilung</span></div>
+        <div style="padding:14px">
+          ${[['Professional',D.customers.filter(c=>c.plan==='Professional').length,'var(--blue)'],['Starter',D.customers.filter(c=>c.plan==='Starter').length,'var(--text3)']].map(([p,n,c])=>`<div class="prog-wrap"><div class="prog-row"><span class="prog-lbl">${p}</span><span class="prog-val">${n} Kunden</span></div><div class="prog-track"><div class="prog-fill" style="width:${Math.round(n/D.customers.length*100)}%;background:${c}"></div></div></div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><span class="card-t">Lead-Quellen</span></div>
+        <div style="padding:14px">
+          ${[['Website','45%'],['Empfehlung','28%'],['Google','18%'],['Messen','9%']].map(([s,p])=>`<div class="prog-wrap"><div class="prog-row"><span class="prog-lbl">${s}</span><span class="prog-val">${p}</span></div><div class="prog-track"><div class="prog-fill" style="width:${p};background:var(--amber)"></div></div></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+// CUSTOMERS
+function rCustomers(q=''){
+  let custs=D.customers;
+  if(q) custs=custs.filter(c=>(c.name+c.email+c.praxis+c.plan).toLowerCase().includes(q));
+  document.getElementById('pc').innerHTML=`
+    <div class="card">
+      <div class="card-h"><span class="card-t">Alle Kunden (${custs.length})</span><div class="csp"></div><input class="srch" placeholder="Suchen …" value="${q}" oninput="rCustomers(this.value.toLowerCase())"></div>
+      <table><thead><tr><th>Name / Praxis</th><th>Plan</th><th>Analysen</th><th>Letzter Login</th><th>Beitritt</th><th>Status</th><th></th></tr></thead><tbody>
+        ${custs.map(c=>`<tr><td><strong>${c.name}</strong><br><span style="font-size:11px;color:var(--text3)">${c.praxis} · ${c.email}</span></td><td><span class="b ${c.plan==='Professional'?'bb':'bgy'}">${c.plan}</span></td><td style="font-family:var(--f)">${c.analyses}</td><td>${fmt(c.lastLogin)}</td><td>${fmt(c.joined)}</td><td><span class="b ${c.active?'bg':'bgy'}">${c.active?'Aktiv':'Inaktiv'}</span></td><td><button class="smb smb-b" onclick="editCustomer('${c.id}')">Bearbeiten</button><button class="smb smb-r" onclick="deleteCustomer('${c.id}')">Entfernen</button></td></tr>`).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+function editCustomer(id){
+  const c=D.customers.find(x=>x.id===id);if(!c)return;
+  openModal('Kunde bearbeiten',`
+    <div class="form-row"><div class="form-g"><label class="form-l">Name</label><input class="form-i" id="m-name" value="${c.name}"></div><div class="form-g"><label class="form-l">Praxis</label><input class="form-i" id="m-praxis" value="${c.praxis}"></div></div>
+    <div class="form-g"><label class="form-l">E-Mail</label><input class="form-i" id="m-email" value="${c.email}"></div>
+    <div class="form-row">
+      <div class="form-g"><label class="form-l">Plan</label><select class="form-s" id="m-plan"><option ${c.plan==='Starter'?'selected':''}>Starter</option><option ${c.plan==='Professional'?'selected':''}>Professional</option><option ${c.plan==='Klinik'?'selected':''}>Klinik</option></select></div>
+      <div class="form-g"><label class="form-l">Status</label><select class="form-s" id="m-active"><option value="true" ${c.active?'selected':''}>Aktiv</option><option value="false" ${!c.active?'selected':''}>Inaktiv</option></select></div>
+    </div>`,
+    `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="saveCustomer('${id}')">Speichern</button>`);
+}
+function saveCustomer(id){
+  const c=D.customers.find(x=>x.id===id);if(!c)return;
+  c.name=v('m-name');c.praxis=v('m-praxis');c.email=v('m-email');
+  c.plan=v('m-plan','s');c.active=v('m-active','s')==='true';
+  D.audit.unshift({action:'Kunde bearbeitet',user:'admin',detail:c.email,time:new Date().toISOString(),type:'update'});
+  cModal();rCustomers();toast('Kunde gespeichert');
+}
+function deleteCustomer(id){
+  if(!confirm('Kunden wirklich entfernen?'))return;
+  D.customers=D.customers.filter(c=>c.id!==id);
+  updBadges();rCustomers();toast('Kunde entfernt');
+}
+function openAddCustomerModal(){
+  openModal('Neuen Kunden anlegen',`
+    <div class="form-row"><div class="form-g"><label class="form-l">Name</label><input class="form-i" id="m-name" placeholder="Dr. Max Mustermann"></div><div class="form-g"><label class="form-l">Praxis</label><input class="form-i" id="m-praxis" placeholder="Tierarztpraxis ..."></div></div>
+    <div class="form-g"><label class="form-l">E-Mail</label><input class="form-i" id="m-email" placeholder="email@praxis.de"></div>
+    <div class="form-row"><div class="form-g"><label class="form-l">Temp. Passwort</label><input class="form-i" id="m-pw" value="demo123"></div><div class="form-g"><label class="form-l">Plan</label><select class="form-s" id="m-plan"><option>Starter</option><option>Professional</option><option>Klinik</option></select></div></div>`,
+    `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="doAddCustomer()">Anlegen</button>`);
+}
+function doAddCustomer(){
+  D.customers.push({id:'c'+Date.now(),name:v('m-name'),email:v('m-email'),praxis:v('m-praxis'),plan:v('m-plan','s'),analyses:0,revenue:v('m-plan','s')==='Professional'?149:49,joined:new Date().toISOString().slice(0,10),lastLogin:null,active:true});
+  D.audit.unshift({action:'Kunde angelegt',user:'admin',detail:v('m-email'),time:new Date().toISOString(),type:'create'});
+  cModal();updBadges();rCustomers();toast('Kunde angelegt');
+}
+
+// LEADS
+function rLeads(){
+  const statuses=['new','contacted','demo','proposal'];
+  document.getElementById('pc').innerHTML=`<div class="pipe">${statuses.map(s=>`
+    <div class="pipe-col">
+      <div class="pipe-col-t">${lLabel(s)} (${D.leads.filter(l=>l.status===s).length})</div>
+      ${D.leads.filter(l=>l.status===s).map(l=>`
+        <div class="lead-card">
+          <div class="lc-name">${l.name}</div>
+          <div class="lc-email">${l.email}</div>
+          <div class="lc-note">${l.msg}</div>
+          <div style="margin-top:4px"><span class="b bgy" style="font-size:9.5px">${l.source}</span></div>
+          <div class="lc-date">${fmt(l.created)}</div>
+          <div class="lc-acts">
+            ${s!=='proposal'?`<button class="smb smb-b" onclick="advLead('${l.id}')">Weiter</button>`:''}
+            ${s==='proposal'?`<button class="smb smb-g" onclick="convLead('${l.id}')">Zu Kunde</button>`:''}
+            <button class="smb smb-r" onclick="delLead('${l.id}')">Entfernen</button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('')}</div>`;
+}
+function advLead(id){
+  const l=D.leads.find(x=>x.id===id);if(!l)return;
+  const next={new:'contacted',contacted:'demo',demo:'proposal'};
+  if(next[l.status]){l.status=next[l.status];D.audit.unshift({action:'Lead-Status',user:'admin',detail:`${l.name} → ${lLabel(l.status)}`,time:new Date().toISOString(),type:'update'});}
+  rLeads();toast('Lead aktualisiert');
+}
+function convLead(id){
+  const l=D.leads.find(x=>x.id===id);if(!l)return;
+  openModal('Lead zu Kunde',`
+    <div class="form-g"><label class="form-l">Name</label><input class="form-i" id="m-name" value="${l.contact}"></div>
+    <div class="form-g"><label class="form-l">Praxis</label><input class="form-i" id="m-praxis" value="${l.name}"></div>
+    <div class="form-g"><label class="form-l">E-Mail</label><input class="form-i" id="m-email" value="${l.email}"></div>
+    <div class="form-row"><div class="form-g"><label class="form-l">Passwort</label><input class="form-i" id="m-pw" value="demo123"></div><div class="form-g"><label class="form-l">Plan</label><select class="form-s" id="m-plan"><option>Starter</option><option selected>Professional</option></select></div></div>`,
+    `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="doConvLead('${id}')">Anlegen</button>`);
+}
+function doConvLead(lid){
+  D.customers.push({id:'c'+Date.now(),name:v('m-name'),email:v('m-email'),praxis:v('m-praxis'),plan:v('m-plan','s'),analyses:0,revenue:v('m-plan','s')==='Professional'?149:49,joined:new Date().toISOString().slice(0,10),lastLogin:null,active:true});
+  D.leads=D.leads.filter(l=>l.id!==lid);
+  D.audit.unshift({action:'Lead konvertiert',user:'admin',detail:v('m-email'),time:new Date().toISOString(),type:'create'});
+  cModal();updBadges();rLeads();toast('Kunde angelegt');
+}
+function delLead(id){D.leads=D.leads.filter(l=>l.id!==id);updBadges();rLeads();toast('Lead entfernt');}
+function openAddLeadModal(){
+  openModal('Lead hinzufügen',`
+    <div class="form-row"><div class="form-g"><label class="form-l">Unternehmen</label><input class="form-i" id="m-name" placeholder="Tierarztpraxis ..."></div><div class="form-g"><label class="form-l">Kontaktperson</label><input class="form-i" id="m-contact" placeholder="Dr. ..."></div></div>
+    <div class="form-row"><div class="form-g"><label class="form-l">E-Mail</label><input class="form-i" id="m-email" placeholder="email@praxis.de"></div><div class="form-g"><label class="form-l">Quelle</label><select class="form-s" id="m-src"><option>Website</option><option>Empfehlung</option><option>Google</option><option>Messe</option><option>Sonstige</option></select></div></div>
+    <div class="form-g"><label class="form-l">Notiz</label><textarea class="form-ta" id="m-note" placeholder="Interesse, Anforderungen ..."></textarea></div>`,
+    `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="doAddLead()">Hinzufügen</button>`);
+}
+function doAddLead(){
+  D.leads.push({id:'l'+Date.now(),name:v('m-name'),contact:v('m-contact'),email:v('m-email'),msg:v('m-note')||'–',status:'new',source:v('m-src','s'),created:new Date().toISOString().slice(0,10)});
+  D.audit.unshift({action:'Lead hinzugefügt',user:'admin',detail:v('m-email'),time:new Date().toISOString(),type:'create'});
+  cModal();updBadges();rLeads();toast('Lead hinzugefügt');
+}
+
+// REPORTS
+function rReports(){
+  document.getElementById('pc').innerHTML=`
+    <div class="card">
+      <div class="card-h"><span class="card-t">Alle Befunde (${D.reports.length})</span></div>
+      <table><thead><tr><th>Tierarzt</th><th>Tierart</th><th>Region</th><th>Dringlichkeit</th><th>Datum</th><th></th></tr></thead><tbody>
+        ${D.reports.map(r=>`<tr><td><strong>${r.customer}</strong></td><td>${r.species}</td><td>${r.region}</td><td><span class="b ${r.severity==='low'?'bg':r.severity==='high'?'br':'ba'}">${r.severity==='low'?'NIEDRIG':r.severity==='high'?'HOCH':'MITTEL'}</span></td><td style="font-family:var(--f);font-size:11px">${fF(r.created)}</td><td><button class="smb smb-r" onclick="delReport('${r.id}')">Löschen</button></td></tr>`).join('')}
+      </tbody></table>
+    </div>`;
+}
+function delReport(id){
+  if(!confirm('Befund löschen?'))return;
+  D.reports=D.reports.filter(r=>r.id!==id);
+  D.audit.unshift({action:'Befund gelöscht',user:'admin',detail:`ID: ${id}`,time:new Date().toISOString(),type:'delete'});
+  rReports();toast('Befund gelöscht');
+}
+
+// SETTINGS
+function rSettings(){
+  document.getElementById('pc').innerHTML=`<div style="max-width:680px">
+    <div class="st-sec">
+      <div class="st-h">Allgemein</div>
+      <div class="st-row"><div><div class="st-lbl">Plattform-Name</div><div class="st-desc">In E-Mails und der Plattform angezeigt</div></div><input class="form-i" style="width:180px" value="Petscan"></div>
+      <div class="st-row"><div><div class="st-lbl">Support-E-Mail</div><div class="st-desc">Kontaktadresse für Kunden</div></div><input class="form-i" style="width:220px" id="s-email"></div>
+    </div>
+    <div class="st-sec">
+      <div class="st-h">Analyse-Einstellungen</div>
+      <div class="st-row"><div><div class="st-lbl">KI-Modell</div><div class="st-desc">Aktuell verwendetes Analysemodell</div></div><select class="form-s" style="width:180px"><option>Claude Sonnet 4</option><option>Claude Opus 4</option></select></div>
+      <div class="st-row"><div><div class="st-lbl">Automatisches PDF speichern</div><div class="st-desc">Nach jeder Analyse automatisch PDF erstellen</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="st-row"><div><div class="st-lbl">Audit-Log aktiviert</div><div class="st-desc">Alle Admin-Aktionen protokollieren</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="st-sec">
+      <div class="st-h">API & Integrationen</div>
+      <div class="st-row"><div><div class="st-lbl">Anthropic API Key</div><div class="st-desc">Für die KI-Bildanalyse</div></div><input class="form-i" style="width:260px" type="password" placeholder="sk-ant-..." value="••••••••••••"></div>
+      <div class="st-row"><div><div class="st-lbl">Google OAuth Client-ID</div><div class="st-desc">Für Google Sign-In auf der Landingpage</div></div><input class="form-i" style="width:260px" placeholder="xxxxx.apps.googleusercontent.com"></div>
+    </div>
+    <button class="act-btn ab-p" onclick="toast('Einstellungen gespeichert')">Einstellungen speichern</button>
+  </div>`;
+  const se=document.getElementById('s-email');
+  if(se) se.value='support'+'\u0040'+'petscan.de';
+}
+
+// AUDIT
+function rAudit(){
+  document.getElementById('pc').innerHTML=`
+    <div class="card">
+      <div class="card-h"><span class="card-t">Audit-Log (${D.audit.length} Einträge)</span><div class="csp"></div><button class="smb smb-a" onclick="toast('CSV Export gestartet …')">CSV exportieren</button></div>
+      <table><thead><tr><th>Aktion</th><th>Nutzer</th><th>Detail</th><th>Typ</th><th>Zeitstempel</th></tr></thead><tbody>
+        ${D.audit.map(a=>`<tr><td><strong>${a.action}</strong></td><td style="font-family:var(--f);font-size:11px">${a.user}</td><td style="font-size:12px">${a.detail}</td><td><span class="b ${a.type==='create'?'bg':a.type==='delete'?'br':a.type==='auth'?'bb':'ba'}">${a.type}</span></td><td style="font-family:var(--f);font-size:11px">${fF(a.time)}</td></tr>`).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+// UTILS
+function lBadge(s){return {new:'br',contacted:'ba',demo:'bb',proposal:'bg'}[s]||'bgy';}
+function lLabel(s){return {new:'Neu',contacted:'Kontaktiert',demo:'Demo',proposal:'Angebot'}[s]||s;}
+function fmt(d){try{return new Date(d).toLocaleDateString('de-DE');}catch{return d||'–';}}
+function fF(d){try{return new Date(d).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return d||'–';}}
+function v(id,tag='input'){return (tag==='s'?document.getElementById(id)?.value:document.getElementById(id)?.value)?.trim()||'';}
+function openModal(title,body,footer){document.getElementById('m-t').textContent=title;document.getElementById('m-b').innerHTML=body;document.getElementById('m-f').innerHTML=footer;document.getElementById('m-ov').classList.remove('h');}
+function cModal(){document.getElementById('m-ov').classList.add('h');}
+function toast(msg){document.getElementById('t-msg').textContent=msg;const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+function toggleNP(){document.getElementById('np-panel').classList.toggle('open');}
+document.addEventListener('click',e=>{if(!e.target.closest('#np-btn'))document.getElementById('np-panel')?.classList.remove('open');});
+</script>
+</body>
+</html>
