@@ -448,12 +448,18 @@ function globalSearch(q){if(!q)return;rCustomers(q.toLowerCase());}
 function rDash(){
   const wd=[12,18,14,22,31,27,19],days=['Mo','Di','Mi','Do','Fr','Sa','So'];
   const mx=Math.max(...wd);
+  const S=window._stats||{};
+  const activeC=S.customers||D.customers.filter(c=>c.active).length;
+  const leadsN=S.leads||D.leads.length;
+  const newLeadsN=S.new_leads||newL();
+  const totalA=S.analyses||total();
+  const mrrV=S.mrr||mrr();
   document.getElementById('pc').innerHTML=`
     <div class="kpi-g">
-      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${D.customers.filter(c=>c.active).length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
+      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${activeC}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
       <div class="kpi"><div class="kpi-lbl">Offene Leads</div><div class="kpi-val">${D.leads.length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>${newL()} neu</div></div>
       <div class="kpi"><div class="kpi-lbl">Gesamtanalysen</div><div class="kpi-val">${total()}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+${D.reports.length} diese Woche</div></div>
-      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrr()} €</div><div class="kpi-d n">monatlich</div></div>
+      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrrV} €</div><div class="kpi-d n">monatlich</div></div>
     </div>
     <div class="g2">
       <div class="card">
