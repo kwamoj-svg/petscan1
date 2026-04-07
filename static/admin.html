@@ -268,7 +268,7 @@ td strong{color:var(--text);font-weight:600;}
       </button>
     </div>
     <div class="l-hint" id="l-hint"></div>
-    <div style="text-align:center;margin-top:10px;font-size:12px;color:var(--text3)"><a href="petscan-landing-final.html" style="color:#7eb3ff;font-weight:600">← Zurück zur Website</a></div>
+    <div style="text-align:center;margin-top:10px;font-size:12px;color:var(--text3)"><a href="/" style="color:#7eb3ff;font-weight:600">← Zurück zur Website</a></div>
   </div>
 </div>
 
@@ -303,8 +303,8 @@ td strong{color:var(--text);font-weight:600;}
           <div class="top-avatar">A</div>
           <div class="top-uname">Admin</div>
         </div>
-        <a href="petscan-app.html" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text2);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>KI-Plattform</a>
-<a href="petscan-landing-final.html" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text2);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Website</a>
+        <a href="/app" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text2);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>KI-Plattform</a>
+<a href="/" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text2);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Website</a>
 <button class="top-logout" onclick="doLogout()">Abmelden</button>
       </div>
     </div>
@@ -448,18 +448,12 @@ function globalSearch(q){if(!q)return;rCustomers(q.toLowerCase());}
 function rDash(){
   const wd=[12,18,14,22,31,27,19],days=['Mo','Di','Mi','Do','Fr','Sa','So'];
   const mx=Math.max(...wd);
-  const S=window._stats||{};
-  const activeC=S.customers||D.customers.filter(c=>c.active).length;
-  const leadsN=S.leads||D.leads.length;
-  const newLeadsN=S.new_leads||newL();
-  const totalA=S.analyses||total();
-  const mrrV=S.mrr||mrr();
   document.getElementById('pc').innerHTML=`
     <div class="kpi-g">
-      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${activeC}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
+      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${D.customers.filter(c=>c.active).length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
       <div class="kpi"><div class="kpi-lbl">Offene Leads</div><div class="kpi-val">${D.leads.length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>${newL()} neu</div></div>
       <div class="kpi"><div class="kpi-lbl">Gesamtanalysen</div><div class="kpi-val">${total()}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+${D.reports.length} diese Woche</div></div>
-      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrrV} €</div><div class="kpi-d n">monatlich</div></div>
+      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrr()} €</div><div class="kpi-d n">monatlich</div></div>
     </div>
     <div class="g2">
       <div class="card">
