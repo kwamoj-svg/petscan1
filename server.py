@@ -591,8 +591,10 @@ def contact():
     return jsonify({'ok':True}), 201
 
 # ═══════════════════════════════════════════════════
-# START
+# START — Datenbank beim Import initialisieren (wichtig für Gunicorn)
 # ═══════════════════════════════════════════════════
+init_db()
+
 if __name__ == '__main__':
     init_db()
     port  = int(os.environ.get('PORT', 5000))
