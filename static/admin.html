@@ -445,15 +445,31 @@ function updBadges(){
 function globalSearch(q){if(!q)return;rCustomers(q.toLowerCase());}
 
 // DASHBOARD
-function rDash(){
+async function rDash(){
+  // Load live stats from API
+  try{
+    const res=await fetch('/api/admin/stats',{headers:authHeader()});
+    if(res.ok){
+      const s=await res.json();
+      window._liveStats=s;
+    }
+  }catch(e){}
+  const S=window._liveStats||{};
+  const activeC=S.customers!==undefined?S.customers:D.customers.filter(c=>c.active).length;
+  const leadsN=S.leads!==undefined?S.leads:D.leads.length;
+  const newLeadsN=S.new_leads!==undefined?S.new_leads:newL();
+  const totalA=S.analyses!==undefined?S.analyses:total();
+  const mrrV=S.mrr!==undefined?S.mrr:mrr();
+  const auditItems=S.audit&&S.audit.length?S.audit:D.audit;
+
   const wd=[12,18,14,22,31,27,19],days=['Mo','Di','Mi','Do','Fr','Sa','So'];
   const mx=Math.max(...wd);
   document.getElementById('pc').innerHTML=`
     <div class="kpi-g">
-      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${D.customers.filter(c=>c.active).length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
-      <div class="kpi"><div class="kpi-lbl">Offene Leads</div><div class="kpi-val">${D.leads.length}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>${newL()} neu</div></div>
-      <div class="kpi"><div class="kpi-lbl">Gesamtanalysen</div><div class="kpi-val">${total()}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+${D.reports.length} diese Woche</div></div>
-      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrr()} €</div><div class="kpi-d n">monatlich</div></div>
+      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${activeC}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
+      <div class="kpi"><div class="kpi-lbl">Offene Leads</div><div class="kpi-val">${leadsN}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>${newLeadsN} neu</div></div>
+      <div class="kpi"><div class="kpi-lbl">Gesamtanalysen</div><div class="kpi-val">${totalA}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>diese Woche</div></div>
+      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrrV} €</div><div class="kpi-d n">monatlich</div></div>
     </div>
     <div class="g2">
       <div class="card">
@@ -462,7 +478,7 @@ function rDash(){
       </div>
       <div class="card">
         <div class="card-h"><span class="card-t">Aktivität</span></div>
-        <div class="act-list">${D.audit.slice(0,5).map(a=>`<div class="act-item"><div class="act-dot" style="background:${a.type==='create'?'var(--green)':a.type==='delete'?'var(--red)':a.type==='auth'?'var(--blue)':'var(--amber)'}"></div><div><div class="act-msg"><strong>${a.action}</strong> — ${a.detail}</div><div class="act-t">${fF(a.time)}</div></div></div>`).join('')}</div>
+        <div class="act-list">${auditItems.slice(0,5).map(a=>`<div class="act-item"><div class="act-dot" style="background:${a.type==='create'?'var(--green)':a.type==='delete'?'var(--red)':a.type==='auth'?'var(--blue)':'var(--amber)'}"></div><div><div class="act-msg"><strong>${a.action}</strong> — ${a.detail}</div><div class="act-t">${fF(a.time)}</div></div></div>`).join('')}</div>
       </div>
     </div>
     <div class="g2">
@@ -568,7 +584,12 @@ function doAddCustomer(){
 }
 
 // LEADS
-function rLeads(){
+async function rLeads(){
+  try{
+    const res=await fetch('/api/admin/leads',{headers:authHeader()});
+    if(res.ok){const data=await res.json();D.leads=data.leads.map(l=>({...l,msg:l.message||l.msg||'–',created:l.created_at||l.created}));}
+  }catch(e){}
+
   const statuses=['new','contacted','demo','proposal'];
   document.getElementById('pc').innerHTML=`<div class="pipe">${statuses.map(s=>`
     <div class="pipe-col">
@@ -609,7 +630,10 @@ function doConvLead(lid){
   D.audit.unshift({action:'Lead konvertiert',user:'admin',detail:v('m-email'),time:new Date().toISOString(),type:'create'});
   cModal();updBadges();rLeads();toast('Kunde angelegt');
 }
-function delLead(id){D.leads=D.leads.filter(l=>l.id!==id);updBadges();rLeads();toast('Lead entfernt');}
+async function delLead(id){
+  try{await fetch('/api/admin/leads/'+id,{method:'DELETE',headers:authHeader()});}catch(e){}
+  D.leads=D.leads.filter(l=>l.id!==id);updBadges();rLeads();toast('Lead entfernt');
+}
 function openAddLeadModal(){
   openModal('Lead hinzufügen',`
     <div class="form-row"><div class="form-g"><label class="form-l">Unternehmen</label><input class="form-i" id="m-name" placeholder="Tierarztpraxis ..."></div><div class="form-g"><label class="form-l">Kontaktperson</label><input class="form-i" id="m-contact" placeholder="Dr. ..."></div></div>
@@ -624,7 +648,12 @@ function doAddLead(){
 }
 
 // REPORTS
-function rReports(){
+async function rReports(){
+  try{
+    const res=await fetch('/api/admin/reports',{headers:authHeader()});
+    if(res.ok){const data=await res.json();D.reports=data.reports.map(r=>({...r,customer:r.user_name||r.customer||'–',created:r.created_at||r.created}));}
+  }catch(e){}
+
   document.getElementById('pc').innerHTML=`
     <div class="card">
       <div class="card-h"><span class="card-t">Alle Befunde (${D.reports.length})</span></div>
@@ -666,7 +695,12 @@ function rSettings(){
 }
 
 // AUDIT
-function rAudit(){
+async function rAudit(){
+  try{
+    const res=await fetch('/api/admin/stats',{headers:authHeader()});
+    if(res.ok){const s=await res.json();if(s.audit)D.audit=s.audit.map(a=>({...a,time:a.created_at||a.time,type:a.action?.includes('angelegt')||a.action?.includes('Registrierung')?'create':a.action?.includes('gelöscht')||a.action?.includes('deaktiviert')?'delete':a.action?.includes('Login')?'auth':'update'}));}
+  }catch(e){}
+
   document.getElementById('pc').innerHTML=`
     <div class="card">
       <div class="card-h"><span class="card-t">Audit-Log (${D.audit.length} Einträge)</span><div class="csp"></div><button class="smb smb-a" onclick="toast('CSV Export gestartet …')">CSV exportieren</button></div>
