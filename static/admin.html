@@ -407,23 +407,58 @@ const total=()=>D.customers.reduce((s,c)=>s+c.analyses,0);
 const newL=()=>D.leads.filter(l=>l.status==='new').length;
 
 // AUTH
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded',async ()=>{
+  // Auto-login if token exists
+  const t=localStorage.getItem('ps_admin_token');
+  if(t){
+    try{
+      const res=await fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+t}});
+      if(res.ok){
+        const d=await res.json();
+        if(d.user?.role==='admin'){
+          document.getElementById('ls').classList.remove('active');
+          document.getElementById('as').classList.add('active');
+          document.getElementById('as').style.display='flex';
+          init();
+          return;
+        }
+      }
+      localStorage.removeItem('ps_admin_token');
+    }catch(e){}
+  }
+  // Show login hint
+
   const h=document.getElementById('l-hint');
   if(h) h.textContent='Demo: admin'+'\u0040'+'petscan.de / admin123';
 });
-function doLogin(){
+async function doLogin(){
   const em=document.getElementById('l-em').value.trim();
   const pw=document.getElementById('l-pw').value;
   const err=document.getElementById('l-err');
-  if(em==='admin@petscan.de'&&pw==='admin123'){
+  err.style.display='none';
+  try{
+    const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em,password:pw})});
+    const data=await res.json();
+    if(!res.ok||data.user?.role!=='admin'){
+      err.style.display='block';
+      err.textContent=data.error||'Kein Admin-Zugang';
+      return;
+    }
+    localStorage.setItem('ps_admin_token',data.token);
     err.style.display='none';
     document.getElementById('ls').classList.remove('active');
     document.getElementById('as').classList.add('active');
     document.getElementById('as').style.display='flex';
     init();
-  } else { err.style.display='block'; err.textContent='Falsche Anmeldedaten.'; }
+  }catch(e){
+    err.style.display='block';
+    err.textContent='Verbindungsfehler — Server nicht erreichbar';
+  }
 }
 function doLogout(){
+  const t=localStorage.getItem('ps_admin_token');
+  if(t)fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+t}}).catch(()=>{});
+  localStorage.removeItem('ps_admin_token');
   document.getElementById('as').classList.remove('active');
   document.getElementById('as').style.display='none';
   document.getElementById('ls').classList.add('active');
@@ -437,6 +472,10 @@ function nav(view,btn){
   const titles={dashboard:'Dashboard',analytics:'Analytics',customers:'Kunden',leads:'Lead-Pipeline',reports:'Alle Befunde',settings:'Einstellungen',audit:'Audit-Log'};
   document.getElementById('ph-t').textContent=titles[view]||view;
   ({dashboard:rDash,analytics:rAnalytics,customers:()=>rCustomers(),leads:rLeads,reports:rReports,settings:rSettings,audit:rAudit}[view]||rDash)();
+}
+function authHeader(){
+  const t=localStorage.getItem('ps_admin_token')||'';
+  return {'Authorization':'Bearer '+t,'Content-Type':'application/json'};
 }
 function updBadges(){
   document.getElementById('sb-c').textContent=D.customers.filter(c=>c.active).length;
