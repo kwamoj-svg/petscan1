@@ -951,43 +951,104 @@ function renderResult(r) {
     </div>`;
 }
 
-// ── REPORTS ─────────────────────────────────────────────
+// ── REPORTS CMS ──────────────────────────────────────────
+let ALL_REPORTS = [];
+
 async function renderReports() {
   const c = document.getElementById('main-content');
   c.style.overflow = '';
-  c.innerHTML = `<div class="pc"><div style="display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text3)">Lade Befunde …</div></div>`;
+  c.innerHTML = `<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+    <!-- CMS Toolbar -->
+    <div style="padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <div style="flex:1;position:relative;">
+        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;fill:none;stroke:var(--text3);stroke-width:2;" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="rep-search" type="text" placeholder="Befunde suchen — Tierart, Region, Datum …"
+          style="width:100%;padding:7px 12px 7px 32px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--f);color:var(--text);background:var(--bg);"
+          oninput="filterReports(this.value)">
+      </div>
+      <select id="rep-filter-sev" onchange="filterReports(document.getElementById('rep-search').value)"
+        style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);color:var(--text2);background:var(--surface);">
+        <option value="">Alle Dringlichkeiten</option>
+        <option value="high">HOCH</option>
+        <option value="mid">MITTEL</option>
+        <option value="low">NIEDRIG</option>
+      </select>
+      <select id="rep-filter-species" onchange="filterReports(document.getElementById('rep-search').value)"
+        style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);color:var(--text2);background:var(--surface);">
+        <option value="">Alle Tierarten</option>
+        <option>Hund</option><option>Katze</option><option>Pferd</option>
+        <option>Rind</option><option>Vogel</option><option>Sonstige</option>
+      </select>
+      <button class="abt ab-g" onclick="exportAllCSV()" style="white-space:nowrap">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        CSV Export
+      </button>
+    </div>
+    <!-- Report List -->
+    <div id="rep-list" style="flex:1;overflow-y:auto;padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text3)">Lade Befunde …</div>
+    </div>
+  </div>`;
 
   try {
     const data = await api('/api/reports');
-    const reports = data.reports || [];
-    // Merge with cached (cached has images)
-    const merged = reports.map(r => {
+    ALL_REPORTS = (data.reports || []).map(r => {
       const cached = CACHED_REPORTS.find(c=>c.id===r.id);
       return cached ? {...r, img_a:cached.img_a, img_b:cached.img_b} : r;
     });
-    updateReportBadge(merged.length);
-
-    c.innerHTML = `<div class="pc">
-      ${!merged.length ? `<div class="empty" style="height:300px"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" width="24" height="24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="empty-h">Noch keine Befunde</div><div class="empty-p">Starten Sie Ihre erste Analyse links.</div></div>` :
-      `<div class="report-list">
-        ${merged.map(r => `
-          <div class="report-item" onclick='openReport(${JSON.stringify(JSON.stringify(r))})'>
-            <div class="ri-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-            <div class="ri-info">
-              <div class="ri-title">${r.species} &middot; ${r.region}</div>
-              <div class="ri-meta">${fmtDate(r.created_at)} &middot; ${{single:'Einzelanalyse',compare:'Verlauf',diff:'Vergleich',second:'Zweitmeinung'}[r.mode]||r.mode}</div>
-            </div>
-            <span class="badge ${{low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a'}">${{low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL'}</span>
-            <div class="ri-acts" onclick="event.stopPropagation()">
-              <button class="abt ab-g" onclick="exportPDF('${r.id}')">PDF</button>
-              <button class="abt" style="color:var(--red);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;font-size:12px;font-weight:600;background:var(--surface)" onclick="deleteReport('${r.id}',event)">Löschen</button>
-            </div>
-          </div>`).join('')}
-      </div>`}
-    </div>`;
+    updateReportBadge(ALL_REPORTS.length);
+    filterReports('');
   } catch(e) {
-    c.innerHTML = `<div class="pc"><div style="color:var(--red);padding:20px">${e.message}</div></div>`;
+    document.getElementById('rep-list').innerHTML = `<div style="color:var(--red);padding:20px">${e.message}</div>`;
   }
+}
+
+function filterReports(q) {
+  const sev = document.getElementById('rep-filter-sev')?.value || '';
+  const sp  = document.getElementById('rep-filter-species')?.value || '';
+  const ql  = q.toLowerCase();
+
+  let filtered = ALL_REPORTS.filter(r => {
+    const matchQ = !ql || [r.species,r.region,r.mode,r.severity,fmtDate(r.created_at)]
+      .join(' ').toLowerCase().includes(ql);
+    const matchSev = !sev || r.severity === sev;
+    const matchSp  = !sp  || r.species === sp;
+    return matchQ && matchSev && matchSp;
+  });
+
+  const el = document.getElementById('rep-list');
+  if (!el) return;
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty" style="height:260px">
+      <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" width="24" height="24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+      <div class="empty-h">Keine Befunde gefunden</div>
+      <div class="empty-p">${ALL_REPORTS.length ? 'Suchfilter anpassen' : 'Starten Sie Ihre erste Analyse'}</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-weight:600;">${filtered.length} Befund${filtered.length!==1?'e':''} gefunden</div>
+    <div class="report-list">
+      ${filtered.map(r => `
+        <div class="report-item" onclick='openReport(${JSON.stringify(JSON.stringify(r))})'>
+          <div class="ri-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div class="ri-info">
+            <div class="ri-title">${r.species} · ${r.region}</div>
+            <div class="ri-meta">${fmtDate(r.created_at)} · ${{single:'Einzelanalyse',compare:'Verlauf',diff:'Vergleich',second:'Zweitmeinung'}[r.mode]||r.mode}</div>
+          </div>
+          <span class="badge ${{low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a'}">${{low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL'}</span>
+          <div class="ri-acts" onclick="event.stopPropagation()">
+            <div style="display:flex;gap:4px;">
+              <button class="abt ab-p" onclick="exportPDF('${r.id}')" style="padding:6px 10px;font-size:11px">PDF</button>
+              <button class="abt ab-g" onclick="exportWord('${r.id}')" style="padding:6px 10px;font-size:11px">Word</button>
+              <button class="abt ab-g" onclick="exportTXT('${r.id}')" style="padding:6px 10px;font-size:11px">TXT</button>
+              <button class="abt" style="color:var(--red);border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;font-size:11px;font-weight:600;background:var(--surface)" onclick="deleteReport('${r.id}',event)">✕</button>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>`;
 }
 
 function openReport(rJson) {
@@ -1162,6 +1223,98 @@ function exportPDF(id) {
   </body></html>`);
   win.document.close();
   toast('PDF wird geöffnet …');
+}
+
+// ── WORD EXPORT ──────────────────────────────────────────
+function exportWord(id) {
+  const r = CACHED_REPORTS.find(r=>r.id===id) || ALL_REPORTS.find(r=>r.id===id);
+  if (!r) { toast('Befund nicht gefunden', 'amber'); return; }
+  const modeLabel = {single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+  const sevText = {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+
+  // RTF format — opens in Word, LibreOffice etc.
+  const rtfContent = `{\rtf1\ansi\deff0
+{\fonttbl{\f0 Arial;}}
+{\colortbl ;\red26\green86\blue219;\red220\green38\blue38;\red5\green150\blue105;}
+\f0\fs24
+\b\fs32 Petscan – Radiologischer Befundbericht\b0\fs24\par
+\par
+\b Tierart:\b0  ${r.species}\tab\b Region:\b0  ${r.region}\tab\b Modus:\b0  ${modeLabel}\par
+\b Datum:\b0  ${fmtDate(r.created_at)}\tab\b ID:\b0  ${r.id}\par
+\b Dringlichkeit:\b0  ${sevText}\par
+\par
+${r.report_text.replace(/[\{}]/g,'\$&').replace(/
+/g,'\par
+').replace(/\*\*(.+?)\*\*/g,'\b $1\b0 ').replace(/^## (.+)$/gm,'\b\fs26 $1\b0\fs24').replace(/^### (.+)$/gm,'\b $1\b0 ')}
+\par\par
+\i Erstellt mit Petscan KI-Radiologieplattform. Kein Ersatz f\u252?r tier\u228?rztliche Diagnose.\i0
+}`;
+
+  const blob = new Blob([rtfContent], {type:'application/rtf'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Petscan_Befund_${r.species}_${r.region}_${r.id}.rtf`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Word-Dokument wird heruntergeladen …');
+}
+
+// ── TXT EXPORT ────────────────────────────────────────────
+function exportTXT(id) {
+  const r = CACHED_REPORTS.find(r=>r.id===id) || ALL_REPORTS.find(r=>r.id===id);
+  if (!r) { toast('Befund nicht gefunden', 'amber'); return; }
+  const modeLabel = {single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+  const sevText = {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+
+  const txt = `PETSCAN – RADIOLOGISCHER BEFUNDBERICHT
+${'='.repeat(50)}
+Tierart:      ${r.species}
+Region:       ${r.region}
+Modus:        ${modeLabel}
+Datum:        ${fmtDate(r.created_at)}
+Dringlichkeit: ${sevText}
+Befund-ID:    ${r.id}
+${'='.repeat(50)}
+
+${r.report_text.replace(/\*\*(.+?)\*\*/g,'$1').replace(/^## /gm,'── ').replace(/^### /gm,'  · ')}
+
+${'─'.repeat(50)}
+Erstellt mit Petscan KI-Radiologieplattform
+Kein Ersatz für tierärztliche Diagnose
+Praxis: ${ME?.praxis||''} · ${ME?.name||''}`;
+
+  const blob = new Blob([txt], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Petscan_Befund_${r.species}_${r.region}_${r.id}.txt`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('Textdatei wird heruntergeladen …');
+}
+
+// ── CSV EXPORT (alle Befunde) ─────────────────────────────
+function exportAllCSV() {
+  const reports = ALL_REPORTS.length ? ALL_REPORTS : CACHED_REPORTS;
+  if (!reports.length) { toast('Keine Befunde zum Exportieren', 'amber'); return; }
+
+  const header = ['ID','Datum','Tierart','Region','Modus','Dringlichkeit','Befundtext'];
+  const rows = reports.map(r => [
+    r.id,
+    fmtDate(r.created_at),
+    r.species,
+    r.region,
+    r.mode,
+    {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL',
+    '"' + (r.report_text||'').replace(/"/g,'""').replace(/
+/g,' ') + '"'
+  ]);
+
+  const csv = [header.join(';'), ...rows.map(r=>r.join(';'))].join('
+');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'}); // BOM für Excel
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Petscan_Befunde_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast(`${reports.length} Befunde als CSV exportiert`);
 }
 
 // ── UTILS ────────────────────────────────────────────────
