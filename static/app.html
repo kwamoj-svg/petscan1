@@ -1293,13 +1293,11 @@ function exportAllCSV() {
     r.region,
     r.mode,
     {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL',
-    '"' + (r.report_text||'').replace(/"/g,'""').replace(/
-/g,' ') + '"'
+    '"' + (r.report_text||'').replace(/"/g,'""').replace(/\n/g,' ') + '"'
   ]);
 
-  const csv = [header.join(';'), ...rows.map(r=>r.join(';'))].join('
-');
-  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'}); // BOM für Excel
+  const csv = [header.join(';'), ...rows.map(r=>r.join(';'))].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `Petscan_Befunde_${new Date().toISOString().slice(0,10)}.csv`;
