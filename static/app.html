@@ -1231,29 +1231,19 @@ function exportWord(id) {
   if (!r) { toast('Befund nicht gefunden', 'amber'); return; }
   const modeLabel = {single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
   const sevText = {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
-
-  // RTF format — opens in Word, LibreOffice etc.
-  const rtfContent = `{\rtf1\ansi\deff0
-{\fonttbl{\f0 Arial;}}
-{\colortbl ;\red26\green86\blue219;\red220\green38\blue38;\red5\green150\blue105;}
-\f0\fs24
-\b\fs32 Petscan – Radiologischer Befundbericht\b0\fs24\par
-\par
-\b Tierart:\b0  ${r.species}\tab\b Region:\b0  ${r.region}\tab\b Modus:\b0  ${modeLabel}\par
-\b Datum:\b0  ${fmtDate(r.created_at)}\tab\b ID:\b0  ${r.id}\par
-\b Dringlichkeit:\b0  ${sevText}\par
-\par
-${r.report_text.replace(/[\{}]/g,'\$&').replace(/
-/g,'\par
-').replace(/\*\*(.+?)\*\*/g,'\b $1\b0 ').replace(/^## (.+)$/gm,'\b\fs26 $1\b0\fs24').replace(/^### (.+)$/gm,'\b $1\b0 ')}
-\par\par
-\i Erstellt mit Petscan KI-Radiologieplattform. Kein Ersatz f\u252?r tier\u228?rztliche Diagnose.\i0
-}`;
-
-  const blob = new Blob([rtfContent], {type:'application/rtf'});
+  // Export as HTML that Word can open
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm}h1{font-size:16pt}h2{font-size:13pt;border-bottom:1px solid #ccc;padding-bottom:4px}h3{font-size:12pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 10px}th{background:#0f1c35;color:#fff}</style></head><body>'
+    + '<h1>Petscan – Radiologischer Befundbericht</h1>'
+    + '<p><strong>Tierart:</strong> ' + r.species + ' &nbsp; <strong>Region:</strong> ' + r.region + ' &nbsp; <strong>Modus:</strong> ' + modeLabel + '</p>'
+    + '<p><strong>Datum:</strong> ' + fmtDate(r.created_at) + ' &nbsp; <strong>ID:</strong> ' + r.id + '</p>'
+    + '<p><strong>Dringlichkeit:</strong> ' + sevText + '</p><hr>'
+    + mdToHtml(r.report_text)
+    + '<hr><p><em>Erstellt mit Petscan KI-Radiologieplattform. Kein Ersatz f&uuml;r tier&auml;rztliche Diagnose.</em></p>'
+    + '</body></html>';
+  const blob = new Blob([html], {type:'application/msword'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `Petscan_Befund_${r.species}_${r.region}_${r.id}.rtf`;
+  a.href = url; a.download = 'Petscan_Befund_' + r.species + '_' + r.region + '_' + r.id + '.doc';
   a.click(); URL.revokeObjectURL(url);
   toast('Word-Dokument wird heruntergeladen …');
 }
