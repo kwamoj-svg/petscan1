@@ -128,7 +128,7 @@ a{color:inherit;text-decoration:none;}
 
 /* ANALYSE LAYOUT */
 .an-layout{flex:1;display:grid;grid-template-columns:256px 1fr;overflow:hidden;}
-.an-sb{border-right:1px solid var(--border);padding:14px;overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;gap:14px;}
+.an-sb{border-right:1px solid var(--border);padding:14px;overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;gap:10px;min-height:0;}
 .an-lbl{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-bottom:7px;}
 .sp-g{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
 .sp-btn{padding:7px 8px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .12s;text-align:left;}
@@ -659,10 +659,10 @@ function renderAnalyse() {
           <textarea class="ctx" id="ctx" placeholder="Anamnese, Symptome, Vordiagnosen, Medikamente …"></textarea>
         </div>
         <!-- Run -->
-        <button class="run-btn" id="run-btn" onclick="runAnalysis()">
+        <div style="position:sticky;bottom:0;background:var(--surface);padding-top:10px;margin-top:auto;"><button class="run-btn" id="run-btn" onclick="runAnalysis()">
           <div class="run-spin"></div>
           <span>Radiologische Analyse starten</span>
-        </button>
+        </button></div>
       </div>
       <div class="an-main" id="an-main">
         <div class="empty">
