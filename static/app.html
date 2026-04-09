@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Petscan – KI-Radiologie Plattform</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/daikon/1.2.49/daikon.min.js"></script>
 <style>
 :root{
   --blue:#1a56db;--blue2:#1447b7;--blue-dim:#eff6ff;--blue-mid:#bfdbfe;
@@ -640,13 +641,13 @@ function renderAnalyse() {
         <div>
           <div class="an-lbl">4 · Röntgenbild hochladen</div>
           <div class="uz" id="uz-a" onclick="document.getElementById('fi-a').click()" style="margin-bottom:6px">
-            <input type="file" id="fi-a" accept="image/*,.dcm">
+            <input type="file" id="fi-a" accept="image/*,.dcm,.dicom">
             <span class="uz-tag">AUFNAHME A</span>
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
             <div class="uz-text">Klicken oder Bild reinziehen</div>
           </div>
           <div class="uz" id="uz-b" onclick="document.getElementById('fi-b').click()">
-            <input type="file" id="fi-b" accept="image/*,.dcm">
+            <input type="file" id="fi-b" accept="image/*,.dcm,.dicom">
             <span class="uz-tag">AUFNAHME B <span style="opacity:.5">(optional)</span></span>
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
             <div class="uz-text">Vergleichsaufnahme</div>
@@ -697,8 +698,23 @@ function setupUploads() {
 }
 
 function loadImg(file, k) {
-  if (!file.type.startsWith('image/')) { toast('Nur Bilddateien (JPG, PNG, WebP)', 'red'); return; }
-  if (file.size > 10*1024*1024) { toast('Bild zu groß — max. 10 MB', 'red'); return; }
+  if (file.size > 50*1024*1024) { toast('Datei zu groß — max. 50 MB', 'red'); return; }
+
+  const isDICOM = file.name.toLowerCase().endsWith('.dcm') ||
+                  file.name.toLowerCase().endsWith('.dicom') ||
+                  file.type === 'application/dicom' ||
+                  file.type === '';
+
+  if (isDICOM) {
+    loadDICOM(file, k);
+    return;
+  }
+
+  if (!file.type.startsWith('image/')) {
+    toast('Format nicht unterstützt. JPG, PNG oder DICOM (.dcm) hochladen.', 'red');
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = ev => {
     const img = new Image();
@@ -711,14 +727,110 @@ function loadImg(file, k) {
       const url = canvas.toDataURL('image/jpeg', 0.88);
       if (k==='a') AN.imgA = {url, b64:url.split(',')[1], name:file.name};
       else          AN.imgB = {url, b64:url.split(',')[1], name:file.name};
-      const uz = document.getElementById('uz-'+k);
-      uz.className = 'uz loaded'; uz.onclick = null;
-      uz.innerHTML = `<span class="uz-tag lt">AUFNAHME ${k.toUpperCase()} — GELADEN</span><img class="uz-preview" src="${url}"><div class="uz-name">${file.name}</div><button class="uz-rm" onclick="removeImg('${k}',event)">✕ Entfernen</button>`;
-      toast(`Aufnahme ${k.toUpperCase()} geladen`);
+      setUploadDone(k, url, file.name);
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+function loadDICOM(file, k) {
+  const uz = document.getElementById('uz-'+k);
+  uz.innerHTML = `<span class="uz-tag">AUFNAHME ${k.toUpperCase()}</span><div class="uz-text" style="color:var(--blue)">⏳ DICOM wird konvertiert …</div>`;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      // Try with daikon library if available
+      if (typeof daikon !== 'undefined') {
+        const data = ev.target.result;
+        daikon.Parser.verbose = false;
+        const image = daikon.Parser.parse(data);
+        if (!image) throw new Error('DICOM Parse-Fehler');
+
+        const canvas = document.createElement('canvas');
+        const size = image.getSize();
+        canvas.width = size.cols;
+        canvas.height = size.rows;
+        const ctx = canvas.getContext('2d');
+
+        // Get pixel data and render
+        const pixelData = image.getInterpretedData(false, true);
+        const imageData = ctx.createImageData(size.cols, size.rows);
+
+        // Find min/max for windowing
+        let min = Infinity, max = -Infinity;
+        for (let i = 0; i < pixelData.length; i++) {
+          if (pixelData[i] < min) min = pixelData[i];
+          if (pixelData[i] > max) max = pixelData[i];
+        }
+        const range = max - min || 1;
+
+        for (let i = 0; i < pixelData.length; i++) {
+          const val = Math.round(((pixelData[i] - min) / range) * 255);
+          imageData.data[i*4]   = val;
+          imageData.data[i*4+1] = val;
+          imageData.data[i*4+2] = val;
+          imageData.data[i*4+3] = 255;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        // Resize to max 1200px
+        const out = document.createElement('canvas');
+        let w = canvas.width, h = canvas.height;
+        if (w > 1200) { h = Math.round(h*1200/w); w=1200; }
+        out.width=w; out.height=h;
+        out.getContext('2d').drawImage(canvas,0,0,w,h);
+
+        const url = out.toDataURL('image/jpeg', 0.9);
+        if (k==='a') AN.imgA = {url, b64:url.split(',')[1], name:file.name};
+        else          AN.imgB = {url, b64:url.split(',')[1], name:file.name};
+        setUploadDone(k, url, file.name + ' (DICOM → JPG)');
+        toast(`DICOM konvertiert ✓`);
+      } else {
+        throw new Error('DICOM-Bibliothek nicht geladen');
+      }
+    } catch(e) {
+      // Fallback: try as raw image
+      console.warn('DICOM parse failed, trying as image:', e.message);
+      const blob = new Blob([ev.target.result]);
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (w > 1200) { h = Math.round(h*1200/w); w=1200; }
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        if (k==='a') AN.imgA = {url:dataUrl, b64:dataUrl.split(',')[1], name:file.name};
+        else          AN.imgB = {url:dataUrl, b64:dataUrl.split(',')[1], name:file.name};
+        setUploadDone(k, dataUrl, file.name);
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => {
+        uz.innerHTML = `<span class="uz-tag">AUFNAHME ${k.toUpperCase()}</span>
+          <div style="text-align:center;padding:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:4px">DICOM konnte nicht angezeigt werden</div>
+            <div style="font-size:10px;color:var(--text3)">Bitte als JPG/PNG exportieren</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">Tool: <strong>IrfanView</strong> oder <strong>RadiAnt DICOM Viewer</strong></div>
+          </div>
+          <button class="uz-rm" onclick="removeImg('${k}',event)" style="position:relative;margin-top:6px">Schließen</button>`;
+        toast('DICOM nicht direkt lesbar — bitte als JPG exportieren', 'amber');
+      };
+      img.src = url;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function setUploadDone(k, url, name) {
+  if (k==='a') AN.imgA = AN.imgA || {url, b64:url.split(',')[1], name};
+  else          AN.imgB = AN.imgB || {url, b64:url.split(',')[1], name};
+  const uz = document.getElementById('uz-'+k);
+  uz.className = 'uz loaded'; uz.onclick = null;
+  uz.innerHTML = `<span class="uz-tag lt">AUFNAHME ${k.toUpperCase()} — GELADEN</span><img class="uz-preview" src="${url}"><div class="uz-name">${name}</div><button class="uz-rm" onclick="removeImg('${k}',event)">✕ Entfernen</button>`;
+  toast(`Aufnahme ${k.toUpperCase()} geladen`);
 }
 
 function removeImg(k, e) {
@@ -726,7 +838,7 @@ function removeImg(k, e) {
   if (k==='a') AN.imgA=null; else AN.imgB=null;
   const uz = document.getElementById('uz-'+k);
   uz.className = 'uz';
-  uz.innerHTML = `<input type="file" id="fi-${k}" accept="image/*"><span class="uz-tag">AUFNAHME ${k.toUpperCase()}${k==='b'?' <span style="opacity:.5">(optional)</span>':''}</span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--text3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><div class="uz-text">${k==='a'?'Klicken oder Bild reinziehen':'Vergleichsaufnahme'}</div>`;
+  uz.innerHTML = `<input type="file" id="fi-${k}" accept="image/*,.dcm,.dicom"><span class="uz-tag">AUFNAHME ${k.toUpperCase()}${k==='b'?' <span style="opacity:.5">(optional)</span>':''}</span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--text3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><div class="uz-text">${k==='a'?'Klicken oder Bild reinziehen':'Vergleichsaufnahme'}</div>`;
   uz.onclick = () => document.getElementById('fi-'+k).click();
   setupUploads();
 }
