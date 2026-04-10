@@ -1,5 +1,5 @@
 """
-Petscan – Produktions-Server v2
+Animioo – Produktions-Server v2
 Auth + KI-Analyse + Stripe Payments + Admin
 + bcrypt, rate limiting, email, Sentry, PostgreSQL
 """
@@ -47,14 +47,14 @@ STRIPE_PRICE_STARTER = os.environ.get('STRIPE_PRICE_STARTER', '')
 STRIPE_PRICE_PRO     = os.environ.get('STRIPE_PRICE_PRO', '')
 APP_URL              = os.environ.get('APP_URL', 'http://localhost:5000')
 DATABASE_URL         = os.environ.get('DATABASE_URL', '')
-DB_PATH              = 'petscan.db'
+DB_PATH              = 'animioo.db'
 
 # E-Mail Config
 SMTP_HOST = os.environ.get('SMTP_HOST', '')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
 SMTP_USER = os.environ.get('SMTP_USER', '')
 SMTP_PASS = os.environ.get('SMTP_PASS', '')
-SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@petscan.de')
+SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@animioo.de')
 
 # ═══════════════════════════════════════════════════
 # DATENBANK (PostgreSQL mit SQLite-Fallback)
@@ -265,7 +265,7 @@ def init_db():
         db_execute(conn, '''INSERT INTO users
             (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
             VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
-            ('admin1','admin@petscan.de',hash_pw('admin123'),'Administrator','Petscan GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
+            ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
     except: pass
     conn.commit()
     if USE_POSTGRES:
@@ -321,7 +321,7 @@ def send_email(to, subject, html_body):
 
 def send_verify_email(email, token):
     link = f"{APP_URL}/app?verify={token}"
-    send_email(email, 'Petscan – E-Mail bestätigen', f'''
+    send_email(email, 'Animioo – E-Mail bestätigen', f'''
         <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
             <h2 style="color:#0f172a;">E-Mail-Adresse bestätigen</h2>
             <p style="color:#475569;">Klicken Sie auf den Button, um Ihre E-Mail-Adresse zu bestätigen:</p>
@@ -331,7 +331,7 @@ def send_verify_email(email, token):
 
 def send_reset_email(email, token):
     link = f"{APP_URL}/app?reset={token}"
-    send_email(email, 'Petscan – Passwort zurücksetzen', f'''
+    send_email(email, 'Animioo – Passwort zurücksetzen', f'''
         <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
             <h2 style="color:#0f172a;">Passwort zurücksetzen</h2>
             <p style="color:#475569;">Klicken Sie auf den Button, um ein neues Passwort zu setzen. Der Link ist 1 Stunde gültig.</p>
@@ -341,11 +341,11 @@ def send_reset_email(email, token):
 
 def send_admin_notification(subject, body):
     """Send notification to admin."""
-    send_email('admin@petscan.de', f'Petscan Admin: {subject}', f'''
+    send_email('admin@animioo.de', f'Animioo Admin: {subject}', f'''
         <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
             <h3 style="color:#0f172a;">{subject}</h3>
             <p style="color:#475569;">{body}</p>
-            <p style="color:#94a3b8;font-size:11px;margin-top:20px;">Petscan Admin-Benachrichtigung</p>
+            <p style="color:#94a3b8;font-size:11px;margin-top:20px;">Animioo Admin-Benachrichtigung</p>
         </div>''')
 
 # ═══════════════════════════════════════════════════
@@ -648,7 +648,7 @@ FORMAT - genau diese Reihenfolge einhalten:
 [Kurz — max 2 Sätze zur Aufnahmequalität]
 
 ---
-*Petscan KI-Befundassistent · Kein Ersatz für tierärztliche Diagnose*"""
+*Animioo KI-Befundassistent · Kein Ersatz für tierärztliche Diagnose*"""
 
     msgs = [
         {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_a}},
@@ -852,7 +852,7 @@ def admin_create_customer():
     conn = get_db()
     try:
         db_execute(conn, 'INSERT INTO users (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,created_at) VALUES (?,?,?,?,?,?,1,?,0,?,1,?)',
-                     (uid,d['email'].lower(),hash_pw(d.get('password','Petscan2025!')),d.get('name',''),d.get('praxis',''),d.get('plan','trial'),'customer',limit,now()))
+                     (uid,d['email'].lower(),hash_pw(d.get('password','Animioo2025!')),d.get('name',''),d.get('praxis',''),d.get('plan','trial'),'customer',limit,now()))
         conn.commit()
     except: conn.close(); return jsonify({'error':'E-Mail existiert bereits'}), 409
     conn.close()
@@ -972,7 +972,7 @@ if __name__ == '__main__':
     db_type = 'PostgreSQL' if USE_POSTGRES else 'SQLite'
     print(f"""
 ╔══════════════════════════════════════════════╗
-║   Petscan – Server v2 gestartet             ║
+║   Animioo – Server v2 gestartet             ║
 ║   URL: http://localhost:{port}                  ║
 ║   DB:     {db_type}
 ║   KI:     {'Bereit' if ANTHROPIC_API_KEY else 'ANTHROPIC_API_KEY fehlt'}

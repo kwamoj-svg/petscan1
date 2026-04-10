@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Petscan – KI-Radiologie Plattform</title>
+<title>Animioo – KI-Radiologie Plattform</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--blue:#1a56db;--blue2:#1447b7;--blue-dim:#eff6ff;--blue-mid:#bfdbfe;--green:#059669;--green-dim:#ecfdf5;--green-mid:#a7f3d0;--amber:#b45309;--amber-dim:#fffbeb;--red:#dc2626;--red-dim:#fef2f2;--navy:#0f1c35;--navy2:#1a2e52;--bg:#f8fafc;--surface:#fff;--s2:#f1f5f9;--border:#e2e8f0;--border2:#cbd5e1;--text:#0f172a;--text2:#475569;--text3:#94a3b8;--f:'Inter',system-ui,sans-serif;--r:6px;--sh:0 1px 3px rgba(0,0,0,.08);--sh2:0 4px 20px rgba(0,0,0,.1);}
@@ -253,7 +253,7 @@ a{color:inherit;text-decoration:none;}
       <div class="l-top">
         <div class="l-brand">
           <div class="l-brand-icon"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="6.5" r="2"/><circle cx="16.5" cy="6.5" r="2"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><path d="M7.5 15.5C7.5 14 9.5 12 12 12s4.5 2 4.5 3.5c0 2-1.5 4-2.5 4.5-.7.3-1.3.5-2 .5s-1.3-.2-2-.5c-1-.5-2.5-2.5-2.5-4.5z"/></svg></div>
-          <div class="l-brand-name">Petscan</div>
+          <div class="l-brand-name">Animioo</div>
         </div>
         <div class="l-tagline">Veterinärradiologie · KI-Plattform</div>
       </div>
@@ -311,7 +311,7 @@ a{color:inherit;text-decoration:none;}
     </button>
     <div class="tb-brand">
       <div class="tb-bi"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="6.5" r="2"/><circle cx="16.5" cy="6.5" r="2"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><path d="M7.5 15.5C7.5 14 9.5 12 12 12s4.5 2 4.5 3.5c0 2-1.5 4-2.5 4.5-.7.3-1.3.5-2 .5s-1.3-.2-2-.5c-1-.5-2.5-2.5-2.5-4.5z"/></svg></div>
-      Petscan
+      Animioo
     </div>
     <span class="tb-plan-badge" id="tb-plan"></span>
     <span class="tb-usage" id="tb-usage" style="display:none"></span>
@@ -980,7 +980,7 @@ function exportPDF(id) {
   var scol={low:'#059669',mid:'#b45309',high:'#dc2626'}[r.severity]||'#b45309';
   var win=window.open('','_blank');
   if(!win){ toast('Popup blockiert','red'); return; }
-  var html='<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Petscan Befund</title>'
+  var html='<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Animioo Befund</title>'
     +'<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">'
     +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;color:#0f172a;font-size:13px;padding:40px}'
     +'.hdr{border-bottom:2px solid #0f1c35;padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between}'
@@ -1003,7 +1003,7 @@ function exportPDF(id) {
     +'.ft{margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}'
     +'@media print{@page{margin:1.5cm;size:A4}}</style>'
     +'</head><body>'
-    +'<div class="hdr"><div><div class="bn">Petscan</div><div class="bs">KI-Radiologieplattform</div></div>'
+    +'<div class="hdr"><div><div class="bn">Animioo</div><div class="bs">KI-Radiologieplattform</div></div>'
     +'<div style="text-align:right"><div style="font-weight:700;font-size:13px">'+(ME&&ME.praxis?ME.praxis:'')+'</div><div class="me">'+(ME&&ME.name?ME.name:'')+'</div></div></div>'
     +'<div class="ti">Radiologischer Befundbericht</div>'
     +'<div class="me">'+r.species+' · '+r.region+' · '+ml+' · '+fmtDate(r.created_at)+' · ID: '+r.id+'</div>'
@@ -1011,7 +1011,7 @@ function exportPDF(id) {
     +(r.img_a?'<div class="imgs"><img src="'+r.img_a+'">'+(r.img_b&&r.mode!=='single'?'<img src="'+r.img_b+'">':'')+'</div>':'')
     +mdToHtml(r.report_text)
     +'<div class="dis">⚠️ KI-generierter Befundbericht. Kein Ersatz für tierärztliche Diagnose durch einen approbierten Tierarzt.</div>'
-    +'<div class="ft"><span>Petscan GmbH</span><span>'+fmtDate(r.created_at)+'</span></div>'
+    +'<div class="ft"><span>Animioo GmbH</span><span>'+fmtDate(r.created_at)+'</span></div>'
     +'</body></html>';
   win.document.write(html);
   win.document.close();
@@ -1026,16 +1026,16 @@ function exportWord(id) {
   var ml={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
   var st={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm}h1{font-size:16pt}h2{font-size:13pt;border-bottom:1px solid #ccc;margin:14px 0 8px;padding-bottom:4px}h3{font-size:12pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 10px}th{background:#0f1c35;color:#fff}</style></head><body>'
-    +'<h1>Petscan Befundbericht</h1>'
+    +'<h1>Animioo Befundbericht</h1>'
     +'<p><strong>Tierart:</strong> '+r.species+' &nbsp;&nbsp; <strong>Region:</strong> '+r.region+' &nbsp;&nbsp; <strong>Modus:</strong> '+ml+'</p>'
     +'<p><strong>Datum:</strong> '+fmtDate(r.created_at)+' &nbsp;&nbsp; <strong>Dringlichkeit:</strong> '+st+'</p><hr>'
     +mdToHtml(r.report_text)
-    +'<hr><p><em>Petscan KI-Befundassistent. Kein Ersatz fuer tieraerztliche Diagnose.</em></p>'
+    +'<hr><p><em>Animioo KI-Befundassistent. Kein Ersatz fuer tieraerztliche Diagnose.</em></p>'
     +'</body></html>';
   var blob=new Blob([html],{type:'application/msword'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='Petscan_'+r.species+'_'+r.id+'.doc';
+  a.href=url; a.download='Animioo_'+r.species+'_'+r.id+'.doc';
   a.click(); URL.revokeObjectURL(url);
   toast('Word-Dokument heruntergeladen');
 }
@@ -1049,11 +1049,11 @@ function exportTXT(id) {
     +'Tierart: '+r.species+'\nRegion: '+r.region+'\nDatum: '+fmtDate(r.created_at)+'\nDringlichkeit: '+st+'\n'
     +'='.repeat(40)+'\n\n'
     +(r.report_text||'').replace(/\*\*(.+?)\*\*/g,'$1').replace(/^## /gm,'-- ').replace(/^### /gm,'  ')
-    +'\n\n'+'--\nPetscan KI. Kein Ersatz fuer tieraerztliche Diagnose.';
+    +'\n\n'+'--\nAnimioo KI. Kein Ersatz fuer tieraerztliche Diagnose.';
   var blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='Petscan_'+r.species+'_'+r.id+'.txt';
+  a.href=url; a.download='Animioo_'+r.species+'_'+r.id+'.txt';
   a.click(); URL.revokeObjectURL(url);
   toast('Textdatei heruntergeladen');
 }
@@ -1071,7 +1071,7 @@ function exportAllCSV() {
   var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='Petscan_Befunde_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.href=url; a.download='Animioo_Befunde_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click(); URL.revokeObjectURL(url);
   toast(reports.length+' Befunde als CSV exportiert');
 }
