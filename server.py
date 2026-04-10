@@ -160,6 +160,9 @@ def impressum(): return send_from_directory('static','impressum.html')
 @app.route('/datenschutz')
 def datenschutz(): return send_from_directory('static','datenschutz.html')
 
+@app.route('/agb')
+def agb(): return send_from_directory('static','agb.html')
+
 # ═══════════════════════════════════════════════════
 # AUTH API
 # ═══════════════════════════════════════════════════

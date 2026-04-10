@@ -274,6 +274,12 @@ a{color:inherit;text-decoration:none;}
           <div class="fg"><label class="fl">Praxis</label><input class="fi" type="text" id="r-praxis" placeholder="Tierarztpraxis Mustermann"></div>
           <div class="fg"><label class="fl">E-Mail</label><input class="fi" type="email" id="r-em" placeholder="ihre@email.de"></div>
           <div class="fg"><label class="fl">Passwort (min. 6 Zeichen)</label><input class="fi" type="password" id="r-pw" placeholder="Sicheres Passwort"></div>
+          <div class="fg" style="display:flex;align-items:flex-start;gap:8px;">
+            <input type="checkbox" id="r-dsgvo" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--blue);">
+            <label for="r-dsgvo" style="font-size:11.5px;color:var(--text2);line-height:1.5;cursor:pointer;">
+              Ich akzeptiere die <a href="/datenschutz" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:underline;">Datenschutzerklärung</a> und die <a href="/agb" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:underline;">Allgemeinen Geschäftsbedingungen (AGB)</a>.
+            </label>
+          </div>
           <button class="l-btn" id="r-btn" onclick="doRegister()">14 Tage kostenlos starten</button>
           <div class="l-link">Bereits Konto? <a href="#" onclick="switchTab('login')">Hier anmelden</a></div>
         </div>
@@ -419,6 +425,7 @@ function doRegister() {
   var err = document.getElementById('l-err');
   if (!em || !pw) { err.textContent='Bitte E-Mail und Passwort eingeben'; err.style.display='block'; return; }
   if (pw.length<6) { err.textContent='Passwort muss mindestens 6 Zeichen haben'; err.style.display='block'; return; }
+  if (!document.getElementById('r-dsgvo').checked) { err.textContent='Bitte akzeptieren Sie die Datenschutzerklärung und AGB.'; err.style.display='block'; return; }
   btn.disabled=true; btn.textContent='Konto erstellen...';
   err.style.display='none';
   api('/api/auth/register','POST',{
