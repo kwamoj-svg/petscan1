@@ -1287,29 +1287,176 @@ function showPaymentSuccess(plan) {
 
 // ── PDF EXPORT ───────────────────────────────────────────
 function exportPDF(id) {
-  const r = CACHED_REPORTS.find(r=>r.id===id);
-  if (!r) { toast('Bild nicht mehr im Cache — bitte Seite neu laden', 'amber'); return; }
+  const r = CACHED_REPORTS.find(r=>r.id===id) || ALL_REPORTS.find(r=>r.id===id);
+  if (!r) { toast('Bild nicht im Cache', 'amber'); return; }
   const modeLabel = {single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
-  const sevColor  = {low:r.severity==='low'?'#059669':'',mid:'#b45309',high:'#dc2626'}[r.severity]||'#b45309';
-  const sevText   = {low:'NIEDRIG – Routinebefund',mid:'MITTEL – Zeitnahe Kontrolle',high:'HOCH – Sofortiger Handlungsbedarf'}[r.severity]||'MITTEL';
-
+  const sevText = {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+  const sevColor = {low:'#059669',mid:'#b45309',high:'#dc2626'}[r.severity]||'#b45309';
   const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Petscan Befund</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;color:#0f172a;font-size:13px;padding:40px;-webkit-font-smoothing:antialiased}.header{border-bottom:2px solid #0f1c35;padding-bottom:20px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start}.brand-name{font-size:20px;font-weight:800;color:#0f1c35}.brand-sub{font-size:11px;color:#64748b;margin-top:3px}.title{font-size:20px;font-weight:800;margin-bottom:4px}.meta{font-size:11px;color:#64748b}.sev{padding:11px 14px;border-radius:6px;margin:18px 0;background:${r.severity==='high'?'#fef2f2':r.severity==='low'?'#ecfdf5':'#fffbeb'};border:1px solid ${r.severity==='high'?'#fecaca':r.severity==='low'?'#a7f3d0':'#fde68a'}}.sev-label{font-size:12px;font-weight:800;color:${sevColor};letter-spacing:.3px}.imgs{display:flex;gap:12px;margin:16px 0}.imgs img{flex:1;max-height:200px;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px}h2{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#0f172a;padding:10px 0 6px;border-bottom:1px solid #e2e8f0;margin:16px 0 8px}h3{font-size:13px;font-weight:700;color:#1a2e52;margin:10px 0 4px}p{font-size:13px;color:#475569;margin-bottom:6px;line-height:1.75}ul{padding-left:16px;margin-bottom:8px}li{font-size:13px;color:#475569;margin-bottom:2px;line-height:1.65}strong{color:#0f172a;font-weight:700}table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 12px;border:1px solid #e2e8f0}th{background:#0f1c35;color:#e2e8f0;padding:6px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}td{padding:6px 10px;border-bottom:1px solid #e2e8f0;color:#475569}tr:last-child td{border-bottom:none}hr{border:none;border-top:1px solid #e2e8f0;margin:12px 0}em{font-style:italic;color:#64748b}.disclaimer{margin-top:24px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;color:#94a3b8;line-height:1.65}.footer{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}@media print{body{padding:20px}@page{margin:1.5cm;size:A4}}</style>
-  </head><body>
-  <div class="header">
-    <div><div class="brand-name">🐾 Petscan</div><div class="brand-sub">KI-Radiologieplattform &middot; petscan.de</div></div>
-    <div style="text-align:right"><div style="font-weight:700;font-size:13px">${ME?.praxis||''}</div><div class="meta">${ME?.name||''} &middot; ${ME?.email||''}</div></div>
-  </div>
-  <div class="title">Radiologischer Befundbericht</div>
-  <div class="meta">${r.species} &middot; ${r.region} &middot; ${modeLabel} &middot; ${fmtDate(r.created_at)} &middot; ID: ${r.id}</div>
-  <div class="sev"><div class="sev-label">DRINGLICHKEIT: ${sevText}</div></div>
-  ${r.img_a ? `<div class="imgs"><img src="${r.img_a}">${r.img_b&&r.mode!=='single'?`<img src="${r.img_b}">`:''}</div>` : ''}
-  ${mdToHtml(r.report_text)}
-  <div class="disclaimer">⚠️ Dieser Befundbericht wurde durch das Petscan KI-Assistenzsystem erstellt und ersetzt keine veterinärmedizinische Diagnose durch einen approbierten Tierarzt. Petscan GmbH übernimmt keine Haftung für klinische Entscheidungen auf Basis dieses Berichts.</div>
-  <div class="footer"><span>Petscan GmbH &middot; petscan.de</span><span>Erstellt ${fmtDate(r.created_at)}</span></div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),400)<\/script>
-  
+  if (!win) { toast('Popup blockiert — bitte erlauben', 'red'); return; }
+  const html = '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Petscan Befund</title>'
+    + '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">'
+    + '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;color:#0f172a;font-size:13px;padding:40px}'
+    + 'h1{font-size:18px;font-weight:800;margin-bottom:4px}'
+    + 'h2{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;padding:8px 0 5px;border-bottom:1px solid #e2e8f0;margin:14px 0 8px}'
+    + 'h3{font-size:13px;font-weight:700;color:#1a2e52;margin:10px 0 4px}'
+    + 'p{font-size:13px;color:#475569;margin-bottom:6px;line-height:1.7}'
+    + 'ul{padding-left:16px;margin-bottom:8px}li{font-size:13px;color:#475569;margin-bottom:2px}'
+    + 'strong{color:#0f172a;font-weight:700}'
+    + 'table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 12px}'
+    + 'th{background:#0f1c35;color:#e2e8f0;padding:6px 10px;text-align:left;font-size:11px;font-weight:700}'
+    + 'td{padding:6px 10px;border-bottom:1px solid #e2e8f0;color:#475569}'
+    + '.header{border-bottom:2px solid #0f1c35;padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between}'
+    + '.sev{padding:10px 14px;border-radius:6px;margin:14px 0;background:' + (r.severity==='high'?'#fef2f2':r.severity==='low'?'#ecfdf5':'#fffbeb') + '}'
+    + '.sev-lbl{font-size:12px;font-weight:800;color:' + sevColor + '}'
+    + '.imgs{display:flex;gap:12px;margin:12px 0}'
+    + '.imgs img{flex:1;max-height:180px;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px}'
+    + '.footer{margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}'
+    + '.disclaimer{margin-top:16px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;color:#94a3b8}'
+    + '@media print{@page{margin:1.5cm;size:A4}}</style>'
+    + '</head><body>'
+    + '<div class="header"><div><div style="font-size:10px;color:#94a3b8;margin-bottom:4px">🐾 PETSCAN KI-RADIOLOGIEPLATTFORM</div><h1>Radiologischer Befundbericht</h1><div style="font-size:12px;color:#64748b;margin-top:3px">' + r.species + ' · ' + r.region + ' · ' + modeLabel + ' · ' + fmtDate(r.created_at) + '</div></div><div style="text-align:right"><div style="font-weight:700;font-size:13px">' + (ME&&ME.praxis?ME.praxis:'') + '</div><div style="font-size:12px;color:#64748b">' + (ME&&ME.name?ME.name:'') + '</div></div></div>'
+    + (r.img_a ? '<div class="imgs"><img src="'+r.img_a+'">'+(r.img_b&&r.mode!=='single'?'<img src="'+r.img_b+'">':'')+'</div>' : '')
+    + '<div class="sev"><div class="sev-lbl">DRINGLICHKEIT: ' + sevText + '</div></div>'
+    + mdToHtml(r.report_text)
+    + '<div class="disclaimer">⚠️ KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose durch einen approbierten Tierarzt.</div>'
+    + '<div class="footer"><span>Petscan GmbH · petscan.de</span><span>ID: ' + r.id + '</span></div>'
+    + '</body></html>';
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 600);
+  toast('PDF wird geöffnet …');
+}
+
+// ── WORD EXPORT ──────────────────────────────────────────
+function exportWord(id) {
+  const r = CACHED_REPORTS.find(r=>r.id===id) || ALL_REPORTS.find(r=>r.id===id);
+  if (!r) { toast('Befund nicht gefunden', 'amber'); return; }
+  const modeLabel = {single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+  const sevText = {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<style>body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm}'
+    + 'h1{font-size:16pt}h2{font-size:13pt;border-bottom:1px solid #ccc;padding-bottom:4px;margin:14px 0 8px}'
+    + 'h3{font-size:12pt}table{border-collapse:collapse;width:100%}'
+    + 'td,th{border:1px solid #ccc;padding:6px 10px}th{background:#0f1c35;color:#fff}</style>'
+    + '</head><body>'
+    + '<h1>Petscan Befundbericht</h1>'
+    + '<p><strong>Tierart:</strong> ' + r.species + ' &nbsp; <strong>Region:</strong> ' + r.region + ' &nbsp; <strong>Modus:</strong> ' + modeLabel + '</p>'
+    + '<p><strong>Datum:</strong> ' + fmtDate(r.created_at) + ' &nbsp; <strong>Dringlichkeit:</strong> ' + sevText + '</p><hr>'
+    + mdToHtml(r.report_text)
+    + '<hr><p><em>Petscan KI-Radiologieplattform. Kein Ersatz fuer tieraerztliche Diagnose.</em></p>'
+    + '</body></html>';
+  const blob = new Blob([html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Petscan_Befund_' + r.species + '_' + r.id + '.doc';
+  a.click(); URL.revokeObjectURL(url);
+  toast('Word-Dokument heruntergeladen');
+}
+
+// ── TXT EXPORT ────────────────────────────────────────────
+function exportTXT(id) {
+  const r = CACHED_REPORTS.find(r=>r.id===id) || ALL_REPORTS.find(r=>r.id===id);
+  if (!r) { toast('Befund nicht gefunden', 'amber'); return; }
+  const sevText = {low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+  const txt = 'PETSCAN BEFUNDBERICHT
+' + '='.repeat(40) + '
+'
+    + 'Tierart: ' + r.species + '
+Region: ' + r.region + '
+Datum: ' + fmtDate(r.created_at)
+    + '
+Dringlichkeit: ' + sevText + '
+' + '='.repeat(40) + '
+
+'
+    + (r.report_text||'').replace(/\*\*(.+?)\*\*/g,'$1').replace(/^## /gm,'-- ').replace(/^### /gm,'  ')
+    + '
+
+' + '-'.repeat(40) + '
+Petscan KI. Kein Ersatz fuer tieraerztliche Diagnose.';
+  const blob = new Blob([txt], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Petscan_' + r.species + '_' + r.id + '.txt';
+  a.click(); URL.revokeObjectURL(url);
+  toast('Textdatei heruntergeladen');
+}
+
+// ── CSV EXPORT ─────────────────────────────────────────────
+function exportAllCSV() {
+  const reports = ALL_REPORTS.length ? ALL_REPORTS : CACHED_REPORTS;
+  if (!reports.length) { toast('Keine Befunde', 'amber'); return; }
+  const rows = reports.map(function(r) {
+    return [r.id, fmtDate(r.created_at), r.species, r.region, r.mode,
+      ({low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL'),
+      '"' + (r.report_text||'').replace(/"/g,'""').replace(/
+/g,' ') + '"'].join(';');
+  });
+  const csv = 'ID;Datum;Tierart;Region;Modus;Dringlichkeit;Befund
+' + rows.join('
+');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Petscan_Befunde_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast(reports.length + ' Befunde als CSV exportiert');
+}
+
+// ── UTILS ────────────────────────────────────────────────
+function mdToHtml(md) {
+  if (!md) return '';
+  var h = md
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^---$/gm, '<hr>');
+  h = h.replace(/(\|.+\|
+?)+/g, function(t) {
+    var rows = t.trim().split('
+');
+    var out = '<table>';
+    rows.forEach(function(row, i) {
+      var cells = row.split('|').filter(function(c){return c.trim();}).map(function(c){return c.trim();});
+      if (cells.every(function(c){return /^[-:]+$/.test(c);})) return;
+      var tag = i===0?'th':'td';
+      out += '<tr>' + cells.map(function(c){return '<'+tag+'>'+c+'</'+tag+'>';}).join('') + '</tr>';
+    });
+    return out + '</table>';
+  });
+  h = h.replace(/^(- .+
+?)+/gm, function(b) {
+    return '<ul>' + b.trim().split('
+').map(function(l){return '<li>'+l.replace(/^- /,'')+'</li>';}).join('') + '</ul>';
+  });
+  h = h.split('
+
+').map(function(block) {
+    return (!block.trim() || /^<[hut]/.test(block)) ? block : '<p>' + block.trim().replace(/
+/g,' ') + '</p>';
+  }).join('
+');
+  return h;
+}
+
+function fmtDate(d) {
+  if (!d) return '-';
+  try {
+    return new Date(d).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch(e) { return d; }
+}
+
+function toast(msg, type) {
+  var t = document.getElementById('toast');
+  var dot = document.getElementById('t-dot');
+  document.getElementById('t-txt').textContent = msg;
+  dot.className = 't-dot' + (type && type!=='green' ? ' '+type : '');
+  t.classList.add('show');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
 </script>
-</body></html>
+</body>
+</html>
