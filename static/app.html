@@ -181,6 +181,67 @@ a{color:inherit;text-decoration:none;}
 .t-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;flex-shrink:0;}
 .t-dot.red{background:var(--red);}
 .t-dot.amber{background:var(--amber);}
+
+/* ═══ MOBILE RESPONSIVE ═══ */
+@media(max-width:768px){
+  /* Toolbar: kompakter */
+  .tb{padding:0 10px;height:48px;gap:6px;}
+  .tb-brand{font-size:13px;gap:5px;}
+  .tb-bi{width:24px;height:24px;border-radius:5px;}
+  .tb-bi svg{width:12px;height:12px;}
+  .tb-home,.tb-uname{display:none;}
+  .tb-usage{font-size:10px;padding:3px 7px;}
+  .tb-plan-badge{font-size:10px;padding:2px 7px;}
+  .tb-logout{font-size:11px;padding:4px 8px;}
+
+  /* App-Layout: Sidebar ausblenden, volle Breite */
+  .app-wrap{grid-template-columns:1fr !important;}
+  .sb{display:none;}
+  .sb.mobile-open{display:flex;position:fixed;top:48px;left:0;bottom:0;width:260px;z-index:500;box-shadow:0 0 40px rgba(0,0,0,.3);}
+  .mobile-overlay{position:fixed;inset:0;top:48px;background:rgba(0,0,0,.4);z-index:499;display:none;}
+  .mobile-overlay.show{display:block;}
+
+  /* Page Header */
+  .ph{padding:10px 14px;}
+  .ph-t{font-size:13px;}
+
+  /* Analyse-Layout: vertikal statt nebeneinander */
+  .an-layout{grid-template-columns:1fr !important;}
+  .an-sb{border-right:none !important;border-bottom:1px solid var(--border);max-height:none;overflow-y:visible !important;padding:10px !important;}
+  .an-main{padding:14px !important;}
+
+  /* Report-Items: Export-Buttons kompakter */
+  .report-item{padding:10px 12px;gap:10px;flex-wrap:wrap;}
+  .report-item>div:last-child{width:100%;justify-content:flex-end;}
+
+  /* Result-Card */
+  .result-card{padding-bottom:20px;}
+  .result-body{padding:14px;}
+  .result-body table{font-size:11px;}
+  .result-body th,.result-body td{padding:5px 8px;}
+  .sev-bar{flex-direction:column;gap:6px;align-items:flex-start;}
+
+  /* Login */
+  .lw{width:calc(100% - 32px);max-width:400px;}
+  .l-body{padding:18px 20px 22px;}
+  .l-top{padding:20px 20px 16px;}
+
+  /* Report Modal */
+  #rep-modal{padding:10px !important;}
+
+  /* KPI Grid */
+  .kpi-g{grid-template-columns:1fr !important;}
+  .kpi-v{font-size:20px;}
+
+  /* Toast */
+  .toast{left:10px;right:10px;bottom:10px;}
+}
+
+/* Hamburger-Menü Button */
+.mobile-menu-btn{display:none;padding:6px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);color:var(--text2);}
+@media(max-width:768px){
+  .mobile-menu-btn{display:flex;align-items:center;justify-content:center;}
+}
 </style>
 </head>
 <body>
@@ -226,6 +287,9 @@ a{color:inherit;text-decoration:none;}
 <!-- APP SCREEN -->
 <div class="screen" id="as">
   <div class="tb">
+    <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <div class="tb-brand">
       <div class="tb-bi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 9l4-4 4 4M17 9l4-4-4-4"/><line x1="12" y1="3" x2="12" y2="21"/></svg></div>
       Petscan
@@ -237,8 +301,9 @@ a{color:inherit;text-decoration:none;}
     <span class="tb-uname" id="tb-name"></span>
     <button class="tb-logout" onclick="doLogout()">Abmelden</button>
   </div>
+  <div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileMenu()"></div>
   <div class="app-wrap">
-    <div class="sb">
+    <div class="sb" id="app-sb">
       <div class="sb-sec">
         <div class="sb-lbl">KI-Analyse</div>
         <button class="nb on" data-v="analyse" onclick="navTo('analyse',this)">
@@ -404,8 +469,23 @@ function showApp() {
   renderAnalyse();
 }
 
+// MOBILE MENU
+function toggleMobileMenu() {
+  var sb = document.getElementById('app-sb');
+  var ov = document.getElementById('mobile-overlay');
+  var open = sb.classList.toggle('mobile-open');
+  ov.classList.toggle('show', open);
+}
+function closeMobileMenu() {
+  var sb = document.getElementById('app-sb');
+  var ov = document.getElementById('mobile-overlay');
+  if(sb) sb.classList.remove('mobile-open');
+  if(ov) ov.classList.remove('show');
+}
+
 // NAV
 function navTo(view, btn) {
+  closeMobileMenu();
   document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('on'); });
   if(btn) btn.classList.add('on');
   var titles = {analyse:'Neue Analyse',reports:'Meine Befunde',account:'Mein Account',upgrade:'Plan upgraden'};
