@@ -92,8 +92,6 @@ def init_db():
     def hp(pw): return hashlib.sha256(pw.encode()).hexdigest()
     trial_end = (datetime.now() + timedelta(days=14)).isoformat()
     demo_users = [
-        ('u1','dr.mueller@tierklinik.de',hp('demo123'),'Dr. Anna Müller','Tierklinik München','professional','customer',999,999),
-        ('u2','info@kleintierpraxis.de', hp('demo123'),'Dr. Stefan Schmidt','Kleintierpraxis Schmidt','starter','customer',22,50),
         ('admin1','admin@petscan.de',    hp('admin123'),'Administrator','Petscan GmbH','admin','admin',0,999999),
     ]
     for uid,em,pw,name,praxis,plan,role,used,limit in demo_users:
@@ -290,8 +288,16 @@ def analyse():
         'second':  f'Erstelle eine kritische Zweitmeinung zu den Röntgenaufnahmen eines {species} im Bereich {region}.',
     }
 
+    # DSGVO: Bilddaten werden NUR zur KI-Analyse an Anthropic gesendet,
+    # NICHT in der Datenbank gespeichert. Nach der Analyse werden sie verworfen.
+    # DICOM-Metadaten (Patientennamen etc.) werden nicht extrahiert oder gespeichert.
+
     system = """Du bist ECVDI-Diplomate mit 20 Jahren Erfahrung in der Veterinärradiologie.
 Erstelle professionelle Befundberichte auf Deutsch.
+
+WICHTIG DATENSCHUTZ: Falls im Bild DICOM-Metadaten oder Patientendaten sichtbar sind,
+ignoriere diese vollständig. Nenne KEINE Patientennamen, Geburtsdaten oder andere
+personenbezogene Daten aus dem Bild im Befund.
 
 PFLICHT: Die DIAGNOSE und der MEDIZINISCHE ZUSTAND kommen IMMER ZUERST.
 

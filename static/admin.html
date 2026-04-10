@@ -464,10 +464,23 @@ function doLogout(){
   document.getElementById('ls').classList.add('active');
   document.getElementById('l-pw').value='';
 }
-function init(){ updBadges(); rDash(); }
+var _currentView='dashboard';
+var _autoRefresh=null;
+function init(){
+  updBadges(); rDash();
+  // Auto-Refresh: Dashboard alle 30 Sekunden aktualisieren
+  _autoRefresh=setInterval(function(){
+    if(_currentView==='dashboard') rDash();
+    if(_currentView==='customers') rCustomers();
+    if(_currentView==='leads') rLeads();
+    if(_currentView==='reports') rReports();
+    updBadges();
+  },30000);
+}
 
 // NAV
 function nav(view,btn){
+  _currentView=view;
   if(btn){document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
   const titles={dashboard:'Dashboard',analytics:'Analytics',customers:'Kunden',leads:'Lead-Pipeline',reports:'Alle Befunde',settings:'Einstellungen',audit:'Audit-Log'};
   document.getElementById('ph-t').textContent=titles[view]||view;
