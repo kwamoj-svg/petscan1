@@ -466,16 +466,31 @@ function doLogout(){
 }
 var _currentView='dashboard';
 var _autoRefresh=null;
-function init(){
+async function init(){
+  // Load live data on startup
+  await loadLiveData();
   updBadges(); rDash();
-  // Auto-Refresh: Dashboard alle 30 Sekunden aktualisieren
-  _autoRefresh=setInterval(function(){
+  // Auto-Refresh: alle 15 Sekunden
+  _autoRefresh=setInterval(async function(){
+    await loadLiveData();
     if(_currentView==='dashboard') rDash();
     if(_currentView==='customers') rCustomers();
     if(_currentView==='leads') rLeads();
     if(_currentView==='reports') rReports();
     updBadges();
-  },30000);
+  },15000);
+}
+async function loadLiveData(){
+  try{
+    const [cRes,lRes,rRes]=await Promise.all([
+      fetch('/api/admin/customers',{headers:authHeader()}),
+      fetch('/api/admin/leads',{headers:authHeader()}),
+      fetch('/api/admin/reports',{headers:authHeader()})
+    ]);
+    if(cRes.ok){const d=await cRes.json();D.customers=d.customers.map(c=>({id:c.id,name:c.name||'–',email:c.email,praxis:c.praxis||'–',plan:c.plan==='professional'?'Professional':c.plan==='starter'?'Starter':c.plan==='trial'?'Trial':c.plan,analyses:c.analyses_used||0,revenue:c.plan==='professional'?179:c.plan==='starter'?49:0,joined:c.created_at||'–',lastLogin:c.last_login||'–',active:c.active===1||c.active===true,email_verified:c.email_verified}));}
+    if(lRes.ok){const d=await lRes.json();D.leads=d.leads.map(l=>({...l,msg:l.message||l.msg||'–',created:l.created_at||l.created}));}
+    if(rRes.ok){const d=await rRes.json();D.reports=d.reports.map(r=>({...r,customer:r.user_name||r.customer||'–',created:r.created_at||r.created}));}
+  }catch(e){console.error('Live data load error:',e);}
 }
 
 // NAV
@@ -605,22 +620,22 @@ function editCustomer(id){
     <div class="form-row"><div class="form-g"><label class="form-l">Name</label><input class="form-i" id="m-name" value="${c.name}"></div><div class="form-g"><label class="form-l">Praxis</label><input class="form-i" id="m-praxis" value="${c.praxis}"></div></div>
     <div class="form-g"><label class="form-l">E-Mail</label><input class="form-i" id="m-email" value="${c.email}"></div>
     <div class="form-row">
-      <div class="form-g"><label class="form-l">Plan</label><select class="form-s" id="m-plan"><option ${c.plan==='Starter'?'selected':''}>Starter</option><option ${c.plan==='Professional'?'selected':''}>Professional</option><option ${c.plan==='Klinik'?'selected':''}>Klinik</option></select></div>
+      <div class="form-g"><label class="form-l">Plan</label><select class="form-s" id="m-plan"><option value="trial" ${c.plan==='Trial'?'selected':''}>Trial</option><option value="starter" ${c.plan==='Starter'?'selected':''}>Starter</option><option value="professional" ${c.plan==='Professional'?'selected':''}>Professional</option></select></div>
       <div class="form-g"><label class="form-l">Status</label><select class="form-s" id="m-active"><option value="true" ${c.active?'selected':''}>Aktiv</option><option value="false" ${!c.active?'selected':''}>Inaktiv</option></select></div>
     </div>`,
     `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="saveCustomer('${id}')">Speichern</button>`);
 }
-function saveCustomer(id){
-  const c=D.customers.find(x=>x.id===id);if(!c)return;
-  c.name=v('m-name');c.praxis=v('m-praxis');c.email=v('m-email');
-  c.plan=v('m-plan','s');c.active=v('m-active','s')==='true';
-  D.audit.unshift({action:'Kunde bearbeitet',user:'admin',detail:c.email,time:new Date().toISOString(),type:'update'});
-  cModal();rCustomers();toast('Kunde gespeichert');
+async function saveCustomer(id){
+  const plan=v('m-plan','s');
+  try{
+    await fetch('/api/admin/customers/'+id,{method:'PUT',headers:authHeader(),body:JSON.stringify({name:v('m-name'),praxis:v('m-praxis'),plan:plan,active:v('m-active','s')==='true'?1:0})});
+  }catch(e){}
+  cModal();await loadLiveData();updBadges();rCustomers();toast('Kunde gespeichert');
 }
-function deleteCustomer(id){
+async function deleteCustomer(id){
   if(!confirm('Kunden wirklich entfernen?'))return;
-  D.customers=D.customers.filter(c=>c.id!==id);
-  updBadges();rCustomers();toast('Kunde entfernt');
+  try{await fetch('/api/admin/customers/'+id,{method:'DELETE',headers:authHeader()});}catch(e){}
+  await loadLiveData();updBadges();rCustomers();toast('Kunde entfernt');
 }
 function openAddCustomerModal(){
   openModal('Neuen Kunden anlegen',`
@@ -629,10 +644,11 @@ function openAddCustomerModal(){
     <div class="form-row"><div class="form-g"><label class="form-l">Temp. Passwort</label><input class="form-i" id="m-pw" value="demo123"></div><div class="form-g"><label class="form-l">Plan</label><select class="form-s" id="m-plan"><option>Starter</option><option>Professional</option><option>Klinik</option></select></div></div>`,
     `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="doAddCustomer()">Anlegen</button>`);
 }
-function doAddCustomer(){
-  D.customers.push({id:'c'+Date.now(),name:v('m-name'),email:v('m-email'),praxis:v('m-praxis'),plan:v('m-plan','s'),analyses:0,revenue:v('m-plan','s')==='Professional'?149:49,joined:new Date().toISOString().slice(0,10),lastLogin:null,active:true});
-  D.audit.unshift({action:'Kunde angelegt',user:'admin',detail:v('m-email'),time:new Date().toISOString(),type:'create'});
-  cModal();updBadges();rCustomers();toast('Kunde angelegt');
+async function doAddCustomer(){
+  try{
+    await fetch('/api/admin/customers',{method:'POST',headers:authHeader(),body:JSON.stringify({email:v('m-email'),name:v('m-name'),praxis:v('m-praxis'),plan:v('m-plan','s'),password:v('m-pw')||'Animioo2025!'})});
+  }catch(e){}
+  cModal();await loadLiveData();updBadges();rCustomers();toast('Kunde angelegt');
 }
 
 // LEADS
@@ -661,11 +677,13 @@ async function rLeads(){
         </div>`).join('')}
     </div>`).join('')}</div>`;
 }
-function advLead(id){
+async function advLead(id){
   const l=D.leads.find(x=>x.id===id);if(!l)return;
   const next={new:'contacted',contacted:'demo',demo:'proposal'};
-  if(next[l.status]){l.status=next[l.status];D.audit.unshift({action:'Lead-Status',user:'admin',detail:`${l.name} → ${lLabel(l.status)}`,time:new Date().toISOString(),type:'update'});}
-  rLeads();toast('Lead aktualisiert');
+  if(next[l.status]){
+    try{await fetch('/api/admin/leads/'+id,{method:'PUT',headers:authHeader(),body:JSON.stringify({status:next[l.status]})});}catch(e){}
+  }
+  await loadLiveData();updBadges();rLeads();toast('Lead aktualisiert');
 }
 function convLead(id){
   const l=D.leads.find(x=>x.id===id);if(!l)return;
@@ -676,11 +694,12 @@ function convLead(id){
     <div class="form-row"><div class="form-g"><label class="form-l">Passwort</label><input class="form-i" id="m-pw" value="demo123"></div><div class="form-g"><label class="form-l">Plan</label><select class="form-s" id="m-plan"><option>Starter</option><option selected>Professional</option></select></div></div>`,
     `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="doConvLead('${id}')">Anlegen</button>`);
 }
-function doConvLead(lid){
-  D.customers.push({id:'c'+Date.now(),name:v('m-name'),email:v('m-email'),praxis:v('m-praxis'),plan:v('m-plan','s'),analyses:0,revenue:v('m-plan','s')==='Professional'?149:49,joined:new Date().toISOString().slice(0,10),lastLogin:null,active:true});
-  D.leads=D.leads.filter(l=>l.id!==lid);
-  D.audit.unshift({action:'Lead konvertiert',user:'admin',detail:v('m-email'),time:new Date().toISOString(),type:'create'});
-  cModal();updBadges();rLeads();toast('Kunde angelegt');
+async function doConvLead(lid){
+  try{
+    await fetch('/api/admin/customers',{method:'POST',headers:authHeader(),body:JSON.stringify({email:v('m-email'),name:v('m-name'),praxis:v('m-praxis'),plan:v('m-plan','s'),password:v('m-pw')||'Animioo2025!'})});
+    await fetch('/api/admin/leads/'+lid,{method:'DELETE',headers:authHeader()});
+  }catch(e){}
+  cModal();await loadLiveData();updBadges();rLeads();toast('Kunde angelegt');
 }
 async function delLead(id){
   try{await fetch('/api/admin/leads/'+id,{method:'DELETE',headers:authHeader()});}catch(e){}
@@ -693,10 +712,11 @@ function openAddLeadModal(){
     <div class="form-g"><label class="form-l">Notiz</label><textarea class="form-ta" id="m-note" placeholder="Interesse, Anforderungen ..."></textarea></div>`,
     `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="doAddLead()">Hinzufügen</button>`);
 }
-function doAddLead(){
-  D.leads.push({id:'l'+Date.now(),name:v('m-name'),contact:v('m-contact'),email:v('m-email'),msg:v('m-note')||'–',status:'new',source:v('m-src','s'),created:new Date().toISOString().slice(0,10)});
-  D.audit.unshift({action:'Lead hinzugefügt',user:'admin',detail:v('m-email'),time:new Date().toISOString(),type:'create'});
-  cModal();updBadges();rLeads();toast('Lead hinzugefügt');
+async function doAddLead(){
+  try{
+    await fetch('/api/admin/leads',{method:'POST',headers:authHeader(),body:JSON.stringify({name:v('m-name'),contact:v('m-contact'),email:v('m-email'),message:v('m-note')||'–',status:'new',source:v('m-src','s')})});
+  }catch(e){}
+  cModal();await loadLiveData();updBadges();rLeads();toast('Lead hinzugefügt');
 }
 
 // REPORTS
