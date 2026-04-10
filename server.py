@@ -598,14 +598,16 @@ def analyse():
         if user['plan'] == 'starter' and user['analyses_used'] >= 50:
             return jsonify({'error':'Monatliches Starter-Kontingent (50 Analysen) erreicht.','upgrade_required':True}), 402
 
-    d        = request.json or {}
-    pet_name = d.get('pet_name','').strip()
-    species  = d.get('species','Hund')
-    region   = d.get('region','Thorax')
-    mode     = d.get('mode','single')
-    ctx      = d.get('context','')
-    img_a    = d.get('img_a','')
-    img_b    = d.get('img_b','')
+    d          = request.json or {}
+    pet_name   = d.get('pet_name','').strip()
+    species    = d.get('species','Hund')
+    region     = d.get('region','Thorax')
+    mode       = d.get('mode','single')
+    ctx        = d.get('context','')
+    focus_mode = d.get('focus_mode','general')
+    focus_text = d.get('focus_text','').strip()
+    img_a      = d.get('img_a','')
+    img_b      = d.get('img_b','')
 
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
@@ -661,6 +663,8 @@ FORMAT - genau diese Reihenfolge einhalten:
         ]
     prompt = prompts.get(mode, prompts['single'])
     if ctx: prompt += f'\n\nKlinischer Kontext vom Tierarzt: {ctx}'
+    if focus_mode == 'specific' and focus_text:
+        prompt += f'\n\nSPEZIFISCHER ANALYSE-FOKUS: Der Tierarzt bittet um gezielte Untersuchung folgender Aspekte: {focus_text}. Bitte gehe besonders detailliert auf diese Fragestellung ein.'
     msgs.append({'type':'text','text':prompt})
 
     try:

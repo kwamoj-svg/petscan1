@@ -370,7 +370,7 @@ a{color:inherit;text-decoration:none;}
 
 <script>
 var ME = null;
-var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null, petName:''};
+var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null, petName:'', focusMode:'general'};
 var CACHED = [];
 var ALL_REPORTS = [];
 
@@ -631,6 +631,15 @@ function renderAnalyse() {
     // Context
     + '<div><div class="an-lbl">5 · Klinischer Kontext</div>'
     + '<textarea class="ctx" id="ctx" placeholder="Anamnese, Symptome, Vordiagnosen …"></textarea></div>'
+    // Analysis Focus
+    + '<div><div class="an-lbl">6 · Analyse-Fokus</div>'
+    + '<div class="mode-g" id="focus-mode">'
+    + '<div class="mode-btn on" onclick="setFocus(\'general\',this)">Allgemeine Analyse</div>'
+    + '<div class="mode-btn" onclick="setFocus(\'specific\',this)">Spezifische Analyse</div>'
+    + '</div>'
+    + '<div id="focus-detail" style="display:none;margin-top:8px;">'
+    + '<textarea class="ctx" id="focus-text" placeholder="Wonach soll die KI gezielt suchen?\nz.B. Fraktur am Radius, Gelenkspalt, Herzsilhouette, Fremdkörper …" style="min-height:60px;"></textarea>'
+    + '</div></div>'
     // Button
     + '<button class="run-btn" id="run-btn" onclick="runAnalysis()">'
     + '<div class="run-spin"></div><span>Radiologische Analyse starten</span></button>'
@@ -742,6 +751,13 @@ function removeImg(k,e) {
 }
 
 // RUN ANALYSIS
+function setFocus(type, btn) {
+  AN.focusMode = type;
+  document.querySelectorAll('#focus-mode .mode-btn').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  document.getElementById('focus-detail').style.display = type==='specific' ? '' : 'none';
+}
+
 function runAnalysis() {
   if(!AN.imgA){ toast('Bitte Aufnahme A hochladen','red'); return; }
   if(AN.mode!=='single'&&!AN.imgB){ toast('Bitte auch Aufnahme B hochladen','amber'); return; }
@@ -749,10 +765,13 @@ function runAnalysis() {
   btn.disabled=true; btn.classList.add('busy');
   showLoading();
   var ctx=document.getElementById('ctx');
+  var focusTxt=document.getElementById('focus-text');
   api('/api/analyse','POST',{
     species:AN.species, region:AN.region, mode:AN.mode,
     pet_name:AN.petName.trim(),
     context:ctx?ctx.value.trim():'',
+    focus_mode:AN.focusMode,
+    focus_text:focusTxt&&AN.focusMode==='specific'?focusTxt.value.trim():'',
     img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:''
   })
   .then(function(data){
