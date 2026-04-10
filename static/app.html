@@ -858,7 +858,7 @@ function buildAccount() {
     +'<div class="ac-row"><span class="ac-lbl">E-Mail</span><span class="ac-val">'+ME.email+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Praxis</span><span class="ac-val">'+(ME.praxis||'–')+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Plan</span><span class="ac-val">'+pl+'</span></div></div>'
-    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — 149 €/Monat.</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
+    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — 179 €/Monat.</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
     +'</div></div>';
 }
 
@@ -876,7 +876,7 @@ function renderUpgrade() {
     +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'starter\')">Jetzt kaufen</button></div>'
     +'<div style="border:2px solid var(--blue);border-radius:10px;padding:20px;cursor:pointer;background:var(--blue-dim);position:relative;" onclick="startCheckout(\'professional\')">'
     +'<div style="position:absolute;top:-10px;right:12px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:10px;">BELIEBT</div>'
-    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Professional</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">149 €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
+    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Professional</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">179 €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
     +'<div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">∞ Unbegrenzte Analysen<br>Verlaufsvergleich<br>Prioritäts-Support</div>'
     +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'professional\')">Jetzt kaufen</button></div>'
     +'</div><p style="margin-top:16px;font-size:12px;color:var(--text3);text-align:center;">Sichere Zahlung via Stripe · Jederzeit kündbar</p>'

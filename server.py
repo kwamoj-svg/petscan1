@@ -416,7 +416,7 @@ def create_checkout():
         conn = get_db()
         conn.execute('INSERT INTO payments (id,user_id,stripe_session_id,plan,amount,status,created_at) VALUES (?,?,?,?,?,?,?)',
                      ('pay_'+nid(), request.user['id'], session.id, plan,
-                      4900 if plan=='starter' else 14900, 'pending', now()))
+                      4900 if plan=='starter' else 17900, 'pending', now()))
         conn.commit(); conn.close()
 
         return jsonify({'checkout_url': session.url})
@@ -493,7 +493,7 @@ def admin_stats():
         'leads':      conn.execute("SELECT COUNT(*) as n FROM leads").fetchone()['n'],
         'new_leads':  conn.execute("SELECT COUNT(*) as n FROM leads WHERE status='new'").fetchone()['n'],
         'analyses':   conn.execute("SELECT SUM(analyses_used) as n FROM users").fetchone()['n'] or 0,
-        'mrr':        conn.execute("SELECT SUM(CASE plan WHEN 'professional' THEN 149 WHEN 'starter' THEN 49 ELSE 0 END) as n FROM users WHERE active=1 AND role='customer'").fetchone()['n'] or 0,
+        'mrr':        conn.execute("SELECT SUM(CASE plan WHEN 'professional' THEN 179 WHEN 'starter' THEN 49 ELSE 0 END) as n FROM users WHERE active=1 AND role='customer'").fetchone()['n'] or 0,
         'audit':     [dict(r) for r in conn.execute('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 30').fetchall()],
         'plan_dist':  [dict(r) for r in conn.execute("SELECT plan, COUNT(*) as n FROM users WHERE role='customer' GROUP BY plan").fetchall()],
         'weekly':     [dict(r) for r in conn.execute("SELECT date(created_at) as day, COUNT(*) as n FROM reports GROUP BY day ORDER BY day DESC LIMIT 7").fetchall()],
