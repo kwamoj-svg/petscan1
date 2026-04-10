@@ -160,7 +160,7 @@ a{color:inherit;text-decoration:none;}
 .run-spin{width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:spin .7s linear infinite;flex-shrink:0;display:none;}
 .run-btn.busy .run-spin{display:block;}
 @keyframes spin{to{transform:rotate(360deg)}}
-.an-main{overflow-y:auto;padding:22px;background:var(--bg);}
+.an-main{overflow-y:auto;padding:22px;background:var(--bg);height:100%;}
 
 /* EMPTY STATE */
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:12px;padding:40px;}
@@ -186,7 +186,7 @@ a{color:inherit;text-decoration:none;}
 @keyframes ind{0%{width:0;margin-left:0}50%{width:50%;margin-left:25%}100%{width:0;margin-left:100%}}
 
 /* RESULT */
-.result-card{max-width:820px;margin:0 auto;}
+.result-card{max-width:820px;margin:0 auto;padding-bottom:40px;}
 .result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;}
 .result-h1{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.3px;}
 .result-meta{font-size:11px;color:var(--text3);margin-top:4px;}
@@ -613,18 +613,25 @@ function renderAnalyse() {
         <!-- Tierart -->
         <div>
           <div class="an-lbl">1 · Tierart wählen</div>
-          <div class="sp-g">
-            ${['Hund','Katze','Pferd','Rind','Vogel','Sonstige'].map(s=>
-              `<button class="sp-btn${AN.species===s?' on':''}" onclick="setSp(this,'${s}')">${s}</button>`
-            ).join('')}
+          <div style="position:relative;">
+            <input id="species-search" type="text" placeholder="Tierart suchen (z.B. Hund)..."
+              style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);color:var(--text);background:var(--surface);"
+              oninput="filterSpecies(this.value)" onfocus="showSpeciesList()" value="${AN.species}"
+              onblur="setTimeout(()=>document.getElementById('species-list').style.display='none',200)">
+            <div id="species-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh2);z-index:100;max-height:180px;overflow-y:auto;">
+            </div>
           </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">Gewählt: <strong id="species-chosen">${AN.species}</strong></div>
         </div>
         <!-- Region -->
         <div>
           <div class="an-lbl">2 · Körperregion</div>
-          <div class="rg-list">
-            ${[['Thorax / Lunge','Thorax'],['Abdomen','Abdomen'],['Extremitäten','Extremitäten'],['Wirbelsäule','Wirbelsäule'],['Schädel / Dental','Schädel'],['Becken / Hüfte','Becken'],['Ganzkörper','Ganzkörper']].map(([l,v])=>
-              `<button class="rg-btn${AN.region===v?' on':''}" onclick="setRg(this,'${v}')">${l}</button>`
+          <input id="region-search" type="text" placeholder="Region suchen..."
+            style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);color:var(--text);margin-bottom:5px;"
+            oninput="filterRegions(this.value)">
+          <div class="rg-list" id="region-list">
+            ${[['Thorax / Lunge','Thorax'],['Abdomen','Abdomen'],['Extremitäten','Extremitäten'],['Wirbelsäule','Wirbelsäule'],['Schädel / Dental','Schädel'],['Becken / Hüfte','Becken'],['Ganzkörper','Ganzkörper'],['Gelenke','Gelenke'],['Lunge','Lunge'],['Herz','Herz'],['Nieren','Nieren'],['Leber','Leber'],['Milz','Milz'],['Magen','Magen'],['Darm','Darm'],['Blase','Blase'],['Hüfte','Hüfte'],['Knie','Knie'],['Pfote / Fuß','Pfote'],['Schulter','Schulter'],['Ellbogen','Ellbogen'],['Karpus','Karpus'],['Tarsus','Tarsus'],['Rippen','Rippen'],['Sternum','Sternum'],['Becken','Becken'],['Nasenhöhle','Nasenhöhle'],['Ohren','Ohren'],['Zähne / Dental','Dental']].map(([l,v])=>
+              `<button class="rg-btn${AN.region===v?' on':''}" data-label="${l}" onclick="setRg(this,'${v}')">${l}</button>`
             ).join('')}
           </div>
         </div>
@@ -644,7 +651,7 @@ function renderAnalyse() {
             <input type="file" id="fi-a" accept="image/*,.dcm,.dicom">
             <span class="uz-tag">AUFNAHME A</span>
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-            <div class="uz-text">Klicken oder Bild reinziehen</div>
+            <div class="uz-text">JPG, PNG, DICOM (.dcm)</div>
           </div>
           <div class="uz" id="uz-b" onclick="document.getElementById('fi-b').click()">
             <input type="file" id="fi-b" accept="image/*,.dcm,.dicom">
@@ -671,7 +678,7 @@ function renderAnalyse() {
           <div class="empty-p">Wählen Sie Tierart und Region, laden Sie ein Röntgenbild hoch und starten Sie die KI-Analyse.</div>
           <div class="empty-steps">
             <div class="e-step"><span class="e-n">1</span>Tierart &amp; Region wählen</div>
-            <div class="e-step"><span class="e-n">2</span>Röntgenbild hochladen (JPG, PNG)</div>
+            <div class="e-step"><span class="e-n">2</span>Röntgenbild hochladen (JPG, PNG, DICOM)</div>
             <div class="e-step"><span class="e-n">3</span>Analyse starten — Befund in &lt; 45 Sek.</div>
             <div class="e-step"><span class="e-n">4</span>PDF exportieren &amp; archivieren</div>
           </div>
@@ -682,6 +689,40 @@ function renderAnalyse() {
 }
 
 function setSp(btn, val) { document.querySelectorAll('.sp-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); AN.species=val; }
+
+const ALL_SPECIES = ['Hund', 'Katze', 'Pferd', 'Rind', 'Schwein', 'Schaf', 'Ziege', 'Kaninchen', 'Meerschweinchen', 'Hamster', 'Ratte', 'Maus', 'Frettchen', 'Vogel', 'Papagei', 'Wellensittich', 'Kanarienvogel', 'Taube', 'Huhn', 'Ente', 'Gans', 'Truthahn', 'Gecko', 'Schildkröte', 'Schlange', 'Leguan', 'Bartagame', 'Fisch', 'Koi', 'Lama', 'Alpaka', 'Esel', 'Maultier', 'Zebra', 'Hirsch', 'Wildschwein', 'Fuchs', 'Wolf', 'Bär', 'Affe', 'Sonstige'];
+
+function showSpeciesList() {
+  filterSpecies(document.getElementById('species-search').value);
+  document.getElementById('species-list').style.display = 'block';
+}
+
+function filterSpecies(q) {
+  const list = document.getElementById('species-list');
+  if (!list) return;
+  const filtered = ALL_SPECIES.filter(s => !q || s.toLowerCase().includes(q.toLowerCase()));
+  list.innerHTML = filtered.map(s => 
+    `<div onclick="selectSpecies('${s}')" style="padding:7px 10px;font-size:12px;cursor:pointer;color:var(--text);border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--blue-dim)'" onmouseout="this.style.background=''">${s}</div>`
+  ).join('');
+  list.style.display = filtered.length ? 'block' : 'none';
+}
+
+function selectSpecies(val) {
+  AN.species = val;
+  const inp = document.getElementById('species-search');
+  if (inp) inp.value = val;
+  const ch = document.getElementById('species-chosen');
+  if (ch) ch.textContent = val;
+  document.getElementById('species-list').style.display = 'none';
+}
+
+function filterRegions(q) {
+  const btns = document.querySelectorAll('#region-list .rg-btn');
+  btns.forEach(btn => {
+    const label = btn.getAttribute('data-label') || btn.textContent;
+    btn.style.display = !q || label.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
 function setRg(btn, val) { document.querySelectorAll('.rg-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); AN.region=val; }
 function setMode(btn, val) { document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); AN.mode=val; }
 
