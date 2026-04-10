@@ -1,116 +1,360 @@
 """
-Petscan – Vollständiger Produktions-Server
+Petscan – Produktions-Server v2
 Auth + KI-Analyse + Stripe Payments + Admin
++ bcrypt, rate limiting, email, Sentry, PostgreSQL
 """
 from flask import Flask, request, jsonify, send_from_directory, redirect
 from flask_cors import CORS
-import anthropic, sqlite3, hashlib, secrets, os, json
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import anthropic, hashlib, secrets, os, json, smtplib, logging
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from functools import wraps
 
+# ═══════════════════════════════════════════════════
+# APP SETUP
+# ═══════════════════════════════════════════════════
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 CORS(app, supports_credentials=True)
 
-ANTHROPIC_API_KEY  = os.environ.get('ANTHROPIC_API_KEY', '')
-STRIPE_SECRET_KEY  = os.environ.get('STRIPE_SECRET_KEY', '')
-STRIPE_PUB_KEY     = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
-STRIPE_WEBHOOK_SEC = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
-STRIPE_PRICE_STARTER = os.environ.get('STRIPE_PRICE_STARTER', '')
-STRIPE_PRICE_PRO     = os.environ.get('STRIPE_PRICE_PRO', '')
-APP_URL = os.environ.get('APP_URL', 'http://localhost:5000')
-DB_PATH = 'petscan.db'
+# Sentry Error-Monitoring
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        sentry_sdk.init(dsn=SENTRY_DSN, integrations=[FlaskIntegration()],
+                        traces_sample_rate=0.2, environment=os.environ.get('RAIL_ENVIRONMENT','production'))
+        app.logger.info('Sentry initialisiert')
+    except ImportError:
+        app.logger.warning('sentry-sdk nicht installiert')
+
+# Rate Limiting
+limiter = Limiter(get_remote_address, app=app, default_limits=["200 per minute"],
+                  storage_uri="memory://")
 
 # ═══════════════════════════════════════════════════
-# DATENBANK
+# CONFIG
 # ═══════════════════════════════════════════════════
+ANTHROPIC_API_KEY    = os.environ.get('ANTHROPIC_API_KEY', '')
+STRIPE_SECRET_KEY    = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_PUB_KEY       = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SEC   = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_PRICE_STARTER = os.environ.get('STRIPE_PRICE_STARTER', '')
+STRIPE_PRICE_PRO     = os.environ.get('STRIPE_PRICE_PRO', '')
+APP_URL              = os.environ.get('APP_URL', 'http://localhost:5000')
+DATABASE_URL         = os.environ.get('DATABASE_URL', '')
+DB_PATH              = 'petscan.db'
+
+# E-Mail Config
+SMTP_HOST = os.environ.get('SMTP_HOST', '')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASS = os.environ.get('SMTP_PASS', '')
+SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@petscan.de')
+
+# ═══════════════════════════════════════════════════
+# DATENBANK (PostgreSQL mit SQLite-Fallback)
+# ═══════════════════════════════════════════════════
+USE_POSTGRES = bool(DATABASE_URL)
+
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if USE_POSTGRES:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = False
+        return conn
+    else:
+        import sqlite3
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def db_execute(conn, query, params=None):
+    """Execute query with PostgreSQL/SQLite compatibility."""
+    if USE_POSTGRES:
+        # Convert ? placeholders to %s for PostgreSQL
+        query = query.replace('?', '%s')
+    cur = conn.cursor()
+    cur.execute(query, params or ())
+    return cur
+
+def db_fetchone(conn, query, params=None):
+    if USE_POSTGRES:
+        import psycopg2.extras
+        query = query.replace('?', '%s')
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(query, params or ())
+        return cur.fetchone()
+    else:
+        return conn.execute(query, params or ()).fetchone()
+
+def db_fetchall(conn, query, params=None):
+    if USE_POSTGRES:
+        import psycopg2.extras
+        query = query.replace('?', '%s')
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(query, params or ())
+        return cur.fetchall()
+    else:
+        return [dict(r) for r in conn.execute(query, params or ()).fetchall()]
+
+def db_dict(row):
+    """Convert a row to dict."""
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        return row
+    return dict(row)
 
 def init_db():
     conn = get_db()
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            name TEXT DEFAULT "",
-            praxis TEXT DEFAULT "",
-            plan TEXT DEFAULT "trial",
-            active INTEGER DEFAULT 1,
-            role TEXT DEFAULT "customer",
-            analyses_used INTEGER DEFAULT 0,
-            analyses_limit INTEGER DEFAULT 3,
-            stripe_customer_id TEXT DEFAULT "",
-            stripe_subscription_id TEXT DEFAULT "",
-            trial_ends_at TEXT DEFAULT "",
-            created_at TEXT,
-            last_login TEXT
-        );
-        CREATE TABLE IF NOT EXISTS sessions (
-            token TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            expires_at TEXT NOT NULL,
-            created_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS reports (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            pet_name TEXT DEFAULT "",
-            species TEXT,
-            region TEXT,
-            mode TEXT,
-            severity TEXT,
-            report_text TEXT,
-            created_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS leads (
-            id TEXT PRIMARY KEY,
-            name TEXT, contact TEXT, email TEXT,
-            phone TEXT, message TEXT,
-            status TEXT DEFAULT "new",
-            source TEXT DEFAULT "Website",
-            created_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS payments (
-            id TEXT PRIMARY KEY,
-            user_id TEXT,
-            stripe_session_id TEXT,
-            plan TEXT,
-            amount INTEGER,
-            status TEXT DEFAULT "pending",
-            created_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS audit_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            action TEXT, user_id TEXT,
-            detail TEXT, created_at TEXT
-        );
-    ''')
-    def hp(pw): return hashlib.sha256(pw.encode()).hexdigest()
-    trial_end = (datetime.now() + timedelta(days=14)).isoformat()
-    demo_users = [
-        ('admin1','admin@petscan.de',    hp('admin123'),'Administrator','Petscan GmbH','admin','admin',0,999999),
-    ]
-    for uid,em,pw,name,praxis,plan,role,used,limit in demo_users:
-        try:
-            conn.execute('''INSERT INTO users
-                (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,trial_ends_at,created_at)
-                VALUES (?,?,?,?,?,?,1,?,?,?,?,?)''',
-                (uid,em,pw,name,praxis,plan,role,used,limit,trial_end,datetime.now().isoformat()))
-        except: pass
-    conn.commit(); conn.close()
+    if USE_POSTGRES:
+        cur = conn.cursor()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                name TEXT DEFAULT '',
+                praxis TEXT DEFAULT '',
+                plan TEXT DEFAULT 'trial',
+                active INTEGER DEFAULT 1,
+                role TEXT DEFAULT 'customer',
+                analyses_used INTEGER DEFAULT 0,
+                analyses_limit INTEGER DEFAULT 3,
+                stripe_customer_id TEXT DEFAULT '',
+                stripe_subscription_id TEXT DEFAULT '',
+                email_verified INTEGER DEFAULT 0,
+                verify_token TEXT DEFAULT '',
+                reset_token TEXT DEFAULT '',
+                reset_expires TEXT DEFAULT '',
+                trial_ends_at TEXT DEFAULT '',
+                created_at TEXT,
+                last_login TEXT
+            );
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS reports (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                pet_name TEXT DEFAULT '',
+                species TEXT,
+                region TEXT,
+                mode TEXT,
+                severity TEXT,
+                report_text TEXT,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS leads (
+                id TEXT PRIMARY KEY,
+                name TEXT, contact TEXT, email TEXT,
+                phone TEXT, message TEXT,
+                status TEXT DEFAULT 'new',
+                source TEXT DEFAULT 'Website',
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS payments (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                stripe_session_id TEXT,
+                plan TEXT,
+                amount INTEGER,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id SERIAL PRIMARY KEY,
+                action TEXT, user_id TEXT,
+                detail TEXT, created_at TEXT
+            );
+        ''')
+        conn.commit()
+    else:
+        import sqlite3
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                name TEXT DEFAULT "",
+                praxis TEXT DEFAULT "",
+                plan TEXT DEFAULT "trial",
+                active INTEGER DEFAULT 1,
+                role TEXT DEFAULT "customer",
+                analyses_used INTEGER DEFAULT 0,
+                analyses_limit INTEGER DEFAULT 3,
+                stripe_customer_id TEXT DEFAULT "",
+                stripe_subscription_id TEXT DEFAULT "",
+                email_verified INTEGER DEFAULT 0,
+                verify_token TEXT DEFAULT "",
+                reset_token TEXT DEFAULT "",
+                reset_expires TEXT DEFAULT "",
+                trial_ends_at TEXT DEFAULT "",
+                created_at TEXT,
+                last_login TEXT
+            );
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS reports (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                pet_name TEXT DEFAULT "",
+                species TEXT,
+                region TEXT,
+                mode TEXT,
+                severity TEXT,
+                report_text TEXT,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS leads (
+                id TEXT PRIMARY KEY,
+                name TEXT, contact TEXT, email TEXT,
+                phone TEXT, message TEXT,
+                status TEXT DEFAULT "new",
+                source TEXT DEFAULT "Website",
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS payments (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                stripe_session_id TEXT,
+                plan TEXT,
+                amount INTEGER,
+                status TEXT DEFAULT "pending",
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action TEXT, user_id TEXT,
+                detail TEXT, created_at TEXT
+            );
+        ''')
 
-def hp(pw): return hashlib.sha256(pw.encode()).hexdigest()
+    # Migrate: add new columns if missing (for existing DBs)
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN verify_token TEXT DEFAULT ''")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN reset_token TEXT DEFAULT ''")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN reset_expires TEXT DEFAULT ''")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN pet_name TEXT DEFAULT ''")
+    except: pass
+
+    # Admin-User anlegen
+    try:
+        trial_end = (datetime.now() + timedelta(days=14)).isoformat()
+        db_execute(conn, '''INSERT INTO users
+            (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
+            VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
+            ('admin1','admin@petscan.de',hash_pw('admin123'),'Administrator','Petscan GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
+    except: pass
+    conn.commit()
+    if USE_POSTGRES:
+        conn.close()
+    else:
+        conn.close()
+
+# ═══════════════════════════════════════════════════
+# PASSWORT HASHING (bcrypt mit SHA256-Fallback)
+# ═══════════════════════════════════════════════════
+try:
+    import bcrypt
+    HAS_BCRYPT = True
+except ImportError:
+    HAS_BCRYPT = False
+
+def hash_pw(pw):
+    if HAS_BCRYPT:
+        return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def check_pw(pw, hashed):
+    if HAS_BCRYPT and hashed.startswith('$2'):
+        return bcrypt.checkpw(pw.encode(), hashed.encode())
+    # Fallback: SHA256 (alte Passwörter)
+    return hashlib.sha256(pw.encode()).hexdigest() == hashed
+
 def nid():   return secrets.token_hex(8)
 def now():   return datetime.now().isoformat()
 
+# ═══════════════════════════════════════════════════
+# E-MAIL
+# ═══════════════════════════════════════════════════
+def send_email(to, subject, html_body):
+    """Send email via SMTP. Returns True on success."""
+    if not SMTP_HOST or not SMTP_USER:
+        app.logger.warning(f'E-Mail nicht gesendet (SMTP nicht konfiguriert): {subject} -> {to}')
+        return False
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = SMTP_FROM
+        msg['To'] = to
+        msg['Subject'] = subject
+        msg.attach(MIMEText(html_body, 'html'))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        app.logger.error(f'E-Mail Fehler: {e}')
+        return False
+
+def send_verify_email(email, token):
+    link = f"{APP_URL}/app?verify={token}"
+    send_email(email, 'Petscan – E-Mail bestätigen', f'''
+        <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
+            <h2 style="color:#0f172a;">E-Mail-Adresse bestätigen</h2>
+            <p style="color:#475569;">Klicken Sie auf den Button, um Ihre E-Mail-Adresse zu bestätigen:</p>
+            <a href="{link}" style="display:inline-block;padding:12px 24px;background:#1a56db;color:#fff;border-radius:6px;text-decoration:none;font-weight:700;">E-Mail bestätigen</a>
+            <p style="color:#94a3b8;font-size:12px;margin-top:20px;">Falls Sie sich nicht registriert haben, ignorieren Sie diese E-Mail.</p>
+        </div>''')
+
+def send_reset_email(email, token):
+    link = f"{APP_URL}/app?reset={token}"
+    send_email(email, 'Petscan – Passwort zurücksetzen', f'''
+        <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
+            <h2 style="color:#0f172a;">Passwort zurücksetzen</h2>
+            <p style="color:#475569;">Klicken Sie auf den Button, um ein neues Passwort zu setzen. Der Link ist 1 Stunde gültig.</p>
+            <a href="{link}" style="display:inline-block;padding:12px 24px;background:#1a56db;color:#fff;border-radius:6px;text-decoration:none;font-weight:700;">Neues Passwort setzen</a>
+            <p style="color:#94a3b8;font-size:12px;margin-top:20px;">Falls Sie kein neues Passwort angefordert haben, ignorieren Sie diese E-Mail.</p>
+        </div>''')
+
+def send_admin_notification(subject, body):
+    """Send notification to admin."""
+    send_email('admin@petscan.de', f'Petscan Admin: {subject}', f'''
+        <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
+            <h3 style="color:#0f172a;">{subject}</h3>
+            <p style="color:#475569;">{body}</p>
+            <p style="color:#94a3b8;font-size:11px;margin-top:20px;">Petscan Admin-Benachrichtigung</p>
+        </div>''')
+
+# ═══════════════════════════════════════════════════
+# AUDIT
+# ═══════════════════════════════════════════════════
 def audit(action, uid, detail=''):
     try:
         conn = get_db()
-        conn.execute('INSERT INTO audit_log (action,user_id,detail,created_at) VALUES (?,?,?,?)',(action,uid,detail,now()))
+        db_execute(conn, 'INSERT INTO audit_log (action,user_id,detail,created_at) VALUES (?,?,?,?)',(action,uid,detail,now()))
         conn.commit(); conn.close()
     except: pass
 
@@ -123,12 +367,12 @@ def require_auth(f):
         token = request.headers.get('Authorization','').replace('Bearer ','').strip()
         if not token: return jsonify({'error':'Nicht angemeldet'}), 401
         conn = get_db()
-        sess = conn.execute('SELECT * FROM sessions WHERE token=? AND expires_at>?',(token,now())).fetchone()
+        sess = db_dict(db_fetchone(conn, 'SELECT * FROM sessions WHERE token=? AND expires_at>?',(token,now())))
         if not sess: conn.close(); return jsonify({'error':'Sitzung abgelaufen – bitte neu anmelden'}), 401
-        user = conn.execute('SELECT * FROM users WHERE id=? AND active=1',(sess['user_id'],)).fetchone()
+        user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=? AND active=1',(sess['user_id'],)))
         conn.close()
         if not user: return jsonify({'error':'Account nicht gefunden oder deaktiviert'}), 403
-        request.user = dict(user)
+        request.user = user
         return f(*args, **kwargs)
     return decorated
 
@@ -165,6 +409,7 @@ def agb(): return send_from_directory('static','agb.html')
 # AUTH API
 # ═══════════════════════════════════════════════════
 @app.route('/api/auth/register', methods=['POST'])
+@limiter.limit("5 per minute")
 def register():
     d = request.json or {}
     email    = d.get('email','').strip().lower()
@@ -178,29 +423,109 @@ def register():
         return jsonify({'error':'Passwort muss mindestens 6 Zeichen haben'}), 400
 
     conn = get_db()
-    if conn.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone():
+    if db_fetchone(conn, 'SELECT id FROM users WHERE email=?',(email,)):
         conn.close()
         return jsonify({'error':'Diese E-Mail ist bereits registriert. Bitte anmelden.'}), 409
 
     uid = 'u_'+nid()
+    verify_token = secrets.token_urlsafe(32)
     trial_end = (datetime.now()+timedelta(days=14)).isoformat()
-    conn.execute('''INSERT INTO users
-        (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,trial_ends_at,created_at)
-        VALUES (?,?,?,?,?,"trial",1,"customer",0,3,?,?)''',
-        (uid,email,hp(password),name or email.split('@')[0],praxis or 'Meine Praxis',trial_end,now()))
+    db_execute(conn, '''INSERT INTO users
+        (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,verify_token,trial_ends_at,created_at)
+        VALUES (?,?,?,?,?,?,1,?,0,3,0,?,?,?)''',
+        (uid,email,hash_pw(password),name or email.split('@')[0],praxis or 'Meine Praxis','trial','customer',verify_token,trial_end,now()))
 
     token = secrets.token_hex(32)
-    conn.execute('INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
                  (token,uid,(datetime.now()+timedelta(days=30)).isoformat(),now()))
     conn.commit(); conn.close()
+
+    # E-Mail-Verifizierung senden
+    send_verify_email(email, verify_token)
+
+    # Admin benachrichtigen
+    send_admin_notification('Neue Registrierung',
+        f'{name or email} ({email}) hat sich registriert. Praxis: {praxis or "k.A."}')
 
     audit('Registrierung',uid,email)
     return jsonify({
         'token': token,
-        'user': {'id':uid,'email':email,'name':name or email,'praxis':praxis,'plan':'trial','role':'customer','analyses_used':0,'analyses_limit':3}
+        'user': {'id':uid,'email':email,'name':name or email,'praxis':praxis,'plan':'trial','role':'customer',
+                 'analyses_used':0,'analyses_limit':3,'email_verified':0}
     }), 201
 
+@app.route('/api/auth/verify-email', methods=['POST'])
+def verify_email():
+    d = request.json or {}
+    token = d.get('token','').strip()
+    if not token: return jsonify({'error':'Token fehlt'}), 400
+
+    conn = get_db()
+    user = db_dict(db_fetchone(conn, 'SELECT id,email FROM users WHERE verify_token=?',(token,)))
+    if not user:
+        conn.close()
+        return jsonify({'error':'Ungültiger oder abgelaufener Token'}), 400
+
+    db_execute(conn, "UPDATE users SET email_verified=1, verify_token='' WHERE id=?",(user['id'],))
+    conn.commit(); conn.close()
+    audit('E-Mail verifiziert',user['id'],user['email'])
+    return jsonify({'ok':True,'message':'E-Mail erfolgreich bestätigt!'})
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+@limiter.limit("3 per minute")
+def forgot_password():
+    d = request.json or {}
+    email = d.get('email','').strip().lower()
+    if not email: return jsonify({'error':'E-Mail erforderlich'}), 400
+
+    conn = get_db()
+    user = db_dict(db_fetchone(conn, 'SELECT id FROM users WHERE email=? AND active=1',(email,)))
+    if not user:
+        conn.close()
+        # Immer "OK" zurückgeben, um E-Mail-Enumeration zu verhindern
+        return jsonify({'ok':True,'message':'Falls ein Account existiert, wurde eine E-Mail gesendet.'})
+
+    reset_token = secrets.token_urlsafe(32)
+    reset_expires = (datetime.now() + timedelta(hours=1)).isoformat()
+    db_execute(conn, 'UPDATE users SET reset_token=?, reset_expires=? WHERE id=?',
+               (reset_token, reset_expires, user['id']))
+    conn.commit(); conn.close()
+
+    send_reset_email(email, reset_token)
+    audit('Passwort-Reset angefordert', user['id'], email)
+    return jsonify({'ok':True,'message':'Falls ein Account existiert, wurde eine E-Mail gesendet.'})
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+@limiter.limit("5 per minute")
+def reset_password():
+    d = request.json or {}
+    token = d.get('token','').strip()
+    new_pw = d.get('password','')
+
+    if not token: return jsonify({'error':'Token fehlt'}), 400
+    if len(new_pw) < 6: return jsonify({'error':'Passwort muss mindestens 6 Zeichen haben'}), 400
+
+    conn = get_db()
+    user = db_dict(db_fetchone(conn, 'SELECT id,reset_expires FROM users WHERE reset_token=?',(token,)))
+    if not user:
+        conn.close()
+        return jsonify({'error':'Ungültiger oder abgelaufener Token'}), 400
+
+    if user.get('reset_expires','') < now():
+        conn.close()
+        return jsonify({'error':'Token abgelaufen. Bitte erneut anfordern.'}), 400
+
+    db_execute(conn, "UPDATE users SET password=?, reset_token='', reset_expires='' WHERE id=?",
+               (hash_pw(new_pw), user['id']))
+    # Alle Sessions löschen
+    db_execute(conn, 'DELETE FROM sessions WHERE user_id=?', (user['id'],))
+    conn.commit(); conn.close()
+
+    audit('Passwort zurückgesetzt', user['id'])
+    return jsonify({'ok':True,'message':'Passwort erfolgreich geändert. Bitte neu anmelden.'})
+
 @app.route('/api/auth/login', methods=['POST'])
+@limiter.limit("10 per minute")
 def login():
     d  = request.json or {}
     em = d.get('email','').strip().lower()
@@ -210,18 +535,22 @@ def login():
         return jsonify({'error':'E-Mail und Passwort erforderlich'}), 400
 
     conn = get_db()
-    user = conn.execute('SELECT * FROM users WHERE email=? AND password=?',(em,hp(pw))).fetchone()
-    if not user:
+    user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE email=?',(em,)))
+    if not user or not check_pw(pw, user['password']):
         conn.close()
         return jsonify({'error':'E-Mail oder Passwort falsch'}), 401
     if not user['active']:
         conn.close()
         return jsonify({'error':'Account deaktiviert. Bitte Support kontaktieren.'}), 403
 
+    # Upgrade old SHA256 hash to bcrypt on login
+    if HAS_BCRYPT and not user['password'].startswith('$2'):
+        db_execute(conn, 'UPDATE users SET password=? WHERE id=?', (hash_pw(pw), user['id']))
+
     token = secrets.token_hex(32)
-    conn.execute('INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
                  (token,user['id'],(datetime.now()+timedelta(days=30)).isoformat(),now()))
-    conn.execute('UPDATE users SET last_login=? WHERE id=?',(now(),user['id']))
+    db_execute(conn, 'UPDATE users SET last_login=? WHERE id=?',(now(),user['id']))
     conn.commit(); conn.close()
 
     audit('Login',user['id'],em)
@@ -235,7 +564,7 @@ def login():
 def logout():
     token = request.headers.get('Authorization','').replace('Bearer ','')
     conn = get_db()
-    conn.execute('DELETE FROM sessions WHERE token=?',(token,))
+    db_execute(conn, 'DELETE FROM sessions WHERE token=?',(token,))
     conn.commit(); conn.close()
     audit('Logout',request.user['id'])
     return jsonify({'ok':True})
@@ -244,28 +573,27 @@ def logout():
 @require_auth
 def me():
     conn = get_db()
-    user = conn.execute('SELECT * FROM users WHERE id=?',(request.user['id'],)).fetchone()
+    user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=?',(request.user['id'],)))
     conn.close()
     if not user: return jsonify({'error':'User not found'}), 404
-    return jsonify({'user': {k: user[k] for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','trial_ends_at']}})
+    return jsonify({'user': {k: user.get(k,'') for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','trial_ends_at','email_verified']}})
 
 # ═══════════════════════════════════════════════════
 # KI-ANALYSE
 # ═══════════════════════════════════════════════════
 @app.route('/api/analyse', methods=['POST'])
 @require_auth
+@limiter.limit("10 per minute")
 def analyse():
     if not ANTHROPIC_API_KEY:
         return jsonify({'error':'KI nicht konfiguriert. Admin muss ANTHROPIC_API_KEY setzen.'}), 503
 
     user = request.user
-    # Analyse-Limit prüfen (außer Admin und unbegrenzte Pläne)
     if user['role'] != 'admin':
         if user['plan'] in ('trial',) and user['analyses_used'] >= user['analyses_limit']:
             return jsonify({
                 'error': f'Ihr Trial-Kontingent ({user["analyses_limit"]} Analysen) ist aufgebraucht.',
-                'upgrade_required': True,
-                'plan': user['plan']
+                'upgrade_required': True, 'plan': user['plan']
             }), 402
         if user['plan'] == 'starter' and user['analyses_used'] >= 50:
             return jsonify({'error':'Monatliches Starter-Kontingent (50 Analysen) erreicht.','upgrade_required':True}), 402
@@ -290,7 +618,6 @@ def analyse():
 
     # DSGVO: Bilddaten werden NUR zur KI-Analyse an Anthropic gesendet,
     # NICHT in der Datenbank gespeichert. Nach der Analyse werden sie verworfen.
-    # DICOM-Metadaten (Patientennamen etc.) werden nicht extrahiert oder gespeichert.
 
     system = """Du bist ECVDI-Diplomate mit 20 Jahren Erfahrung in der Veterinärradiologie.
 Erstelle professionelle Befundberichte auf Deutsch.
@@ -350,9 +677,9 @@ FORMAT - genau diese Reihenfolge einhalten:
 
         rid = 'r_'+nid()
         conn = get_db()
-        conn.execute('INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
                      (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
-        conn.execute('UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
+        db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
         conn.commit(); conn.close()
 
         audit('Analyse',user['id'],f'{species}/{region}/{mode}')
@@ -361,6 +688,7 @@ FORMAT - genau diese Reihenfolge einhalten:
     except anthropic.APIStatusError as e:
         return jsonify({'error':f'KI-API Fehler: {e.message}'}), 500
     except Exception as e:
+        app.logger.error(f'Analyse-Fehler: {e}')
         return jsonify({'error':f'Serverfehler: {str(e)}'}), 500
 
 # ═══════════════════════════════════════════════════
@@ -371,20 +699,20 @@ FORMAT - genau diese Reihenfolge einhalten:
 def get_reports():
     conn = get_db()
     if request.user['role'] == 'admin':
-        rows = conn.execute('SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC').fetchall()
+        rows = db_fetchall(conn, 'SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC')
     else:
-        rows = conn.execute('SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC',(request.user['id'],)).fetchall()
+        rows = db_fetchall(conn, 'SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC',(request.user['id'],))
     conn.close()
-    return jsonify({'reports':[dict(r) for r in rows]})
+    return jsonify({'reports':rows})
 
 @app.route('/api/reports/<rid>', methods=['DELETE'])
 @require_auth
 def delete_report(rid):
     conn = get_db()
     if request.user['role'] == 'admin':
-        conn.execute('DELETE FROM reports WHERE id=?',(rid,))
+        db_execute(conn, 'DELETE FROM reports WHERE id=?',(rid,))
     else:
-        conn.execute('DELETE FROM reports WHERE id=? AND user_id=?',(rid,request.user['id']))
+        db_execute(conn, 'DELETE FROM reports WHERE id=? AND user_id=?',(rid,request.user['id']))
     conn.commit(); conn.close()
     audit('Befund gelöscht',request.user['id'],rid)
     return jsonify({'ok':True})
@@ -406,7 +734,7 @@ def create_checkout():
 
     price_id = STRIPE_PRICE_PRO if plan == 'professional' else STRIPE_PRICE_STARTER
     if not price_id:
-        return jsonify({'error':f'Stripe Preis-ID für {plan} fehlt. Bitte STRIPE_PRICE_{plan.upper()} in Railway setzen.'}), 503
+        return jsonify({'error':f'Stripe Preis-ID für {plan} fehlt.'}), 503
 
     try:
         session = stripe.checkout.Session.create(
@@ -418,9 +746,8 @@ def create_checkout():
             success_url=f"{APP_URL}/app?payment=success&plan={plan}",
             cancel_url=f"{APP_URL}/app?payment=cancelled",
         )
-        # Payment-Datensatz anlegen
         conn = get_db()
-        conn.execute('INSERT INTO payments (id,user_id,stripe_session_id,plan,amount,status,created_at) VALUES (?,?,?,?,?,?,?)',
+        db_execute(conn, 'INSERT INTO payments (id,user_id,stripe_session_id,plan,amount,status,created_at) VALUES (?,?,?,?,?,?,?)',
                      ('pay_'+nid(), request.user['id'], session.id, plan,
                       4900 if plan=='starter' else 17900, 'pending', now()))
         conn.commit(); conn.close()
@@ -430,6 +757,7 @@ def create_checkout():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/payments/webhook', methods=['POST'])
+@limiter.exempt
 def stripe_webhook():
     if not STRIPE_SECRET_KEY: return jsonify({'ok':True})
     import stripe
@@ -453,17 +781,18 @@ def stripe_webhook():
         if uid:
             limit = 50 if plan == 'starter' else 999999
             conn = get_db()
-            conn.execute('UPDATE users SET plan=?,analyses_limit=?,stripe_customer_id=?,stripe_subscription_id=? WHERE id=?',
+            db_execute(conn, 'UPDATE users SET plan=?,analyses_limit=?,stripe_customer_id=?,stripe_subscription_id=? WHERE id=?',
                          (plan,limit,cust_id,sub_id,uid))
-            conn.execute('UPDATE payments SET status="paid" WHERE stripe_session_id=?',(sess['id'],))
+            db_execute(conn, 'UPDATE payments SET status=? WHERE stripe_session_id=?',('paid',sess['id']))
             conn.commit(); conn.close()
             audit('Plan aktiviert',uid,plan)
+            send_admin_notification('Neuer zahlender Kunde', f'User {uid} hat Plan "{plan}" aktiviert.')
 
     elif event['type'] == 'customer.subscription.deleted':
         sub = event['data']['object']
         conn = get_db()
-        conn.execute("UPDATE users SET plan='trial',analyses_limit=3 WHERE stripe_subscription_id=?",
-                     (sub['id'],))
+        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=3 WHERE stripe_subscription_id=?",
+                     ('trial',sub['id']))
         conn.commit(); conn.close()
 
     return jsonify({'ok':True})
@@ -480,8 +809,7 @@ def billing_portal():
         return jsonify({'error':'Kein Stripe-Konto verknüpft'}), 400
     try:
         session = stripe.billing_portal.Session.create(
-            customer=cust_id,
-            return_url=f"{APP_URL}/app"
+            customer=cust_id, return_url=f"{APP_URL}/app"
         )
         return jsonify({'url': session.url})
     except Exception as e:
@@ -495,14 +823,14 @@ def billing_portal():
 def admin_stats():
     conn = get_db()
     stats = {
-        'customers':  conn.execute("SELECT COUNT(*) as n FROM users WHERE role='customer' AND active=1").fetchone()['n'],
-        'leads':      conn.execute("SELECT COUNT(*) as n FROM leads").fetchone()['n'],
-        'new_leads':  conn.execute("SELECT COUNT(*) as n FROM leads WHERE status='new'").fetchone()['n'],
-        'analyses':   conn.execute("SELECT SUM(analyses_used) as n FROM users").fetchone()['n'] or 0,
-        'mrr':        conn.execute("SELECT SUM(CASE plan WHEN 'professional' THEN 179 WHEN 'starter' THEN 49 ELSE 0 END) as n FROM users WHERE active=1 AND role='customer'").fetchone()['n'] or 0,
-        'audit':     [dict(r) for r in conn.execute('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 30').fetchall()],
-        'plan_dist':  [dict(r) for r in conn.execute("SELECT plan, COUNT(*) as n FROM users WHERE role='customer' GROUP BY plan").fetchall()],
-        'weekly':     [dict(r) for r in conn.execute("SELECT date(created_at) as day, COUNT(*) as n FROM reports GROUP BY day ORDER BY day DESC LIMIT 7").fetchall()],
+        'customers':  db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM users WHERE role='customer' AND active=1"))['n'],
+        'leads':      db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM leads"))['n'],
+        'new_leads':  db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM leads WHERE status='new'"))['n'],
+        'analyses':   db_dict(db_fetchone(conn, "SELECT COALESCE(SUM(analyses_used),0) as n FROM users"))['n'],
+        'mrr':        db_dict(db_fetchone(conn, "SELECT COALESCE(SUM(CASE plan WHEN 'professional' THEN 179 WHEN 'starter' THEN 49 ELSE 0 END),0) as n FROM users WHERE active=1 AND role='customer'"))['n'],
+        'audit':      db_fetchall(conn, 'SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 30'),
+        'plan_dist':  db_fetchall(conn, "SELECT plan, COUNT(*) as n FROM users WHERE role='customer' GROUP BY plan"),
+        'weekly':     db_fetchall(conn, "SELECT date(created_at) as day, COUNT(*) as n FROM reports GROUP BY date(created_at) ORDER BY date(created_at) DESC LIMIT 7"),
     }
     conn.close()
     return jsonify(stats)
@@ -511,9 +839,9 @@ def admin_stats():
 @require_admin
 def admin_customers():
     conn = get_db()
-    rows = conn.execute("SELECT id,email,name,praxis,plan,active,analyses_used,analyses_limit,created_at,last_login FROM users WHERE role!='admin' ORDER BY created_at DESC").fetchall()
+    rows = db_fetchall(conn, "SELECT id,email,name,praxis,plan,active,analyses_used,analyses_limit,email_verified,created_at,last_login FROM users WHERE role!='admin' ORDER BY created_at DESC")
     conn.close()
-    return jsonify({'customers':[dict(r) for r in rows]})
+    return jsonify({'customers':rows})
 
 @app.route('/api/admin/customers', methods=['POST'])
 @require_admin
@@ -523,8 +851,8 @@ def admin_create_customer():
     limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 3)
     conn = get_db()
     try:
-        conn.execute('INSERT INTO users (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,created_at) VALUES (?,?,?,?,?,?,1,"customer",0,?,?)',
-                     (uid,d['email'].lower(),hp(d.get('password','Petscan2025!')),d.get('name',''),d.get('praxis',''),d.get('plan','trial'),limit,now()))
+        db_execute(conn, 'INSERT INTO users (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,created_at) VALUES (?,?,?,?,?,?,1,?,0,?,1,?)',
+                     (uid,d['email'].lower(),hash_pw(d.get('password','Petscan2025!')),d.get('name',''),d.get('praxis',''),d.get('plan','trial'),'customer',limit,now()))
         conn.commit()
     except: conn.close(); return jsonify({'error':'E-Mail existiert bereits'}), 409
     conn.close()
@@ -537,7 +865,7 @@ def admin_update_customer(uid):
     d = request.json or {}
     limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 3)
     conn = get_db()
-    conn.execute('UPDATE users SET name=?,praxis=?,plan=?,active=?,analyses_limit=? WHERE id=?',
+    db_execute(conn, 'UPDATE users SET name=?,praxis=?,plan=?,active=?,analyses_limit=? WHERE id=?',
                  (d.get('name'),d.get('praxis'),d.get('plan'),int(d.get('active',1)),limit,uid))
     conn.commit(); conn.close()
     audit('Kunde bearbeitet',request.user['id'],uid)
@@ -547,7 +875,7 @@ def admin_update_customer(uid):
 @require_admin
 def admin_delete_customer(uid):
     conn = get_db()
-    conn.execute('UPDATE users SET active=0 WHERE id=?',(uid,))
+    db_execute(conn, 'UPDATE users SET active=0 WHERE id=?',(uid,))
     conn.commit(); conn.close()
     audit('Kunde deaktiviert',request.user['id'],uid)
     return jsonify({'ok':True})
@@ -556,9 +884,9 @@ def admin_delete_customer(uid):
 @require_admin
 def admin_leads():
     conn = get_db()
-    rows = conn.execute('SELECT * FROM leads ORDER BY created_at DESC').fetchall()
+    rows = db_fetchall(conn, 'SELECT * FROM leads ORDER BY created_at DESC')
     conn.close()
-    return jsonify({'leads':[dict(r) for r in rows]})
+    return jsonify({'leads':rows})
 
 @app.route('/api/admin/leads', methods=['POST'])
 @require_admin
@@ -566,7 +894,7 @@ def admin_create_lead():
     d = request.json or {}
     lid = 'l_'+nid()
     conn = get_db()
-    conn.execute('INSERT INTO leads (id,name,contact,email,phone,message,status,source,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    db_execute(conn, 'INSERT INTO leads (id,name,contact,email,phone,message,status,source,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
                  (lid,d.get('name',''),d.get('contact',''),d.get('email',''),d.get('phone',''),d.get('message',''),'new',d.get('source','Website'),now()))
     conn.commit(); conn.close()
     return jsonify({'ok':True,'id':lid}), 201
@@ -576,7 +904,7 @@ def admin_create_lead():
 def admin_update_lead(lid):
     d = request.json or {}
     conn = get_db()
-    conn.execute('UPDATE leads SET name=?,contact=?,email=?,phone=?,status=?,source=?,message=? WHERE id=?',
+    db_execute(conn, 'UPDATE leads SET name=?,contact=?,email=?,phone=?,status=?,source=?,message=? WHERE id=?',
                  (d.get('name'),d.get('contact'),d.get('email'),d.get('phone'),d.get('status'),d.get('source'),d.get('message'),lid))
     conn.commit(); conn.close()
     return jsonify({'ok':True})
@@ -585,7 +913,7 @@ def admin_update_lead(lid):
 @require_admin
 def admin_delete_lead(lid):
     conn = get_db()
-    conn.execute('DELETE FROM leads WHERE id=?',(lid,))
+    db_execute(conn, 'DELETE FROM leads WHERE id=?',(lid,))
     conn.commit(); conn.close()
     return jsonify({'ok':True})
 
@@ -593,47 +921,66 @@ def admin_delete_lead(lid):
 @require_admin
 def admin_reports():
     conn = get_db()
-    rows = conn.execute('SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC').fetchall()
+    rows = db_fetchall(conn, 'SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC')
     conn.close()
-    return jsonify({'reports':[dict(r) for r in rows]})
+    return jsonify({'reports':rows})
 
 # ═══════════════════════════════════════════════════
 # CONTACT / LEAD CAPTURE (öffentlich)
 # ═══════════════════════════════════════════════════
 @app.route('/api/contact', methods=['POST'])
+@limiter.limit("5 per minute")
 def contact():
     d = request.json or {}
     lid = 'l_'+nid()
     conn = get_db()
-    conn.execute('INSERT INTO leads (id,name,contact,email,phone,message,status,source,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    db_execute(conn, 'INSERT INTO leads (id,name,contact,email,phone,message,status,source,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
                  (lid,d.get('company',''),d.get('name',''),d.get('email',''),d.get('phone',''),d.get('message',''),'new',d.get('source','Kontaktformular'),now()))
     conn.commit(); conn.close()
+
+    # Admin benachrichtigen
+    send_admin_notification('Neuer Lead',
+        f'Name: {d.get("name","k.A.")}<br>E-Mail: {d.get("email","k.A.")}<br>Nachricht: {d.get("message","k.A.")}')
+
     return jsonify({'ok':True}), 201
 
 # ═══════════════════════════════════════════════════
-# START — Datenbank beim Import initialisieren (wichtig für Gunicorn)
+# ERROR HANDLER
+# ═══════════════════════════════════════════════════
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({'error': 'Zu viele Anfragen. Bitte warten Sie einen Moment.'}), 429
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.error(f'Server Error: {e}')
+    return jsonify({'error': 'Interner Serverfehler'}), 500
+
+# ═══════════════════════════════════════════════════
+# START
 # ═══════════════════════════════════════════════════
 init_db()
 
 if __name__ == '__main__':
-    init_db()
     port  = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('DEBUG','false').lower() == 'true'
 
     missing = []
     if not ANTHROPIC_API_KEY:  missing.append('ANTHROPIC_API_KEY')
     if not STRIPE_SECRET_KEY:  missing.append('STRIPE_SECRET_KEY')
-    if not STRIPE_PRICE_STARTER: missing.append('STRIPE_PRICE_STARTER')
-    if not STRIPE_PRICE_PRO:     missing.append('STRIPE_PRICE_PRO')
 
+    db_type = 'PostgreSQL' if USE_POSTGRES else 'SQLite'
     print(f"""
 ╔══════════════════════════════════════════════╗
-║   🐾 Petscan – Server gestartet             ║
+║   Petscan – Server v2 gestartet             ║
 ║   URL: http://localhost:{port}                  ║
-║   Status:                                    ║
-║   KI:     {'✅ Bereit' if ANTHROPIC_API_KEY else '❌ ANTHROPIC_API_KEY fehlt'}
-║   Stripe: {'✅ Bereit' if STRIPE_SECRET_KEY else '❌ STRIPE_SECRET_KEY fehlt'}
-{"║   ⚠️  Fehlende Variablen: " + ", ".join(missing) if missing else "║   ✅ Alle Variablen gesetzt"}
+║   DB:     {db_type}
+║   KI:     {'Bereit' if ANTHROPIC_API_KEY else 'ANTHROPIC_API_KEY fehlt'}
+║   Stripe: {'Bereit' if STRIPE_SECRET_KEY else 'STRIPE_SECRET_KEY fehlt'}
+║   E-Mail: {'Bereit' if SMTP_HOST else 'SMTP nicht konfiguriert'}
+║   Sentry: {'Bereit' if SENTRY_DSN else 'Nicht konfiguriert'}
+║   bcrypt: {'Ja' if HAS_BCRYPT else 'Nein (SHA256-Fallback)'}
+{"║   Fehlend: " + ", ".join(missing) if missing else "║   Alle Variablen gesetzt"}
 ╚══════════════════════════════════════════════╝
     """)
     app.run(host='0.0.0.0', port=port, debug=debug)

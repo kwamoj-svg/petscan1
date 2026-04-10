@@ -268,6 +268,19 @@ a{color:inherit;text-decoration:none;}
           <div class="fg"><label class="fl">Passwort</label><input class="fi" type="password" id="l-pw" placeholder="••••••••"></div>
           <button class="l-btn" id="l-btn" onclick="doLogin()">Anmelden</button>
           <div class="l-link">Noch kein Konto? <a href="#" onclick="switchTab('register')">Kostenlos registrieren</a></div>
+          <div class="l-link"><a href="#" onclick="switchTab('forgot')">Passwort vergessen?</a></div>
+        </div>
+        <div id="form-forgot" style="display:none">
+          <p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;">Geben Sie Ihre E-Mail-Adresse ein. Sie erhalten einen Link zum Zurücksetzen Ihres Passworts.</p>
+          <div class="fg"><label class="fl">E-Mail</label><input class="fi" type="email" id="f-em" placeholder="ihre@email.de"></div>
+          <button class="l-btn" id="f-btn" onclick="doForgot()">Link senden</button>
+          <div class="l-link"><a href="#" onclick="switchTab('login')">← Zurück zur Anmeldung</a></div>
+        </div>
+        <div id="form-reset" style="display:none">
+          <p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;">Geben Sie Ihr neues Passwort ein.</p>
+          <div class="fg"><label class="fl">Neues Passwort (min. 6 Zeichen)</label><input class="fi" type="password" id="rs-pw" placeholder="Neues Passwort"></div>
+          <div class="fg"><label class="fl">Passwort bestätigen</label><input class="fi" type="password" id="rs-pw2" placeholder="Passwort wiederholen"></div>
+          <button class="l-btn" id="rs-btn" onclick="doReset()">Passwort ändern</button>
         </div>
         <div id="form-register" style="display:none">
           <div class="fg"><label class="fl">Name</label><input class="fi" type="text" id="r-name" placeholder="Dr. Max Mustermann"></div>
@@ -306,6 +319,9 @@ a{color:inherit;text-decoration:none;}
     <a href="/" class="tb-home">Website</a>
     <span class="tb-uname" id="tb-name"></span>
     <button class="tb-logout" onclick="doLogout()">Abmelden</button>
+  </div>
+  <div id="verify-banner" style="display:none;background:#fffbeb;border-bottom:1px solid #fde68a;padding:8px 18px;font-size:12.5px;color:#92400e;flex-shrink:0;">
+    ⚠ Bitte bestätigen Sie Ihre E-Mail-Adresse. <a href="#" onclick="resendVerify();return false;" style="color:var(--blue);font-weight:600;text-decoration:underline;">Erneut senden</a>
   </div>
   <div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileMenu()"></div>
   <div class="app-wrap">
@@ -366,6 +382,29 @@ var ALL_REGIONS = [['Thorax / Lunge','Thorax'],['Abdomen','Abdomen'],['Extremit�
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('l-em').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
   document.getElementById('l-pw').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+
+  // Handle URL parameters for verify/reset
+  var params = new URLSearchParams(window.location.search);
+  var verifyToken = params.get('verify');
+  var resetToken = params.get('reset');
+
+  if (verifyToken) {
+    var err = document.getElementById('l-err');
+    err.style.display='block'; err.style.background='var(--blue-dim)'; err.style.borderColor='var(--blue-mid)'; err.style.color='var(--blue)'; err.textContent='E-Mail wird verifiziert...';
+    api('/api/auth/verify-email','POST',{token:verifyToken})
+      .then(function(){ err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='E-Mail erfolgreich verifiziert! Bitte melden Sie sich an.'; })
+      .catch(function(e){ err.style.background='var(--red-dim)'; err.style.borderColor='#fecaca'; err.style.color='var(--red)'; err.textContent=e.message||'Verifizierung fehlgeschlagen.'; });
+    window.history.replaceState({},'','/app');
+    return;
+  }
+
+  if (resetToken) {
+    RESET_TOKEN = resetToken;
+    switchTab('reset');
+    window.history.replaceState({},'','/app');
+    return;
+  }
+
   var token = localStorage.getItem('ps_token');
   if (token) {
     fetch('/api/auth/me', {headers:{'Authorization':'Bearer '+token}})
@@ -392,10 +431,12 @@ function api(url, method, body) {
 
 // AUTH
 function switchTab(tab) {
-  document.getElementById('tab-login').classList.toggle('on', tab==='login');
+  document.getElementById('tab-login').classList.toggle('on', tab==='login'||tab==='forgot'||tab==='reset');
   document.getElementById('tab-register').classList.toggle('on', tab==='register');
   document.getElementById('form-login').style.display = tab==='login' ? '' : 'none';
   document.getElementById('form-register').style.display = tab==='register' ? '' : 'none';
+  document.getElementById('form-forgot').style.display = tab==='forgot' ? '' : 'none';
+  document.getElementById('form-reset').style.display = tab==='reset' ? '' : 'none';
   document.getElementById('l-err').style.display = 'none';
 }
 
@@ -443,6 +484,35 @@ function doRegister() {
     .finally(function(){ btn.disabled=false; btn.textContent='14 Tage kostenlos starten'; });
 }
 
+function doForgot() {
+  var btn = document.getElementById('f-btn');
+  var em = document.getElementById('f-em').value.trim();
+  var err = document.getElementById('l-err');
+  if (!em) { err.textContent='Bitte E-Mail eingeben'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Senden...';
+  err.style.display='none';
+  api('/api/auth/forgot-password','POST',{email:em})
+    .then(function(){ err.style.display='block'; err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='Falls ein Konto existiert, wurde ein Reset-Link gesendet.'; })
+    .catch(function(){ err.style.display='block'; err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='Falls ein Konto existiert, wurde ein Reset-Link gesendet.'; })
+    .finally(function(){ btn.disabled=false; btn.textContent='Link senden'; });
+}
+
+var RESET_TOKEN = null;
+function doReset() {
+  var btn = document.getElementById('rs-btn');
+  var pw = document.getElementById('rs-pw').value;
+  var pw2 = document.getElementById('rs-pw2').value;
+  var err = document.getElementById('l-err');
+  if (!pw || pw.length<6) { err.textContent='Passwort muss mindestens 6 Zeichen haben'; err.style.display='block'; return; }
+  if (pw !== pw2) { err.textContent='Passwörter stimmen nicht überein'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Speichern...';
+  err.style.display='none';
+  api('/api/auth/reset-password','POST',{token:RESET_TOKEN,password:pw})
+    .then(function(){ err.style.display='block'; err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='Passwort geändert! Sie können sich jetzt anmelden.'; setTimeout(function(){ switchTab('login'); window.history.replaceState({},'','/app'); },2000); })
+    .catch(function(e){ err.textContent=e.message; err.style.display='block'; })
+    .finally(function(){ btn.disabled=false; btn.textContent='Passwort ändern'; });
+}
+
 function doLogout() {
   var token = localStorage.getItem('ps_token');
   if (token) fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+token}}).catch(function(){});
@@ -450,6 +520,12 @@ function doLogout() {
   ME=null;
   document.getElementById('as').classList.remove('active');
   document.getElementById('ls').classList.add('active');
+}
+
+function resendVerify() {
+  api('/api/auth/resend-verify','POST',{})
+    .then(function(){ toast('Bestätigungs-E-Mail wurde erneut gesendet.'); })
+    .catch(function(e){ toast('Fehler: '+e.message); });
 }
 
 // SHOW APP
@@ -473,6 +549,9 @@ function showApp() {
   if (ME.plan==='professional'||ME.plan==='admin') {
     document.getElementById('nb-upgrade').style.display='none';
   }
+  // Show email verification banner if not verified
+  var vb = document.getElementById('verify-banner');
+  if (vb) vb.style.display = (ME.email_verified===false && ME.role!=='admin') ? '' : 'none';
   renderAnalyse();
 }
 
