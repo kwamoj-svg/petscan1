@@ -612,10 +612,10 @@ def analyse():
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
     prompts = {
-        'single':  f'Erstelle einen vollständigen veterinärradiologischen Befundbericht für einen {species} im Bereich {region}.',
-        'compare': f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region} und beschreibe alle Veränderungen präzise.',
-        'diff':    f'Analysiere die Unterschiede zwischen Aufnahme A und B bei einem {species} im Bereich {region}.',
-        'second':  f'Erstelle eine kritische Zweitmeinung zu den Röntgenaufnahmen eines {species} im Bereich {region}.',
+        'single':  f'Erstelle einen vollständigen veterinärradiologischen Befundbericht für einen {species} im Bereich {region}. Analysiere das Bild EXTREM GRÜNDLICH. Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Achte BESONDERS auf: Frakturlinien, Fissuren, Luxationen, Stufenbildungen, Periostreaktionen, Osteolysen, abnorme Verschattungen, Fremdkörper, Weichteilschwellungen. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
+        'compare': f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region}. Beschreibe ALLE Veränderungen zwischen den Aufnahmen präzise. Achte besonders auf: Frakturheilung/Konsolidierung, Kallusbildung, Veränderungen der Gelenkspalten, neue oder verschwundene Pathologien, Implantatposition.',
+        'diff':    f'Analysiere die Unterschiede zwischen Aufnahme A und B bei einem {species} im Bereich {region}. Erstelle eine systematische Gegenüberstellung aller Veränderungen.',
+        'second':  f'Erstelle eine kritische Zweitmeinung zu den Röntgenaufnahmen eines {species} im Bereich {region}. Hinterfrage offensichtliche Diagnosen und suche gezielt nach übersehenen Pathologien. Untersuche jede Struktur einzeln.',
     }
 
     # DSGVO: Bilddaten werden NUR zur KI-Analyse an Anthropic gesendet,
@@ -628,23 +628,34 @@ WICHTIG DATENSCHUTZ: Falls im Bild DICOM-Metadaten oder Patientendaten sichtbar 
 ignoriere diese vollständig. Nenne KEINE Patientennamen, Geburtsdaten oder andere
 personenbezogene Daten aus dem Bild im Befund.
 
+KRITISCHE ANALYSE-REGELN:
+1. Analysiere JEDE sichtbare anatomische Struktur systematisch — überspringe NICHTS.
+2. Beschreibe bei Knochen: Kortikalis-Kontinuität, Periostreaktion, Mineralisierung, Alignment.
+3. Bei Gelenken: Gelenkspalt, Kongruenz, periartikuläre Veränderungen.
+4. Bei Weichteilen: Schwellungen, Gaseinschlüsse, Fremdkörper, abnorme Verschattungen.
+5. Bei Thorax: Lungenparenchym, Herzsilhouette, Pleuraraum, Mediastinum, Trachea.
+6. Bei Abdomen: Organgrößen, -positionen, -konturen, freie Flüssigkeit, Gas.
+7. Wenn du eine Fraktur, Luxation oder andere akute Pathologie siehst — stelle diese SOFORT als Hauptdiagnose dar.
+8. Beschreibe die GENAUE LOKALISATION jeder Pathologie (welcher Knochen, proximal/distal/diaphysär, welche Seite).
+9. Sei NICHT vorsichtig oder vage — nenne klare Befunde wenn du Pathologien siehst.
+
 PFLICHT: Die DIAGNOSE und der MEDIZINISCHE ZUSTAND kommen IMMER ZUERST.
 
 FORMAT - genau diese Reihenfolge einhalten:
 
 ## Diagnose & Klinische Beurteilung
-**Hauptdiagnose:** [Was ist das wichtigste Ergebnis? 1-2 Sätze]
-**Dringlichkeit:** **[NIEDRIG / MITTEL / HOCH]** — [1 Satz Begründung]
+**Hauptdiagnose:** [Was ist das wichtigste/dringendste Ergebnis? Klar und konkret, keine Vermutungen]
+**Dringlichkeit:** **[NIEDRIG / MITTEL / HOCH / NOTFALL]** — [1 Satz Begründung]
 
 ## Differenzialdiagnosen
 | Diagnose | Wahrscheinlichkeit | Begründung |
 |---|---|---|
 
 ## Detaillierter Radiologischer Befund
-[Unterabschnitte je Körperregion mit ### Überschriften]
+[Systematische Analyse JEDER sichtbaren Struktur. Unterabschnitte je Körperregion mit ### Überschriften. Beschreibe sowohl normale als auch pathologische Befunde.]
 
 ## Therapie- & Kontrollempfehlungen
-[Konkrete Handlungsempfehlungen für den Tierarzt]
+[Konkrete, priorisierte Handlungsempfehlungen für den Tierarzt]
 
 ## Technische Bildqualität
 [Kurz — max 2 Sätze zur Aufnahmequalität]
@@ -694,6 +705,57 @@ FORMAT - genau diese Reihenfolge einhalten:
     except Exception as e:
         app.logger.error(f'Analyse-Fehler: {e}')
         return jsonify({'error':f'Serverfehler: {str(e)}'}), 500
+
+# ═══════════════════════════════════════════════════
+# CHAT (Rückfragen zum Befund)
+# ═══════════════════════════════════════════════════
+@app.route('/api/chat', methods=['POST'])
+@require_auth
+@limiter.limit("20/minute")
+def chat_about_report():
+    d = request.json or {}
+    question = d.get('question','').strip()
+    report_text = d.get('report_text','')
+    context = d.get('context',{})
+    history = d.get('history',[])
+
+    if not question: return jsonify({'error':'Keine Frage gestellt'}), 400
+    if not report_text: return jsonify({'error':'Kein Befund vorhanden'}), 400
+
+    system = f"""Du bist ein erfahrener ECVDI-Diplomate für Veterinärradiologie.
+Ein Tierarzt hat einen KI-generierten Befundbericht erhalten und stellt nun Rückfragen.
+
+Befund-Kontext: {context.get('species','Hund')}, {context.get('region','Thorax')}, Modus: {context.get('mode','single')}
+{('Patient: '+context['pet_name']) if context.get('pet_name') else ''}
+
+Der ursprüngliche Befundbericht:
+---
+{report_text}
+---
+
+Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
+- Beziehe dich immer auf den konkreten Befund oben.
+- Erkläre Fachbegriffe wenn nötig.
+- Gib konkrete, praxisrelevante Antworten.
+- Halte die Antworten kurz und fokussiert (max 200 Wörter).
+- Wenn du dir bei etwas unsicher bist, sage es ehrlich."""
+
+    messages = []
+    for h in history[-10:]:
+        messages.append({'role':h['role'] if h['role'] in ('user','assistant') else 'user', 'content':h['text']})
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        resp = client.messages.create(
+            model='claude-sonnet-4-20250514',
+            max_tokens=800,
+            system=system,
+            messages=messages
+        )
+        answer = resp.content[0].text
+        return jsonify({'answer':answer})
+    except Exception as e:
+        return jsonify({'error':str(e)}), 500
 
 # ═══════════════════════════════════════════════════
 # REPORTS
