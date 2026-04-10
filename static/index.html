@@ -640,5 +640,45 @@ function triggerGoogle(){if(window.google&&google.accounts){google.accounts.id.i
 function handleReg(){const em=document.getElementById('reg-email').value.trim(),pw=document.getElementById('reg-pw').value;if(!em||!em.includes('@')){showToast('Bitte gültige E-Mail eingeben');return;}if(pw.length<6){showToast('Passwort mindestens 6 Zeichen');return;}showToast('Konto erstellt — Plattform öffnen …');setTimeout(()=>window.location.href='/app',1400);}
 function showToast(msg){document.getElementById('t-txt').textContent=msg;const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 </script>
+
+<!-- Cookie Consent Banner (DSGVO) -->
+<style>
+.cookie-banner{position:fixed;bottom:0;left:0;right:0;background:var(--navy,#0f1c35);color:#fff;z-index:99999;padding:0;transform:translateY(0);transition:transform .35s ease;}
+.cookie-banner.hidden{transform:translateY(100%);pointer-events:none;}
+.cookie-inner{max-width:1160px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;}
+.cookie-text{flex:1;color:#e2e8f0;}
+.cookie-text a{color:#bfdbfe;text-decoration:underline;text-underline-offset:2px;}
+.cookie-text a:hover{color:#fff;}
+.cookie-btns{display:flex;gap:10px;flex-shrink:0;}
+.cookie-btn{font-family:'Inter',system-ui,sans-serif;font-size:14px;font-weight:500;padding:9px 20px;border-radius:8px;cursor:pointer;border:none;transition:background .2s,border-color .2s;}
+.cookie-btn-accept{background:#1a56db;color:#fff;}
+.cookie-btn-accept:hover{background:#1447b7;}
+.cookie-btn-necessary{background:transparent;color:#e2e8f0;border:1.5px solid #475569;}
+.cookie-btn-necessary:hover{border-color:#94a3b8;color:#fff;}
+@media(max-width:640px){
+  .cookie-inner{flex-direction:column;align-items:stretch;text-align:center;gap:12px;}
+  .cookie-btns{justify-content:center;}
+}
+</style>
+<div class="cookie-banner" id="cookieBanner">
+  <div class="cookie-inner">
+    <div class="cookie-text">Diese Website verwendet Cookies, um die bestmögliche Funktionalität zu bieten. <a href="/datenschutz">Mehr erfahren</a></div>
+    <div class="cookie-btns">
+      <button class="cookie-btn cookie-btn-accept" onclick="acceptCookies('all')">Akzeptieren</button>
+      <button class="cookie-btn cookie-btn-necessary" onclick="acceptCookies('necessary')">Nur notwendige</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var consent=localStorage.getItem('cookie_consent');
+  var banner=document.getElementById('cookieBanner');
+  if(consent){banner.classList.add('hidden');}
+  window.acceptCookies=function(choice){
+    localStorage.setItem('cookie_consent',choice);
+    banner.classList.add('hidden');
+  };
+})();
+</script>
 </body>
 </html>
