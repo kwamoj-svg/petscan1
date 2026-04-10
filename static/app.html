@@ -72,7 +72,7 @@ a{color:inherit;text-decoration:none;}
 .sb-foot{margin-top:auto;padding:12px;border-top:1px solid var(--border);}
 .sb-un{font-size:12px;font-weight:700;color:var(--text);}
 .sb-up{font-size:10px;color:var(--text3);}
-.main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-height:0;}
 .ph{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:var(--surface);}
 .ph-t{font-size:15px;font-weight:800;color:var(--text);}
 .ph-sp{flex:1;}
@@ -81,7 +81,7 @@ a{color:inherit;text-decoration:none;}
 .ab-p:hover{background:var(--blue2);}
 .ab-g{border:1px solid var(--border);color:var(--text2);background:var(--surface);}
 .ab-g:hover{border-color:var(--border2);}
-.an-layout{flex:1;display:grid;grid-template-columns:256px 1fr;overflow:hidden;}
+.an-layout{flex:1;display:grid;grid-template-columns:256px 1fr;overflow:hidden;min-height:0;}
 .an-sb{border-right:1px solid var(--border);padding:14px;overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;gap:10px;}
 .an-lbl{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-bottom:5px;}
 .sp-btn{padding:7px 8px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .12s;text-align:left;width:100%;}
@@ -274,7 +274,7 @@ a{color:inherit;text-decoration:none;}
         <div class="ph-sp"></div>
         <span style="font-size:11px;color:var(--text3)" id="result-ts"></span>
       </div>
-      <div id="main-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;"></div>
+      <div id="main-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;"></div>
     </div>
   </div>
 </div>
@@ -419,7 +419,7 @@ function updateBadge(n){ document.getElementById('nb-cnt').textContent=n||0; }
 // ANALYSE VIEW
 function renderAnalyse() {
   var c = document.getElementById('main-content');
-  c.innerHTML = '<div class="an-layout" style="flex:1;overflow:hidden;display:grid">'
+  c.innerHTML = '<div class="an-layout" style="flex:1;overflow:hidden;display:grid;min-height:0">'
     + '<div class="an-sb" id="an-sb">'
     // Species
     + '<div><div class="an-lbl">1 · Tierart wählen</div>'
