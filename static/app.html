@@ -283,7 +283,7 @@ a{color:inherit;text-decoration:none;}
 
 <script>
 var ME = null;
-var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null};
+var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null, petName:''};
 var CACHED = [];
 var ALL_REPORTS = [];
 
@@ -422,6 +422,11 @@ function renderAnalyse() {
   c.innerHTML = '<div class="an-layout" style="flex:1;overflow:hidden;display:grid;min-height:0">'
     + '<div class="an-sb" id="an-sb">'
     // Species
+    + '<div><div class="an-lbl">Tiername / Patient</div>'
+    + '<input id="pet-name" type="text" placeholder="z.B. Bella, Max …" value="'+AN.petName.replace(/'/g,"&#39;")+'"'
+    + ' oninput="AN.petName=this.value"'
+    + ' style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);">'
+    + '</div>'
     + '<div><div class="an-lbl">1 · Tierart wählen</div>'
     + '<div style="position:relative;margin-bottom:4px;">'
     + '<input id="sp-inp" type="text" placeholder="Tierart suchen..." value="'+AN.species+'"'
@@ -580,6 +585,7 @@ function runAnalysis() {
   var ctx=document.getElementById('ctx');
   api('/api/analyse','POST',{
     species:AN.species, region:AN.region, mode:AN.mode,
+    pet_name:AN.petName.trim(),
     context:ctx?ctx.value.trim():'',
     img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:''
   })
@@ -634,7 +640,7 @@ function renderResult(r) {
   }
   document.getElementById('an-main').innerHTML='<div class="result-card">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;">'
-    +'<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">'+r.species+' · '+r.region+' · '+modeLabel+'</div>'
+    +'<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+' · '+modeLabel+'</div>'
     +'<div style="font-size:20px;font-weight:800;">Radiologischer Befundbericht</div>'
     +'<div style="font-size:11px;color:var(--text3);margin-top:4px">'+fmtDate(r.created_at)+' · <span class="badge '+sevBadge+'">'+sevBadgeLbl+'</span></div></div>'
     +'<button class="abt ab-g" onclick="exportPDF(\''+r.id+'\')">PDF exportieren</button></div>'
@@ -673,7 +679,7 @@ function filterReps(q) {
   var sev=document.getElementById('rep-sev')?document.getElementById('rep-sev').value:'';
   var ql=q.toLowerCase();
   var filtered=ALL_REPORTS.filter(function(r){
-    var mq=!ql||[r.species,r.region,r.mode,fmtDate(r.created_at)].join(' ').toLowerCase().indexOf(ql)>=0;
+    var mq=!ql||[r.pet_name||'',r.species,r.region,r.mode,fmtDate(r.created_at)].join(' ').toLowerCase().indexOf(ql)>=0;
     var ms=!sev||r.severity===sev;
     return mq&&ms;
   });
@@ -689,7 +695,7 @@ function filterReps(q) {
       var sb={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
       var sl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
       return '<div class="report-item" onclick="openReport(\''+r.id+'\')"><div style="width:38px;height:38px;border-radius:8px;background:var(--blue-dim);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>'
-        +'<div class="ri-info"><div class="ri-title">'+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
+        +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
         +'<span class="badge '+sb+'">'+sl+'</span>'
         +'<div style="display:flex;gap:4px;" onclick="event.stopPropagation()">'
         +'<button class="abt ab-p" onclick="exportPDF(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">PDF</button>'
@@ -721,7 +727,7 @@ function openReport(id) {
   }
   m.innerHTML='<div style="background:var(--surface);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.3);width:100%;max-width:820px;margin:auto;">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;border-radius:12px 12px 0 0;">'
-    +'<div><div style="font-size:11px;color:var(--text3)">'+r.species+' · '+r.region+' · '+modeLabel+'</div><div style="font-size:16px;font-weight:800;">Radiologischer Befundbericht</div></div>'
+    +'<div><div style="font-size:11px;color:var(--text3)">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+' · '+modeLabel+'</div><div style="font-size:16px;font-weight:800;">Radiologischer Befundbericht</div></div>'
     +'<div style="display:flex;gap:6px;align-items:center;">'
     +'<button class="abt ab-p" onclick="exportPDF(\''+id+'\')" style="font-size:11px;padding:5px 10px">PDF</button>'
     +'<button class="abt ab-g" onclick="exportWord(\''+id+'\')" style="font-size:11px;padding:5px 10px">Word</button>'

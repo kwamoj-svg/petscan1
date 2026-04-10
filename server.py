@@ -58,6 +58,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS reports (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
+            pet_name TEXT DEFAULT "",
             species TEXT,
             region TEXT,
             mode TEXT,
@@ -268,13 +269,14 @@ def analyse():
         if user['plan'] == 'starter' and user['analyses_used'] >= 50:
             return jsonify({'error':'Monatliches Starter-Kontingent (50 Analysen) erreicht.','upgrade_required':True}), 402
 
-    d       = request.json or {}
-    species = d.get('species','Hund')
-    region  = d.get('region','Thorax')
-    mode    = d.get('mode','single')
-    ctx     = d.get('context','')
-    img_a   = d.get('img_a','')
-    img_b   = d.get('img_b','')
+    d        = request.json or {}
+    pet_name = d.get('pet_name','').strip()
+    species  = d.get('species','Hund')
+    region   = d.get('region','Thorax')
+    mode     = d.get('mode','single')
+    ctx      = d.get('context','')
+    img_a    = d.get('img_a','')
+    img_b    = d.get('img_b','')
 
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
@@ -339,13 +341,13 @@ FORMAT - genau diese Reihenfolge einhalten:
 
         rid = 'r_'+nid()
         conn = get_db()
-        conn.execute('INSERT INTO reports (id,user_id,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?)',
-                     (rid,user['id'],species,region,mode,sev,text,now()))
+        conn.execute('INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+                     (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
         conn.execute('UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
         conn.commit(); conn.close()
 
         audit('Analyse',user['id'],f'{species}/{region}/{mode}')
-        return jsonify({'id':rid,'report_text':text,'severity':sev,'species':species,'region':region,'mode':mode,'created_at':now()})
+        return jsonify({'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now()})
 
     except anthropic.APIStatusError as e:
         return jsonify({'error':f'KI-API Fehler: {e.message}'}), 500
