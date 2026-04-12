@@ -623,14 +623,23 @@ function renderAnalyse() {
     + '<div id="rg-list" style="max-height:150px;overflow-y:auto;">'
     + ALL_REGIONS.map(function(rv){ return '<button class="rg-btn'+(AN.region===rv[1]?' on':'')+'" data-v="'+rv[1]+'" data-l="'+rv[0]+'" onclick="setRg(this,\''+rv[1]+'\')">'+rv[0]+'</button>'; }).join('')
     + '</div></div>'
+    // Analysis Focus
+    + '<div><div class="an-lbl">3 · Analyse-Fokus</div>'
+    + '<div class="mode-g" id="focus-mode">'
+    + '<div class="mode-btn on" onclick="setFocus(\'general\',this)">Allgemeine Analyse</div>'
+    + '<div class="mode-btn" onclick="setFocus(\'specific\',this)">Spezifische Analyse</div>'
+    + '</div>'
+    + '<div id="focus-detail" style="display:none;margin-top:8px;">'
+    + '<textarea class="ctx" id="focus-text" placeholder="Wonach soll die KI gezielt suchen?\nz.B. Fraktur am Radius, Gelenkspalt, Herzsilhouette, Fremdkörper …" style="min-height:60px;"></textarea>'
+    + '</div></div>'
     // Mode
-    + '<div><div class="an-lbl">3 · Analyse-Modus</div><div class="mode-g">'
+    + '<div><div class="an-lbl">4 · Analyse-Modus</div><div class="mode-g">'
     + [['Einzelbild','single'],['Verlauf','compare'],['Vergleich','diff'],['Zweitmeinung','second']].map(function(mv){
         return '<button class="mode-btn'+(AN.mode===mv[1]?' on':'')+'" onclick="setMode(this,\''+mv[1]+'\')">'+mv[0]+'</button>';
       }).join('')
     + '</div></div>'
     // Upload
-    + '<div><div class="an-lbl">4 · Röntgenbild hochladen</div>'
+    + '<div><div class="an-lbl">5 · Röntgenbild hochladen</div>'
     + '<div class="uz" id="uz-a" onclick="document.getElementById(\'fi-a\').click()" style="margin-bottom:6px">'
     + '<input type="file" id="fi-a" accept="image/*,.dcm,.dicom">'
     + '<span class="uz-tag">AUFNAHME A</span>'
@@ -644,17 +653,8 @@ function renderAnalyse() {
     + '<div class="uz-text">Vergleichsaufnahme</div>'
     + '</div></div>'
     // Context
-    + '<div><div class="an-lbl">5 · Klinischer Kontext</div>'
+    + '<div><div class="an-lbl">6 · Klinischer Kontext</div>'
     + '<textarea class="ctx" id="ctx" placeholder="Anamnese, Symptome, Vordiagnosen …"></textarea></div>'
-    // Analysis Focus
-    + '<div><div class="an-lbl">6 · Analyse-Fokus</div>'
-    + '<div class="mode-g" id="focus-mode">'
-    + '<div class="mode-btn on" onclick="setFocus(\'general\',this)">Allgemeine Analyse</div>'
-    + '<div class="mode-btn" onclick="setFocus(\'specific\',this)">Spezifische Analyse</div>'
-    + '</div>'
-    + '<div id="focus-detail" style="display:none;margin-top:8px;">'
-    + '<textarea class="ctx" id="focus-text" placeholder="Wonach soll die KI gezielt suchen?\nz.B. Fraktur am Radius, Gelenkspalt, Herzsilhouette, Fremdkörper …" style="min-height:60px;"></textarea>'
-    + '</div></div>'
     // Button
     + '<button class="run-btn" id="run-btn" onclick="runAnalysis()">'
     + '<div class="run-spin"></div><span>Radiologische Analyse starten</span></button>'

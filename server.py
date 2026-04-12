@@ -678,33 +678,41 @@ FORMAT - genau diese Reihenfolge einhalten:
         prompt += f'\n\nSPEZIFISCHER ANALYSE-FOKUS: Der Tierarzt bittet um gezielte Untersuchung folgender Aspekte: {focus_text}. Bitte gehe besonders detailliert auf diese Fragestellung ein.'
     msgs.append({'type':'text','text':prompt})
 
-    try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        resp = client.messages.create(
-            model='claude-sonnet-4-20250514',
-            max_tokens=2400,
-            system=system,
-            messages=[{'role':'user','content':msgs}]
-        )
-        text = resp.content[0].text
-        tl   = text.lower()
-        sev  = 'high' if ('**hoch**' in tl or '**high**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
+    import time as _time
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    last_err = None
+    for attempt in range(3):
+        try:
+            resp = client.messages.create(
+                model='claude-sonnet-4-20250514',
+                max_tokens=2400,
+                system=system,
+                messages=[{'role':'user','content':msgs}]
+            )
+            text = resp.content[0].text
+            tl   = text.lower()
+            sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
 
-        rid = 'r_'+nid()
-        conn = get_db()
-        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                     (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
-        db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
-        conn.commit(); conn.close()
+            rid = 'r_'+nid()
+            conn = get_db()
+            db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+                         (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
+            db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
+            conn.commit(); conn.close()
 
-        audit('Analyse',user['id'],f'{species}/{region}/{mode}')
-        return jsonify({'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now()})
+            audit('Analyse',user['id'],f'{species}/{region}/{mode}')
+            return jsonify({'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now()})
 
-    except anthropic.APIStatusError as e:
-        return jsonify({'error':f'KI-API Fehler: {e.message}'}), 500
-    except Exception as e:
-        app.logger.error(f'Analyse-Fehler: {e}')
-        return jsonify({'error':f'Serverfehler: {str(e)}'}), 500
+        except anthropic.APIStatusError as e:
+            last_err = e
+            if e.status_code == 529 and attempt < 2:
+                _time.sleep(2 * (attempt + 1))
+                continue
+            return jsonify({'error':f'KI-Server überlastet. Bitte in 30 Sekunden erneut versuchen.'}), 503
+        except Exception as e:
+            app.logger.error(f'Analyse-Fehler: {e}')
+            return jsonify({'error':f'Serverfehler: {str(e)}'}), 500
+    return jsonify({'error':'KI-Server nicht erreichbar. Bitte später erneut versuchen.'}), 503
 
 # ═══════════════════════════════════════════════════
 # CHAT (Rückfragen zum Befund)
