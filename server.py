@@ -1168,12 +1168,21 @@ def internal_error(e):
 def health_check():
     try:
         conn = get_db()
+        # Force-create admin if missing
+        admin = db_fetchone(conn, 'SELECT id, email, role FROM users WHERE email=?', ('admin@animioo.de',))
+        if not admin:
+            trial_end = (datetime.now() + timedelta(days=14)).isoformat()
+            db_execute(conn, '''INSERT INTO users
+                (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,1,%s,%s,%s,1,%s,%s)''',
+                ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
+            conn.commit()
+            admin = {'id':'admin1','email':'admin@animioo.de','role':'admin','status':'CREATED'}
         users = db_fetchall(conn, 'SELECT id, email, role, plan FROM users LIMIT 10')
-        admin = db_fetchone(conn, "SELECT id, email, role FROM users WHERE email=%s" if USE_POSTGRES else "SELECT id, email, role FROM users WHERE email=?", ('admin@animioo.de',))
         conn.close()
         return jsonify({'db': 'postgresql' if USE_POSTGRES else 'sqlite', 'users': users, 'admin': admin, 'bcrypt': HAS_BCRYPT})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
 # ═══════════════════════════════════════════════════
 # START
