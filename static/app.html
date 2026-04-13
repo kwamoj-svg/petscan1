@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Petscan – KI-Radiologie Plattform</title>
+<title>Animioo – KI-Radiologie Plattform</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--blue:#1a56db;--blue2:#1447b7;--blue-dim:#eff6ff;--blue-mid:#bfdbfe;--green:#059669;--green-dim:#ecfdf5;--green-mid:#a7f3d0;--amber:#b45309;--amber-dim:#fffbeb;--red:#dc2626;--red-dim:#fef2f2;--navy:#0f1c35;--navy2:#1a2e52;--bg:#f8fafc;--surface:#fff;--s2:#f1f5f9;--border:#e2e8f0;--border2:#cbd5e1;--text:#0f172a;--text2:#475569;--text3:#94a3b8;--f:'Inter',system-ui,sans-serif;--r:6px;--sh:0 1px 3px rgba(0,0,0,.08);--sh2:0 4px 20px rgba(0,0,0,.1);}
@@ -23,7 +23,7 @@ a{color:inherit;text-decoration:none;}
 .l-top{background:var(--navy);padding:26px 32px 22px;text-align:center;}
 .l-brand{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:6px;}
 .l-brand-icon{width:34px;height:34px;border-radius:9px;background:var(--blue);display:flex;align-items:center;justify-content:center;}
-.l-brand-icon svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:2;}
+.l-brand-icon svg{width:17px;height:17px;fill:#fff;stroke:none;}
 .l-brand-name{font-size:20px;font-weight:800;color:#fff;}
 .l-tagline{font-size:12px;color:rgba(255,255,255,.45);}
 .l-tabs{display:flex;background:var(--s2);border-bottom:1px solid var(--border);}
@@ -49,7 +49,7 @@ a{color:inherit;text-decoration:none;}
 .tb{height:54px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:10px;flex-shrink:0;z-index:100;}
 .tb-brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:800;color:var(--text);}
 .tb-bi{width:28px;height:28px;border-radius:7px;background:var(--blue);display:flex;align-items:center;justify-content:center;}
-.tb-bi svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2;}
+.tb-bi svg{width:14px;height:14px;fill:#fff;stroke:none;}
 .tb-sp{flex:1;}
 .tb-plan-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;}
 .plan-trial{background:var(--amber-dim);color:var(--amber);}
@@ -156,6 +156,21 @@ a{color:inherit;text-decoration:none;}
 .result-body tr:last-child td{border-bottom:none;}
 .result-body em{font-style:italic;color:var(--text2);}
 .disclaimer{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;font-size:11px;color:var(--text3);line-height:1.65;}
+.chat-box{max-width:820px;margin:16px auto 0;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.chat-header{padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;}
+.chat-header svg{width:14px;height:14px;fill:none;stroke:var(--blue);stroke-width:2;}
+.chat-msgs{max-height:300px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+.chat-msg{max-width:85%;padding:8px 12px;border-radius:8px;font-size:12.5px;line-height:1.6;}
+.chat-msg.user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:2px;}
+.chat-msg.ai{align-self:flex-start;background:var(--s2);color:var(--text);border-bottom-left-radius:2px;}
+.chat-msg.ai p{margin-bottom:4px;}.chat-msg.ai strong{font-weight:700;}
+.chat-msg.typing{color:var(--text3);font-style:italic;}
+.chat-input-wrap{display:flex;border-top:1px solid var(--border);padding:8px;}
+.chat-input{flex:1;border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:12.5px;resize:none;min-height:36px;max-height:80px;font-family:var(--f);}
+.chat-input:focus{outline:none;border-color:var(--blue);}
+.chat-send{margin-left:6px;padding:8px 14px;background:var(--blue);color:#fff;border-radius:var(--r);font-size:12px;font-weight:700;flex-shrink:0;}
+.chat-send:hover{background:var(--blue2);}
+.chat-send:disabled{opacity:.5;cursor:not-allowed;}
 .report-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .12s;box-shadow:var(--sh);margin-bottom:8px;}
 .report-item:hover{border-color:var(--border2);box-shadow:var(--sh2);}
 .ri-info{flex:1;min-width:0;}
@@ -181,6 +196,67 @@ a{color:inherit;text-decoration:none;}
 .t-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;flex-shrink:0;}
 .t-dot.red{background:var(--red);}
 .t-dot.amber{background:var(--amber);}
+
+/* ═══ MOBILE RESPONSIVE ═══ */
+@media(max-width:768px){
+  /* Toolbar: kompakter */
+  .tb{padding:0 10px;height:48px;gap:6px;}
+  .tb-brand{font-size:13px;gap:5px;}
+  .tb-bi{width:24px;height:24px;border-radius:5px;}
+  .tb-bi svg{width:12px;height:12px;}
+  .tb-home,.tb-uname{display:none;}
+  .tb-usage{font-size:10px;padding:3px 7px;}
+  .tb-plan-badge{font-size:10px;padding:2px 7px;}
+  .tb-logout{font-size:11px;padding:4px 8px;}
+
+  /* App-Layout: Sidebar ausblenden, volle Breite */
+  .app-wrap{grid-template-columns:1fr !important;}
+  .sb{display:none;}
+  .sb.mobile-open{display:flex;position:fixed;top:48px;left:0;bottom:0;width:260px;z-index:500;box-shadow:0 0 40px rgba(0,0,0,.3);}
+  .mobile-overlay{position:fixed;inset:0;top:48px;background:rgba(0,0,0,.4);z-index:499;display:none;}
+  .mobile-overlay.show{display:block;}
+
+  /* Page Header */
+  .ph{padding:10px 14px;}
+  .ph-t{font-size:13px;}
+
+  /* Analyse-Layout: vertikal statt nebeneinander */
+  .an-layout{grid-template-columns:1fr !important;}
+  .an-sb{border-right:none !important;border-bottom:1px solid var(--border);max-height:none;overflow-y:visible !important;padding:10px !important;}
+  .an-main{padding:14px !important;}
+
+  /* Report-Items: Export-Buttons kompakter */
+  .report-item{padding:10px 12px;gap:10px;flex-wrap:wrap;}
+  .report-item>div:last-child{width:100%;justify-content:flex-end;}
+
+  /* Result-Card */
+  .result-card{padding-bottom:20px;}
+  .result-body{padding:14px;}
+  .result-body table{font-size:11px;}
+  .result-body th,.result-body td{padding:5px 8px;}
+  .sev-bar{flex-direction:column;gap:6px;align-items:flex-start;}
+
+  /* Login */
+  .lw{width:calc(100% - 32px);max-width:400px;}
+  .l-body{padding:18px 20px 22px;}
+  .l-top{padding:20px 20px 16px;}
+
+  /* Report Modal */
+  #rep-modal{padding:10px !important;}
+
+  /* KPI Grid */
+  .kpi-g{grid-template-columns:1fr !important;}
+  .kpi-v{font-size:20px;}
+
+  /* Toast */
+  .toast{left:10px;right:10px;bottom:10px;}
+}
+
+/* Hamburger-Menü Button */
+.mobile-menu-btn{display:none;padding:6px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);color:var(--text2);}
+@media(max-width:768px){
+  .mobile-menu-btn{display:flex;align-items:center;justify-content:center;}
+}
 </style>
 </head>
 <body>
@@ -191,8 +267,8 @@ a{color:inherit;text-decoration:none;}
     <div class="l-card">
       <div class="l-top">
         <div class="l-brand">
-          <div class="l-brand-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 9l4-4 4 4M17 9l4-4-4-4"/><line x1="12" y1="3" x2="12" y2="21"/></svg></div>
-          <div class="l-brand-name">Petscan</div>
+          <div class="l-brand-icon"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="6.5" r="2"/><circle cx="16.5" cy="6.5" r="2"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><path d="M7.5 15.5C7.5 14 9.5 12 12 12s4.5 2 4.5 3.5c0 2-1.5 4-2.5 4.5-.7.3-1.3.5-2 .5s-1.3-.2-2-.5c-1-.5-2.5-2.5-2.5-4.5z"/></svg></div>
+          <div class="l-brand-name">Animioo</div>
         </div>
         <div class="l-tagline">Veterinärradiologie · KI-Plattform</div>
       </div>
@@ -207,18 +283,37 @@ a{color:inherit;text-decoration:none;}
           <div class="fg"><label class="fl">Passwort</label><input class="fi" type="password" id="l-pw" placeholder="••••••••"></div>
           <button class="l-btn" id="l-btn" onclick="doLogin()">Anmelden</button>
           <div class="l-link">Noch kein Konto? <a href="#" onclick="switchTab('register')">Kostenlos registrieren</a></div>
+          <div class="l-link"><a href="#" onclick="switchTab('forgot')">Passwort vergessen?</a></div>
+        </div>
+        <div id="form-forgot" style="display:none">
+          <p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;">Geben Sie Ihre E-Mail-Adresse ein. Sie erhalten einen Link zum Zurücksetzen Ihres Passworts.</p>
+          <div class="fg"><label class="fl">E-Mail</label><input class="fi" type="email" id="f-em" placeholder="ihre@email.de"></div>
+          <button class="l-btn" id="f-btn" onclick="doForgot()">Link senden</button>
+          <div class="l-link"><a href="#" onclick="switchTab('login')">← Zurück zur Anmeldung</a></div>
+        </div>
+        <div id="form-reset" style="display:none">
+          <p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;">Geben Sie Ihr neues Passwort ein.</p>
+          <div class="fg"><label class="fl">Neues Passwort (min. 6 Zeichen)</label><input class="fi" type="password" id="rs-pw" placeholder="Neues Passwort"></div>
+          <div class="fg"><label class="fl">Passwort bestätigen</label><input class="fi" type="password" id="rs-pw2" placeholder="Passwort wiederholen"></div>
+          <button class="l-btn" id="rs-btn" onclick="doReset()">Passwort ändern</button>
         </div>
         <div id="form-register" style="display:none">
           <div class="fg"><label class="fl">Name</label><input class="fi" type="text" id="r-name" placeholder="Dr. Max Mustermann"></div>
           <div class="fg"><label class="fl">Praxis</label><input class="fi" type="text" id="r-praxis" placeholder="Tierarztpraxis Mustermann"></div>
           <div class="fg"><label class="fl">E-Mail</label><input class="fi" type="email" id="r-em" placeholder="ihre@email.de"></div>
           <div class="fg"><label class="fl">Passwort (min. 6 Zeichen)</label><input class="fi" type="password" id="r-pw" placeholder="Sicheres Passwort"></div>
+          <div class="fg" style="display:flex;align-items:flex-start;gap:8px;">
+            <input type="checkbox" id="r-dsgvo" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--blue);">
+            <label for="r-dsgvo" style="font-size:11.5px;color:var(--text2);line-height:1.5;cursor:pointer;">
+              Ich akzeptiere die <a href="/datenschutz" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:underline;">Datenschutzerklärung</a> und die <a href="/agb" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:underline;">Allgemeinen Geschäftsbedingungen (AGB)</a>.
+            </label>
+          </div>
           <button class="l-btn" id="r-btn" onclick="doRegister()">14 Tage kostenlos starten</button>
           <div class="l-link">Bereits Konto? <a href="#" onclick="switchTab('login')">Hier anmelden</a></div>
         </div>
       </div>
     </div>
-    <div class="l-hint">Demo: dr.mueller@tierklinik.de / demo123</div>
+    <div class="l-hint"></div>
     <div class="l-back"><a href="/">← Zurück zur Website</a></div>
   </div>
 </div>
@@ -226,9 +321,12 @@ a{color:inherit;text-decoration:none;}
 <!-- APP SCREEN -->
 <div class="screen" id="as">
   <div class="tb">
+    <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <div class="tb-brand">
-      <div class="tb-bi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M3 9l4-4 4 4M17 9l4-4-4-4"/><line x1="12" y1="3" x2="12" y2="21"/></svg></div>
-      Petscan
+      <div class="tb-bi"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="6.5" r="2"/><circle cx="16.5" cy="6.5" r="2"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><path d="M7.5 15.5C7.5 14 9.5 12 12 12s4.5 2 4.5 3.5c0 2-1.5 4-2.5 4.5-.7.3-1.3.5-2 .5s-1.3-.2-2-.5c-1-.5-2.5-2.5-2.5-4.5z"/></svg></div>
+      Animioo
     </div>
     <span class="tb-plan-badge" id="tb-plan"></span>
     <span class="tb-usage" id="tb-usage" style="display:none"></span>
@@ -237,8 +335,12 @@ a{color:inherit;text-decoration:none;}
     <span class="tb-uname" id="tb-name"></span>
     <button class="tb-logout" onclick="doLogout()">Abmelden</button>
   </div>
+  <div id="verify-banner" style="display:none;background:#fffbeb;border-bottom:1px solid #fde68a;padding:8px 18px;font-size:12.5px;color:#92400e;flex-shrink:0;">
+    ⚠ Bitte bestätigen Sie Ihre E-Mail-Adresse. <a href="#" onclick="resendVerify();return false;" style="color:var(--blue);font-weight:600;text-decoration:underline;">Erneut senden</a>
+  </div>
+  <div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileMenu()"></div>
   <div class="app-wrap">
-    <div class="sb">
+    <div class="sb" id="app-sb">
       <div class="sb-sec">
         <div class="sb-lbl">KI-Analyse</div>
         <button class="nb on" data-v="analyse" onclick="navTo('analyse',this)">
@@ -283,7 +385,7 @@ a{color:inherit;text-decoration:none;}
 
 <script>
 var ME = null;
-var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null};
+var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null, petName:'', focusMode:'general'};
 var CACHED = [];
 var ALL_REPORTS = [];
 
@@ -295,6 +397,29 @@ var ALL_REGIONS = [['Thorax / Lunge','Thorax'],['Abdomen','Abdomen'],['Extremit�
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('l-em').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
   document.getElementById('l-pw').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+
+  // Handle URL parameters for verify/reset
+  var params = new URLSearchParams(window.location.search);
+  var verifyToken = params.get('verify');
+  var resetToken = params.get('reset');
+
+  if (verifyToken) {
+    var err = document.getElementById('l-err');
+    err.style.display='block'; err.style.background='var(--blue-dim)'; err.style.borderColor='var(--blue-mid)'; err.style.color='var(--blue)'; err.textContent='E-Mail wird verifiziert...';
+    api('/api/auth/verify-email','POST',{token:verifyToken})
+      .then(function(){ err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='E-Mail erfolgreich verifiziert! Bitte melden Sie sich an.'; })
+      .catch(function(e){ err.style.background='var(--red-dim)'; err.style.borderColor='#fecaca'; err.style.color='var(--red)'; err.textContent=e.message||'Verifizierung fehlgeschlagen.'; });
+    window.history.replaceState({},'','/app');
+    return;
+  }
+
+  if (resetToken) {
+    RESET_TOKEN = resetToken;
+    switchTab('reset');
+    window.history.replaceState({},'','/app');
+    return;
+  }
+
   var token = localStorage.getItem('ps_token');
   if (token) {
     fetch('/api/auth/me', {headers:{'Authorization':'Bearer '+token}})
@@ -321,10 +446,12 @@ function api(url, method, body) {
 
 // AUTH
 function switchTab(tab) {
-  document.getElementById('tab-login').classList.toggle('on', tab==='login');
+  document.getElementById('tab-login').classList.toggle('on', tab==='login'||tab==='forgot'||tab==='reset');
   document.getElementById('tab-register').classList.toggle('on', tab==='register');
   document.getElementById('form-login').style.display = tab==='login' ? '' : 'none';
   document.getElementById('form-register').style.display = tab==='register' ? '' : 'none';
+  document.getElementById('form-forgot').style.display = tab==='forgot' ? '' : 'none';
+  document.getElementById('form-reset').style.display = tab==='reset' ? '' : 'none';
   document.getElementById('l-err').style.display = 'none';
 }
 
@@ -354,6 +481,7 @@ function doRegister() {
   var err = document.getElementById('l-err');
   if (!em || !pw) { err.textContent='Bitte E-Mail und Passwort eingeben'; err.style.display='block'; return; }
   if (pw.length<6) { err.textContent='Passwort muss mindestens 6 Zeichen haben'; err.style.display='block'; return; }
+  if (!document.getElementById('r-dsgvo').checked) { err.textContent='Bitte akzeptieren Sie die Datenschutzerklärung und AGB.'; err.style.display='block'; return; }
   btn.disabled=true; btn.textContent='Konto erstellen...';
   err.style.display='none';
   api('/api/auth/register','POST',{
@@ -365,10 +493,39 @@ function doRegister() {
       localStorage.setItem('ps_token',d.token);
       ME=d.user;
       showApp();
-      toast('Willkommen! Sie haben 5 kostenlose Analysen.');
+      toast('Willkommen! Sie haben 3 kostenlose Analysen.');
     })
     .catch(function(e){ err.textContent=e.message; err.style.display='block'; })
     .finally(function(){ btn.disabled=false; btn.textContent='14 Tage kostenlos starten'; });
+}
+
+function doForgot() {
+  var btn = document.getElementById('f-btn');
+  var em = document.getElementById('f-em').value.trim();
+  var err = document.getElementById('l-err');
+  if (!em) { err.textContent='Bitte E-Mail eingeben'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Senden...';
+  err.style.display='none';
+  api('/api/auth/forgot-password','POST',{email:em})
+    .then(function(){ err.style.display='block'; err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='Falls ein Konto existiert, wurde ein Reset-Link gesendet.'; })
+    .catch(function(){ err.style.display='block'; err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='Falls ein Konto existiert, wurde ein Reset-Link gesendet.'; })
+    .finally(function(){ btn.disabled=false; btn.textContent='Link senden'; });
+}
+
+var RESET_TOKEN = null;
+function doReset() {
+  var btn = document.getElementById('rs-btn');
+  var pw = document.getElementById('rs-pw').value;
+  var pw2 = document.getElementById('rs-pw2').value;
+  var err = document.getElementById('l-err');
+  if (!pw || pw.length<6) { err.textContent='Passwort muss mindestens 6 Zeichen haben'; err.style.display='block'; return; }
+  if (pw !== pw2) { err.textContent='Passwörter stimmen nicht überein'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Speichern...';
+  err.style.display='none';
+  api('/api/auth/reset-password','POST',{token:RESET_TOKEN,password:pw})
+    .then(function(){ err.style.display='block'; err.style.background='var(--green-dim)'; err.style.borderColor='var(--green-mid)'; err.style.color='var(--green)'; err.textContent='Passwort geändert! Sie können sich jetzt anmelden.'; setTimeout(function(){ switchTab('login'); window.history.replaceState({},'','/app'); },2000); })
+    .catch(function(e){ err.textContent=e.message; err.style.display='block'; })
+    .finally(function(){ btn.disabled=false; btn.textContent='Passwort ändern'; });
 }
 
 function doLogout() {
@@ -378,6 +535,12 @@ function doLogout() {
   ME=null;
   document.getElementById('as').classList.remove('active');
   document.getElementById('ls').classList.add('active');
+}
+
+function resendVerify() {
+  api('/api/auth/resend-verify','POST',{})
+    .then(function(){ toast('Bestätigungs-E-Mail wurde erneut gesendet.'); })
+    .catch(function(e){ toast('Fehler: '+e.message); });
 }
 
 // SHOW APP
@@ -401,11 +564,29 @@ function showApp() {
   if (ME.plan==='professional'||ME.plan==='admin') {
     document.getElementById('nb-upgrade').style.display='none';
   }
+  // Show email verification banner if not verified
+  var vb = document.getElementById('verify-banner');
+  if (vb) vb.style.display = (ME.email_verified===false && ME.role!=='admin') ? '' : 'none';
   renderAnalyse();
+}
+
+// MOBILE MENU
+function toggleMobileMenu() {
+  var sb = document.getElementById('app-sb');
+  var ov = document.getElementById('mobile-overlay');
+  var open = sb.classList.toggle('mobile-open');
+  ov.classList.toggle('show', open);
+}
+function closeMobileMenu() {
+  var sb = document.getElementById('app-sb');
+  var ov = document.getElementById('mobile-overlay');
+  if(sb) sb.classList.remove('mobile-open');
+  if(ov) ov.classList.remove('show');
 }
 
 // NAV
 function navTo(view, btn) {
+  closeMobileMenu();
   document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('on'); });
   if(btn) btn.classList.add('on');
   var titles = {analyse:'Neue Analyse',reports:'Meine Befunde',account:'Mein Account',upgrade:'Plan upgraden'};
@@ -422,6 +603,11 @@ function renderAnalyse() {
   c.innerHTML = '<div class="an-layout" style="flex:1;overflow:hidden;display:grid;min-height:0">'
     + '<div class="an-sb" id="an-sb">'
     // Species
+    + '<div><div class="an-lbl">Tiername / Patient</div>'
+    + '<input id="pet-name" type="text" placeholder="z.B. Bella, Max …" value="'+AN.petName.replace(/'/g,"&#39;")+'"'
+    + ' oninput="AN.petName=this.value"'
+    + ' style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);">'
+    + '</div>'
     + '<div><div class="an-lbl">1 · Tierart wählen</div>'
     + '<div style="position:relative;margin-bottom:4px;">'
     + '<input id="sp-inp" type="text" placeholder="Tierart suchen..." value="'+AN.species+'"'
@@ -437,14 +623,23 @@ function renderAnalyse() {
     + '<div id="rg-list" style="max-height:150px;overflow-y:auto;">'
     + ALL_REGIONS.map(function(rv){ return '<button class="rg-btn'+(AN.region===rv[1]?' on':'')+'" data-v="'+rv[1]+'" data-l="'+rv[0]+'" onclick="setRg(this,\''+rv[1]+'\')">'+rv[0]+'</button>'; }).join('')
     + '</div></div>'
+    // Analysis Focus
+    + '<div><div class="an-lbl">3 · Analyse-Fokus</div>'
+    + '<div class="mode-g" id="focus-mode">'
+    + '<div class="mode-btn on" onclick="setFocus(\'general\',this)">Allgemeine Analyse</div>'
+    + '<div class="mode-btn" onclick="setFocus(\'specific\',this)">Spezifische Analyse</div>'
+    + '</div>'
+    + '<div id="focus-detail" style="display:none;margin-top:8px;">'
+    + '<textarea class="ctx" id="focus-text" placeholder="Wonach soll die KI gezielt suchen?\nz.B. Fraktur am Radius, Gelenkspalt, Herzsilhouette, Fremdkörper …" style="min-height:60px;"></textarea>'
+    + '</div></div>'
     // Mode
-    + '<div><div class="an-lbl">3 · Analyse-Modus</div><div class="mode-g">'
+    + '<div><div class="an-lbl">4 · Analyse-Modus</div><div class="mode-g">'
     + [['Einzelbild','single'],['Verlauf','compare'],['Vergleich','diff'],['Zweitmeinung','second']].map(function(mv){
         return '<button class="mode-btn'+(AN.mode===mv[1]?' on':'')+'" onclick="setMode(this,\''+mv[1]+'\')">'+mv[0]+'</button>';
       }).join('')
     + '</div></div>'
     // Upload
-    + '<div><div class="an-lbl">4 · Röntgenbild hochladen</div>'
+    + '<div><div class="an-lbl">5 · Röntgenbild hochladen</div>'
     + '<div class="uz" id="uz-a" onclick="document.getElementById(\'fi-a\').click()" style="margin-bottom:6px">'
     + '<input type="file" id="fi-a" accept="image/*,.dcm,.dicom">'
     + '<span class="uz-tag">AUFNAHME A</span>'
@@ -458,7 +653,7 @@ function renderAnalyse() {
     + '<div class="uz-text">Vergleichsaufnahme</div>'
     + '</div></div>'
     // Context
-    + '<div><div class="an-lbl">5 · Klinischer Kontext</div>'
+    + '<div><div class="an-lbl">6 · Klinischer Kontext</div>'
     + '<textarea class="ctx" id="ctx" placeholder="Anamnese, Symptome, Vordiagnosen …"></textarea></div>'
     // Button
     + '<button class="run-btn" id="run-btn" onclick="runAnalysis()">'
@@ -571,6 +766,13 @@ function removeImg(k,e) {
 }
 
 // RUN ANALYSIS
+function setFocus(type, btn) {
+  AN.focusMode = type;
+  document.querySelectorAll('#focus-mode .mode-btn').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  document.getElementById('focus-detail').style.display = type==='specific' ? '' : 'none';
+}
+
 function runAnalysis() {
   if(!AN.imgA){ toast('Bitte Aufnahme A hochladen','red'); return; }
   if(AN.mode!=='single'&&!AN.imgB){ toast('Bitte auch Aufnahme B hochladen','amber'); return; }
@@ -578,9 +780,13 @@ function runAnalysis() {
   btn.disabled=true; btn.classList.add('busy');
   showLoading();
   var ctx=document.getElementById('ctx');
+  var focusTxt=document.getElementById('focus-text');
   api('/api/analyse','POST',{
     species:AN.species, region:AN.region, mode:AN.mode,
+    pet_name:AN.petName.trim(),
     context:ctx?ctx.value.trim():'',
+    focus_mode:AN.focusMode,
+    focus_text:focusTxt&&AN.focusMode==='specific'?focusTxt.value.trim():'',
     img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:''
   })
   .then(function(data){
@@ -634,7 +840,7 @@ function renderResult(r) {
   }
   document.getElementById('an-main').innerHTML='<div class="result-card">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;">'
-    +'<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">'+r.species+' · '+r.region+' · '+modeLabel+'</div>'
+    +'<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+' · '+modeLabel+'</div>'
     +'<div style="font-size:20px;font-weight:800;">Radiologischer Befundbericht</div>'
     +'<div style="font-size:11px;color:var(--text3);margin-top:4px">'+fmtDate(r.created_at)+' · <span class="badge '+sevBadge+'">'+sevBadgeLbl+'</span></div></div>'
     +'<button class="abt ab-g" onclick="exportPDF(\''+r.id+'\')">PDF exportieren</button></div>'
@@ -642,8 +848,54 @@ function renderResult(r) {
     +'<div class="sev-bar '+sevCls+'"><div style="flex:1"><div class="sev-lbl">DRINGLICHKEIT: '+sevLbl+'</div></div><div class="sev-track"><div class="sev-fill"></div></div></div>'
     +'<div class="result-body">'+mdToHtml(r.report_text)+'</div>'
     +'<div class="disclaimer">⚠️ KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
+    +'</div>'
+    +'<div class="chat-box" id="chat-box">'
+    +'<div class="chat-header"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Rückfragen zum Befund</div>'
+    +'<div class="chat-msgs" id="chat-msgs"><div class="chat-msg ai">Haben Sie Fragen zu diesem Befund? Ich kann Details erklären, Differenzialdiagnosen diskutieren oder weitere Empfehlungen geben.</div></div>'
+    +'<div class="chat-input-wrap"><textarea class="chat-input" id="chat-input" placeholder="Frage zum Befund stellen …" rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>'
+    +'<button class="chat-send" id="chat-send" onclick="sendChat()">Senden</button></div>'
     +'</div>';
+  CHAT_HISTORY=[];
+  CHAT_REPORT=r.report_text;
+  CHAT_CONTEXT={species:r.species,region:r.region,mode:r.mode,pet_name:r.pet_name||''};
 }
+
+// CHAT
+var CHAT_HISTORY=[], CHAT_REPORT='', CHAT_CONTEXT={};
+function sendChat(){
+  var input=document.getElementById('chat-input');
+  var btn=document.getElementById('chat-send');
+  var msgs=document.getElementById('chat-msgs');
+  var q=input.value.trim();
+  if(!q)return;
+  // Add user message
+  msgs.innerHTML+='<div class="chat-msg user">'+escHtml(q)+'</div>';
+  CHAT_HISTORY.push({role:'user',text:q});
+  input.value=''; btn.disabled=true;
+  // Add typing indicator
+  msgs.innerHTML+='<div class="chat-msg ai typing" id="chat-typing">Denkt nach …</div>';
+  msgs.scrollTop=msgs.scrollHeight;
+  api('/api/chat','POST',{
+    question:q,
+    report_text:CHAT_REPORT,
+    context:CHAT_CONTEXT,
+    history:CHAT_HISTORY.slice(-10)
+  })
+  .then(function(d){
+    var typing=document.getElementById('chat-typing');
+    if(typing)typing.remove();
+    CHAT_HISTORY.push({role:'assistant',text:d.answer});
+    msgs.innerHTML+='<div class="chat-msg ai">'+mdToHtml(d.answer)+'</div>';
+    msgs.scrollTop=msgs.scrollHeight;
+  })
+  .catch(function(e){
+    var typing=document.getElementById('chat-typing');
+    if(typing)typing.remove();
+    msgs.innerHTML+='<div class="chat-msg ai" style="color:var(--red)">Fehler: '+escHtml(e.message)+'</div>';
+  })
+  .finally(function(){ btn.disabled=false; input.focus(); });
+}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 // REPORTS
 function renderReports() {
@@ -673,7 +925,7 @@ function filterReps(q) {
   var sev=document.getElementById('rep-sev')?document.getElementById('rep-sev').value:'';
   var ql=q.toLowerCase();
   var filtered=ALL_REPORTS.filter(function(r){
-    var mq=!ql||[r.species,r.region,r.mode,fmtDate(r.created_at)].join(' ').toLowerCase().indexOf(ql)>=0;
+    var mq=!ql||[r.pet_name||'',r.species,r.region,r.mode,fmtDate(r.created_at)].join(' ').toLowerCase().indexOf(ql)>=0;
     var ms=!sev||r.severity===sev;
     return mq&&ms;
   });
@@ -689,7 +941,7 @@ function filterReps(q) {
       var sb={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
       var sl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
       return '<div class="report-item" onclick="openReport(\''+r.id+'\')"><div style="width:38px;height:38px;border-radius:8px;background:var(--blue-dim);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>'
-        +'<div class="ri-info"><div class="ri-title">'+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
+        +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
         +'<span class="badge '+sb+'">'+sl+'</span>'
         +'<div style="display:flex;gap:4px;" onclick="event.stopPropagation()">'
         +'<button class="abt ab-p" onclick="exportPDF(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">PDF</button>'
@@ -721,7 +973,7 @@ function openReport(id) {
   }
   m.innerHTML='<div style="background:var(--surface);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.3);width:100%;max-width:820px;margin:auto;">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;border-radius:12px 12px 0 0;">'
-    +'<div><div style="font-size:11px;color:var(--text3)">'+r.species+' · '+r.region+' · '+modeLabel+'</div><div style="font-size:16px;font-weight:800;">Radiologischer Befundbericht</div></div>'
+    +'<div><div style="font-size:11px;color:var(--text3)">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+' · '+modeLabel+'</div><div style="font-size:16px;font-weight:800;">Radiologischer Befundbericht</div></div>'
     +'<div style="display:flex;gap:6px;align-items:center;">'
     +'<button class="abt ab-p" onclick="exportPDF(\''+id+'\')" style="font-size:11px;padding:5px 10px">PDF</button>'
     +'<button class="abt ab-g" onclick="exportWord(\''+id+'\')" style="font-size:11px;padding:5px 10px">Word</button>'
@@ -765,34 +1017,52 @@ function buildAccount() {
     +'<div class="ac-row"><span class="ac-lbl">E-Mail</span><span class="ac-val">'+ME.email+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Praxis</span><span class="ac-val">'+(ME.praxis||'–')+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Plan</span><span class="ac-val">'+pl+'</span></div></div>'
-    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — 149 €/Monat.</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
+    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 143 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
     +'</div></div>';
 }
 
 // UPGRADE
+var UP_YEARLY=false;
+function toggleUpPricing(){
+  UP_YEARLY=!UP_YEARLY;
+  renderUpgrade();
+}
 function renderUpgrade() {
   var c=document.getElementById('main-content');
   c.style.overflow='';
-  c.innerHTML='<div style="overflow-y:auto;padding:22px;flex:1;"><div style="max-width:680px;margin:0 auto;">'
-    +'<h2 style="font-size:22px;font-weight:800;margin-bottom:20px;">Plan wählen</h2>'
+  var sPrice=UP_YEARLY?'39':'49', pPrice=UP_YEARLY?'143':'179';
+  var sPeriod=UP_YEARLY?'pro Monat · jährlich (468 €/Jahr)':'pro Monat · zzgl. MwSt.';
+  var pPeriod=UP_YEARLY?'pro Monat · jährlich (1.716 €/Jahr)':'pro Monat · zzgl. MwSt.';
+  var sBilling=UP_YEARLY?'yearly':'monthly', pBilling=UP_YEARLY?'yearly':'monthly';
+  c.innerHTML='<div style="overflow-y:auto;padding:22px;flex:1;"><div style="max-width:720px;margin:0 auto;">'
+    +'<h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Plan wählen</h2>'
+    +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">'
+    +'<span style="font-size:13px;font-weight:600;color:'+(UP_YEARLY?'var(--text3)':'var(--text)')+'">Monatlich</span>'
+    +'<div onclick="toggleUpPricing()" style="position:relative;width:44px;height:24px;background:'+(UP_YEARLY?'var(--blue)':'var(--border2)')+';border-radius:12px;cursor:pointer;transition:background .2s;">'
+    +'<div style="position:absolute;top:2px;'+(UP_YEARLY?'right:2px':'left:2px')+';width:20px;height:20px;background:#fff;border-radius:50%;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div>'
+    +'<span style="font-size:13px;font-weight:600;color:'+(UP_YEARLY?'var(--text)':'var(--text3)')+'">Jährlich</span>'
+    +'<span style="font-size:10px;font-weight:700;background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:6px;">20% sparen</span>'
+    +'</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">'
-    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;"><div style="font-size:15px;font-weight:800;margin-bottom:4px">Trial</div><div style="font-size:26px;font-weight:800;margin-bottom:12px">0 €</div><div style="font-size:12px;color:var(--text2);line-height:1.8">5 Analysen<br>PDF Export<br>14 Tage</div></div>'
-    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;cursor:pointer;" onclick="startCheckout(\'starter\')">'
-    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Starter</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">49 €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
-    +'<div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">50 Analysen/Monat<br>PDF + Word + TXT<br>Befundarchiv</div>'
-    +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'starter\')">Jetzt kaufen</button></div>'
-    +'<div style="border:2px solid var(--blue);border-radius:10px;padding:20px;cursor:pointer;background:var(--blue-dim);position:relative;" onclick="startCheckout(\'professional\')">'
+    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;"><div style="font-size:15px;font-weight:800;margin-bottom:4px">Gratis</div><div style="font-size:26px;font-weight:800;margin-bottom:4px">0 €</div><div style="font-size:11px;color:var(--text3);margin-bottom:12px">3 Analysen gratis</div><div style="font-size:12px;color:var(--text2);line-height:1.8">3 KI-Analysen<br>Alle Tierarten<br>PDF Export</div></div>'
+    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;cursor:pointer;" onclick="startCheckout(\'starter\',\''+sBilling+'\')">'
+    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Starter</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">'+sPrice+' €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+sPeriod+'</div>'
+    +'<div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">50 Analysen/Monat<br>PDF + Word + TXT<br>Befundarchiv 90 Tage</div>'
+    +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'starter\',\''+sBilling+'\')">Jetzt kaufen</button></div>'
+    +'<div style="border:2px solid var(--blue);border-radius:10px;padding:20px;cursor:pointer;background:var(--blue-dim);position:relative;" onclick="startCheckout(\'professional\',\''+pBilling+'\')">'
     +'<div style="position:absolute;top:-10px;right:12px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:10px;">BELIEBT</div>'
-    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Professional</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">149 €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
+    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Professional</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">'+pPrice+' €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+pPeriod+'</div>'
     +'<div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">∞ Unbegrenzte Analysen<br>Verlaufsvergleich<br>Prioritäts-Support</div>'
-    +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'professional\')">Jetzt kaufen</button></div>'
+    +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'professional\',\''+pBilling+'\')">Jetzt kaufen</button></div>'
     +'</div><p style="margin-top:16px;font-size:12px;color:var(--text3);text-align:center;">Sichere Zahlung via Stripe · Jederzeit kündbar</p>'
     +'</div></div>';
 }
 
-function startCheckout(plan) {
+function startCheckout(plan, billing) {
   toast('Weiterleitung zu Stripe …');
-  api('/api/payments/checkout','POST',{plan:plan})
+  api('/api/payments/checkout','POST',{plan:plan, billing:billing||'monthly'})
     .then(function(d){ window.location.href=d.checkout_url; })
     .catch(function(e){ toast('Stripe: '+e.message,'red'); });
 }
@@ -808,7 +1078,7 @@ function exportPDF(id) {
   var scol={low:'#059669',mid:'#b45309',high:'#dc2626'}[r.severity]||'#b45309';
   var win=window.open('','_blank');
   if(!win){ toast('Popup blockiert','red'); return; }
-  var html='<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Petscan Befund</title>'
+  var html='<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Animioo Befund</title>'
     +'<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">'
     +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;color:#0f172a;font-size:13px;padding:40px}'
     +'.hdr{border-bottom:2px solid #0f1c35;padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between}'
@@ -831,7 +1101,7 @@ function exportPDF(id) {
     +'.ft{margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}'
     +'@media print{@page{margin:1.5cm;size:A4}}</style>'
     +'</head><body>'
-    +'<div class="hdr"><div><div class="bn">Petscan</div><div class="bs">KI-Radiologieplattform</div></div>'
+    +'<div class="hdr"><div><div class="bn">Animioo</div><div class="bs">KI-Radiologieplattform</div></div>'
     +'<div style="text-align:right"><div style="font-weight:700;font-size:13px">'+(ME&&ME.praxis?ME.praxis:'')+'</div><div class="me">'+(ME&&ME.name?ME.name:'')+'</div></div></div>'
     +'<div class="ti">Radiologischer Befundbericht</div>'
     +'<div class="me">'+r.species+' · '+r.region+' · '+ml+' · '+fmtDate(r.created_at)+' · ID: '+r.id+'</div>'
@@ -839,7 +1109,7 @@ function exportPDF(id) {
     +(r.img_a?'<div class="imgs"><img src="'+r.img_a+'">'+(r.img_b&&r.mode!=='single'?'<img src="'+r.img_b+'">':'')+'</div>':'')
     +mdToHtml(r.report_text)
     +'<div class="dis">⚠️ KI-generierter Befundbericht. Kein Ersatz für tierärztliche Diagnose durch einen approbierten Tierarzt.</div>'
-    +'<div class="ft"><span>Petscan GmbH</span><span>'+fmtDate(r.created_at)+'</span></div>'
+    +'<div class="ft"><span>Animioo GmbH</span><span>'+fmtDate(r.created_at)+'</span></div>'
     +'</body></html>';
   win.document.write(html);
   win.document.close();
@@ -854,16 +1124,16 @@ function exportWord(id) {
   var ml={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
   var st={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm}h1{font-size:16pt}h2{font-size:13pt;border-bottom:1px solid #ccc;margin:14px 0 8px;padding-bottom:4px}h3{font-size:12pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 10px}th{background:#0f1c35;color:#fff}</style></head><body>'
-    +'<h1>Petscan Befundbericht</h1>'
+    +'<h1>Animioo Befundbericht</h1>'
     +'<p><strong>Tierart:</strong> '+r.species+' &nbsp;&nbsp; <strong>Region:</strong> '+r.region+' &nbsp;&nbsp; <strong>Modus:</strong> '+ml+'</p>'
     +'<p><strong>Datum:</strong> '+fmtDate(r.created_at)+' &nbsp;&nbsp; <strong>Dringlichkeit:</strong> '+st+'</p><hr>'
     +mdToHtml(r.report_text)
-    +'<hr><p><em>Petscan KI-Befundassistent. Kein Ersatz fuer tieraerztliche Diagnose.</em></p>'
+    +'<hr><p><em>Animioo KI-Befundassistent. Kein Ersatz fuer tieraerztliche Diagnose.</em></p>'
     +'</body></html>';
   var blob=new Blob([html],{type:'application/msword'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='Petscan_'+r.species+'_'+r.id+'.doc';
+  a.href=url; a.download='Animioo_'+r.species+'_'+r.id+'.doc';
   a.click(); URL.revokeObjectURL(url);
   toast('Word-Dokument heruntergeladen');
 }
@@ -877,11 +1147,11 @@ function exportTXT(id) {
     +'Tierart: '+r.species+'\nRegion: '+r.region+'\nDatum: '+fmtDate(r.created_at)+'\nDringlichkeit: '+st+'\n'
     +'='.repeat(40)+'\n\n'
     +(r.report_text||'').replace(/\*\*(.+?)\*\*/g,'$1').replace(/^## /gm,'-- ').replace(/^### /gm,'  ')
-    +'\n\n'+'--\nPetscan KI. Kein Ersatz fuer tieraerztliche Diagnose.';
+    +'\n\n'+'--\nAnimioo KI. Kein Ersatz fuer tieraerztliche Diagnose.';
   var blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='Petscan_'+r.species+'_'+r.id+'.txt';
+  a.href=url; a.download='Animioo_'+r.species+'_'+r.id+'.txt';
   a.click(); URL.revokeObjectURL(url);
   toast('Textdatei heruntergeladen');
 }
@@ -899,7 +1169,7 @@ function exportAllCSV() {
   var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='Petscan_Befunde_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.href=url; a.download='Animioo_Befunde_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click(); URL.revokeObjectURL(url);
   toast(reports.length+' Befunde als CSV exportiert');
 }
@@ -947,6 +1217,30 @@ function toast(msg,type) {
   t.classList.add('show');
   clearTimeout(t._tid);
   t._tid=setTimeout(function(){ t.classList.remove('show'); },3000);
+}
+</script>
+
+<!-- COOKIE BANNER -->
+<div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:var(--navy);border-top:1px solid rgba(255,255,255,.1);padding:14px 20px;font-family:var(--f);">
+  <div style="max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:240px;font-size:12.5px;color:rgba(255,255,255,.8);line-height:1.6;">
+      Diese Website verwendet Cookies, um die bestmögliche Funktionalität zu bieten. <a href="/datenschutz" style="color:#93c5fd;text-decoration:underline;">Mehr erfahren</a>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button onclick="acceptCookies('all')" style="padding:7px 16px;border-radius:6px;background:var(--blue);color:#fff;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:var(--f);">Akzeptieren</button>
+      <button onclick="acceptCookies('necessary')" style="padding:7px 16px;border-radius:6px;background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.25);cursor:pointer;font-family:var(--f);">Nur notwendige</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  if(!localStorage.getItem('cookie_consent')){
+    document.getElementById('cookie-banner').style.display='block';
+  }
+})();
+function acceptCookies(t){
+  localStorage.setItem('cookie_consent',t);
+  document.getElementById('cookie-banner').style.display='none';
 }
 </script>
 </body>
