@@ -266,14 +266,17 @@ def init_db():
         db_execute(conn, "ALTER TABLE reports ADD COLUMN image_data TEXT DEFAULT ''")
     except: pass
 
-    # Admin-User anlegen
+    # Admin-User anlegen (upsert for PostgreSQL compatibility)
     try:
-        trial_end = (datetime.now() + timedelta(days=14)).isoformat()
-        db_execute(conn, '''INSERT INTO users
-            (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
-            VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
-            ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
-    except: pass
+        existing = db_fetchone(conn, 'SELECT id FROM users WHERE email=?', ('admin@animioo.de',))
+        if not existing:
+            trial_end = (datetime.now() + timedelta(days=14)).isoformat()
+            db_execute(conn, '''INSERT INTO users
+                (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
+                VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
+                ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
+    except Exception as e:
+        app.logger.warning(f'Admin-User Fehler: {e}')
     conn.commit()
     if USE_POSTGRES:
         conn.close()
