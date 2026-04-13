@@ -40,6 +40,8 @@ limiter = Limiter(get_remote_address, app=app, default_limits=["200 per minute"]
 # CONFIG
 # ═══════════════════════════════════════════════════
 ANTHROPIC_API_KEY    = os.environ.get('ANTHROPIC_API_KEY', '')
+OPENAI_API_KEY       = os.environ.get('OPENAI_API_KEY', '')
+GEMINI_API_KEY       = os.environ.get('GEMINI_API_KEY', '')
 STRIPE_SECRET_KEY    = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PUB_KEY       = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SEC   = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
@@ -679,40 +681,109 @@ FORMAT - genau diese Reihenfolge einhalten:
     msgs.append({'type':'text','text':prompt})
 
     import time as _time
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    last_err = None
-    for attempt in range(3):
+
+    # ── Helper: Anthropic ──
+    def try_anthropic():
+        if not ANTHROPIC_API_KEY: return None
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        for attempt in range(3):
+            try:
+                resp = client.messages.create(
+                    model='claude-sonnet-4-20250514',
+                    max_tokens=2400,
+                    system=system,
+                    messages=[{'role':'user','content':msgs}]
+                )
+                return resp.content[0].text
+            except anthropic.APIStatusError as e:
+                if e.status_code == 529 and attempt < 2:
+                    _time.sleep(2 * (attempt + 1))
+                    continue
+                app.logger.warning(f'Anthropic Fehler (Versuch {attempt+1}): {e}')
+                return None
+            except Exception as e:
+                app.logger.warning(f'Anthropic Fehler: {e}')
+                return None
+        return None
+
+    # ── Helper: OpenAI ──
+    def try_openai():
+        if not OPENAI_API_KEY: return None
         try:
-            resp = client.messages.create(
-                model='claude-sonnet-4-20250514',
+            from openai import OpenAI
+            oc = OpenAI(api_key=OPENAI_API_KEY)
+            oai_msgs = [{'type':'text','text':system}]
+            oai_content = []
+            for m in msgs:
+                if m['type'] == 'image':
+                    oai_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}"}})
+                else:
+                    oai_content.append({'type':'text','text':m['text']})
+            resp = oc.chat.completions.create(
+                model='gpt-4o',
                 max_tokens=2400,
-                system=system,
-                messages=[{'role':'user','content':msgs}]
+                messages=[
+                    {'role':'system','content':system},
+                    {'role':'user','content':oai_content}
+                ]
             )
-            text = resp.content[0].text
-            tl   = text.lower()
-            sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
-
-            rid = 'r_'+nid()
-            conn = get_db()
-            db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                         (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
-            db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
-            conn.commit(); conn.close()
-
-            audit('Analyse',user['id'],f'{species}/{region}/{mode}')
-            return jsonify({'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now()})
-
-        except anthropic.APIStatusError as e:
-            last_err = e
-            if e.status_code == 529 and attempt < 2:
-                _time.sleep(2 * (attempt + 1))
-                continue
-            return jsonify({'error':f'KI-Server überlastet. Bitte in 30 Sekunden erneut versuchen.'}), 503
+            return resp.choices[0].message.content
         except Exception as e:
-            app.logger.error(f'Analyse-Fehler: {e}')
-            return jsonify({'error':f'Serverfehler: {str(e)}'}), 500
-    return jsonify({'error':'KI-Server nicht erreichbar. Bitte später erneut versuchen.'}), 503
+            app.logger.warning(f'OpenAI Fehler: {e}')
+            return None
+
+    # ── Helper: Google Gemini ──
+    def try_gemini():
+        if not GEMINI_API_KEY: return None
+        try:
+            import google.generativeai as genai
+            import base64
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            parts = [system + '\n\n']
+            for m in msgs:
+                if m['type'] == 'image':
+                    parts.append({'mime_type':m['source']['media_type'],'data':base64.b64decode(m['source']['data'])})
+                else:
+                    parts.append(m['text'])
+            resp = model.generate_content(parts)
+            return resp.text
+        except Exception as e:
+            app.logger.warning(f'Gemini Fehler: {e}')
+            return None
+
+    # ── Multi-Provider Fallback ──
+    providers = [
+        ('Anthropic', try_anthropic),
+        ('OpenAI', try_openai),
+        ('Gemini', try_gemini),
+    ]
+    text = None
+    used_provider = None
+    for pname, pfunc in providers:
+        app.logger.info(f'Versuche KI-Provider: {pname}')
+        text = pfunc()
+        if text:
+            used_provider = pname
+            app.logger.info(f'Analyse erfolgreich mit: {pname}')
+            break
+        app.logger.warning(f'{pname} fehlgeschlagen, versuche nächsten Provider...')
+
+    if not text:
+        return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
+
+    tl   = text.lower()
+    sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
+
+    rid = 'r_'+nid()
+    conn = get_db()
+    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+                 (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
+    db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
+    conn.commit(); conn.close()
+
+    audit('Analyse',user['id'],f'{species}/{region}/{mode} via {used_provider}')
+    return jsonify({'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now()})
 
 # ═══════════════════════════════════════════════════
 # CHAT (Rückfragen zum Befund)
@@ -752,18 +823,43 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
     for h in history[-10:]:
         messages.append({'role':h['role'] if h['role'] in ('user','assistant') else 'user', 'content':h['text']})
 
-    try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        resp = client.messages.create(
-            model='claude-sonnet-4-20250514',
-            max_tokens=800,
-            system=system,
-            messages=messages
-        )
-        answer = resp.content[0].text
+    answer = None
+
+    # Try Anthropic
+    if ANTHROPIC_API_KEY and not answer:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
+            answer = resp.content[0].text
+        except Exception as e:
+            app.logger.warning(f'Chat Anthropic Fehler: {e}')
+
+    # Try OpenAI
+    if OPENAI_API_KEY and not answer:
+        try:
+            from openai import OpenAI
+            oc = OpenAI(api_key=OPENAI_API_KEY)
+            oai_msgs = [{'role':'system','content':system}] + [{'role':m['role'],'content':m['content']} for m in messages]
+            resp = oc.chat.completions.create(model='gpt-4o', max_tokens=800, messages=oai_msgs)
+            answer = resp.choices[0].message.content
+        except Exception as e:
+            app.logger.warning(f'Chat OpenAI Fehler: {e}')
+
+    # Try Gemini
+    if GEMINI_API_KEY and not answer:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            chat_text = system + '\n\n' + '\n'.join([f"{m['role']}: {m['content']}" for m in messages])
+            resp = model.generate_content(chat_text)
+            answer = resp.text
+        except Exception as e:
+            app.logger.warning(f'Chat Gemini Fehler: {e}')
+
+    if answer:
         return jsonify({'answer':answer})
-    except Exception as e:
-        return jsonify({'error':str(e)}), 500
+    return jsonify({'error':'Alle KI-Server nicht erreichbar. Bitte später versuchen.'}), 503
 
 # ═══════════════════════════════════════════════════
 # REPORTS
