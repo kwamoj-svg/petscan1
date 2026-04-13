@@ -116,8 +116,8 @@ def init_db():
     conn = get_db()
     if USE_POSTGRES:
         cur = conn.cursor()
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS users (
+        tables = [
+            '''CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
@@ -137,14 +137,14 @@ def init_db():
                 trial_ends_at TEXT DEFAULT '',
                 created_at TEXT,
                 last_login TEXT
-            );
-            CREATE TABLE IF NOT EXISTS sessions (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS reports (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 pet_name TEXT DEFAULT '',
@@ -155,16 +155,16 @@ def init_db():
                 report_text TEXT,
                 image_data TEXT DEFAULT '',
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS leads (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS leads (
                 id TEXT PRIMARY KEY,
                 name TEXT, contact TEXT, email TEXT,
                 phone TEXT, message TEXT,
                 status TEXT DEFAULT 'new',
                 source TEXT DEFAULT 'Website',
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS payments (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS payments (
                 id TEXT PRIMARY KEY,
                 user_id TEXT,
                 stripe_session_id TEXT,
@@ -172,13 +172,18 @@ def init_db():
                 amount INTEGER,
                 status TEXT DEFAULT 'pending',
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS audit_log (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS audit_log (
                 id SERIAL PRIMARY KEY,
                 action TEXT, user_id TEXT,
                 detail TEXT, created_at TEXT
-            );
-        ''')
+            )'''
+        ]
+        for t in tables:
+            try:
+                cur.execute(t)
+            except Exception as e:
+                app.logger.warning(f'Table creation: {e}')
         conn.commit()
     else:
         import sqlite3
@@ -266,17 +271,21 @@ def init_db():
         db_execute(conn, "ALTER TABLE reports ADD COLUMN image_data TEXT DEFAULT ''")
     except: pass
 
-    # Admin-User anlegen (upsert for PostgreSQL compatibility)
+    # Admin-User anlegen oder Passwort aktualisieren
     try:
         existing = db_fetchone(conn, 'SELECT id FROM users WHERE email=?', ('admin@animioo.de',))
-        if not existing:
+        if existing:
+            db_execute(conn, 'UPDATE users SET password=? WHERE email=?', (hash_pw('admin123'), 'admin@animioo.de'))
+            app.logger.info('Admin-Passwort aktualisiert')
+        else:
             trial_end = (datetime.now() + timedelta(days=14)).isoformat()
             db_execute(conn, '''INSERT INTO users
                 (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
                 VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
                 ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
+            app.logger.info('Admin-User erstellt')
     except Exception as e:
-        app.logger.warning(f'Admin-User Fehler: {e}')
+        app.logger.error(f'Admin-User Fehler: {e}')
     conn.commit()
     if USE_POSTGRES:
         conn.close()
