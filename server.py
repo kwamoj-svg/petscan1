@@ -153,6 +153,7 @@ def init_db():
                 mode TEXT,
                 severity TEXT,
                 report_text TEXT,
+                image_data TEXT DEFAULT '',
                 created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS leads (
@@ -218,6 +219,7 @@ def init_db():
                 mode TEXT,
                 severity TEXT,
                 report_text TEXT,
+                image_data TEXT DEFAULT "",
                 created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS leads (
@@ -259,6 +261,9 @@ def init_db():
     except: pass
     try:
         db_execute(conn, "ALTER TABLE users ADD COLUMN pet_name TEXT DEFAULT ''")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE reports ADD COLUMN image_data TEXT DEFAULT ''")
     except: pass
 
     # Admin-User anlegen
@@ -777,8 +782,8 @@ FORMAT - genau diese Reihenfolge einhalten:
 
     rid = 'r_'+nid()
     conn = get_db()
-    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                 (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
+    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                 (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,now()))
     db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
     conn.commit(); conn.close()
 
@@ -873,7 +878,25 @@ def get_reports():
     else:
         rows = db_fetchall(conn, 'SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC',(request.user['id'],))
     conn.close()
+    # Don't send image_data in list (too large), add has_image flag instead
+    for r in rows:
+        r['has_image'] = bool(r.get('image_data'))
+        r.pop('image_data', None)
     return jsonify({'reports':rows})
+
+@app.route('/api/reports/<rid>/image')
+@require_auth
+def get_report_image(rid):
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT image_data,user_id FROM reports WHERE id=?',(rid,))
+    conn.close()
+    if not rows: return jsonify({'error':'Befund nicht gefunden'}), 404
+    r = rows[0]
+    if r['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error':'Kein Zugriff'}), 403
+    if not r.get('image_data'):
+        return jsonify({'error':'Kein Bild vorhanden'}), 404
+    return jsonify({'image_data':r['image_data']})
 
 @app.route('/api/reports/<rid>', methods=['DELETE'])
 @require_auth

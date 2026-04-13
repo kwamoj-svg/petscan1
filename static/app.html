@@ -944,6 +944,7 @@ function filterReps(q) {
         +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
         +'<span class="badge '+sb+'">'+sl+'</span>'
         +'<div style="display:flex;gap:4px;" onclick="event.stopPropagation()">'
+        +(r.has_image?'<button class="abt ab-g" onclick="startCompareFromReport(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;" title="Mit neuem Bild vergleichen">🔄 Vergleich</button>':'')
         +'<button class="abt ab-p" onclick="exportPDF(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">PDF</button>'
         +'<button class="abt ab-g" onclick="exportWord(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">Word</button>'
         +'<button class="abt ab-g" onclick="exportTXT(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">TXT</button>'
@@ -997,6 +998,43 @@ function delReport(id,e) {
   api('/api/reports/'+id,'DELETE')
     .then(function(){ ALL_REPORTS=ALL_REPORTS.filter(function(r){return r.id!==id;}); CACHED=CACHED.filter(function(r){return r.id!==id;}); filterReps(document.getElementById('rep-q')?document.getElementById('rep-q').value:''); toast('Befund gelöscht'); })
     .catch(function(e){ toast(e.message,'red'); });
+}
+
+// COMPARE FROM EXISTING REPORT
+function startCompareFromReport(reportId) {
+  var r = ALL_REPORTS.find(function(x){ return x.id===reportId; });
+  if(!r){ toast('Befund nicht gefunden','red'); return; }
+  toast('Lade Bild für Vergleich…');
+  api('/api/reports/'+reportId+'/image')
+    .then(function(data){
+      if(!data.image_data){ toast('Kein Bild vorhanden','amber'); return; }
+      // Pre-fill analysis form
+      AN.species = r.species || 'Hund';
+      AN.region = r.region || 'Thorax';
+      AN.mode = 'compare';
+      AN.petName = r.pet_name || '';
+      AN.imgA = { b64: data.image_data, url: 'data:image/jpeg;base64,' + data.image_data };
+      AN.imgB = null;
+      // Switch to analysis view
+      navTo('analyse', document.querySelector('.nb'));
+      // After render, update the upload zone A to show the old image
+      setTimeout(function(){
+        var uzA = document.getElementById('uz-a');
+        if(uzA){
+          uzA.className = 'uz has';
+          uzA.onclick = null;
+          uzA.innerHTML = '<span class="uz-tag">AUFNAHME A — VORHERIGES BILD</span>'
+            + '<img class="uz-preview" src="' + AN.imgA.url + '">'
+            + '<div class="uz-name" style="color:var(--blue);font-weight:600;">📋 Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
+            + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
+        }
+        // Highlight upload zone B
+        var uzB = document.getElementById('uz-b');
+        if(uzB){ uzB.style.borderColor = 'var(--blue)'; uzB.style.background = 'var(--blue-dim)'; }
+        toast('Altes Bild geladen — jetzt neues Bild als Aufnahme B hochladen');
+      }, 100);
+    })
+    .catch(function(e){ toast('Fehler beim Laden: ' + e.message, 'red'); });
 }
 
 // ACCOUNT
