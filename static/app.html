@@ -944,7 +944,7 @@ function filterReps(q) {
         +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
         +'<span class="badge '+sb+'">'+sl+'</span>'
         +'<div style="display:flex;gap:4px;" onclick="event.stopPropagation()">'
-        +(r.has_image?'<button class="abt ab-g" onclick="startCompareFromReport(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;" title="Mit neuem Bild vergleichen">🔄 Vergleich</button>':'')
+        +(r.has_image?'<button class="abt ab-g" onclick="startCompareFromReport(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;" title="Mit neuem Bild vergleichen">Vergleich</button>':'')
         +'<button class="abt ab-p" onclick="exportPDF(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">PDF</button>'
         +'<button class="abt ab-g" onclick="exportWord(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">Word</button>'
         +'<button class="abt ab-g" onclick="exportTXT(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">TXT</button>'
