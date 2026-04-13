@@ -708,6 +708,7 @@ FORMAT - genau diese Reihenfolge einhalten:
                 resp = client.messages.create(
                     model='claude-sonnet-4-20250514',
                     max_tokens=2400,
+                    temperature=0,
                     system=system,
                     messages=[{'role':'user','content':msgs}]
                 )
@@ -739,6 +740,7 @@ FORMAT - genau diese Reihenfolge einhalten:
             resp = oc.chat.completions.create(
                 model='gpt-4o',
                 max_tokens=2400,
+                temperature=0,
                 messages=[
                     {'role':'system','content':system},
                     {'role':'user','content':oai_content}
@@ -756,7 +758,7 @@ FORMAT - genau diese Reihenfolge einhalten:
             import google.generativeai as genai
             import base64
             genai.configure(api_key=GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash', generation_config={'temperature': 0})
             parts = [system + '\n\n']
             for m in msgs:
                 if m['type'] == 'image':
