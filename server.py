@@ -127,7 +127,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT 'customer',
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 3,
+                analyses_limit INTEGER DEFAULT 20,
                 stripe_customer_id TEXT DEFAULT '',
                 stripe_subscription_id TEXT DEFAULT '',
                 email_verified INTEGER DEFAULT 0,
@@ -198,7 +198,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT "customer",
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 3,
+                analyses_limit INTEGER DEFAULT 20,
                 stripe_customer_id TEXT DEFAULT "",
                 stripe_subscription_id TEXT DEFAULT "",
                 email_verified INTEGER DEFAULT 0,
@@ -470,7 +470,7 @@ def register():
     return jsonify({
         'token': token,
         'user': {'id':uid,'email':email,'name':name or email,'praxis':praxis,'plan':'trial','role':'customer',
-                 'analyses_used':0,'analyses_limit':3,'email_verified':0}
+                 'analyses_used':0,'analyses_limit':20,'email_verified':0}
     }), 201
 
 @app.route('/api/auth/verify-email', methods=['POST'])
@@ -996,7 +996,7 @@ def stripe_webhook():
     elif event['type'] == 'customer.subscription.deleted':
         sub = event['data']['object']
         conn = get_db()
-        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=3 WHERE stripe_subscription_id=?",
+        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=20 WHERE stripe_subscription_id=?",
                      ('trial',sub['id']))
         conn.commit(); conn.close()
 
@@ -1053,7 +1053,7 @@ def admin_customers():
 def admin_create_customer():
     d = request.json or {}
     uid = 'u_'+nid()
-    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 3)
+    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
     conn = get_db()
     try:
         db_execute(conn, 'INSERT INTO users (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,created_at) VALUES (?,?,?,?,?,?,1,?,0,?,1,?)',
@@ -1068,7 +1068,7 @@ def admin_create_customer():
 @require_admin
 def admin_update_customer(uid):
     d = request.json or {}
-    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 3)
+    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
     conn = get_db()
     db_execute(conn, 'UPDATE users SET name=?,praxis=?,plan=?,active=?,analyses_limit=? WHERE id=?',
                  (d.get('name'),d.get('praxis'),d.get('plan'),int(d.get('active',1)),limit,uid))
