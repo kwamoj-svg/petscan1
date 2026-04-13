@@ -1162,6 +1162,20 @@ def internal_error(e):
     return jsonify({'error': 'Interner Serverfehler'}), 500
 
 # ═══════════════════════════════════════════════════
+# DEBUG: DB Health Check (temporär)
+# ═══════════════════════════════════════════════════
+@app.route('/api/health')
+def health_check():
+    try:
+        conn = get_db()
+        users = db_fetchall(conn, 'SELECT id, email, role, plan FROM users LIMIT 10')
+        admin = db_fetchone(conn, "SELECT id, email, role FROM users WHERE email=%s" if USE_POSTGRES else "SELECT id, email, role FROM users WHERE email=?", ('admin@animioo.de',))
+        conn.close()
+        return jsonify({'db': 'postgresql' if USE_POSTGRES else 'sqlite', 'users': users, 'admin': admin, 'bcrypt': HAS_BCRYPT})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ═══════════════════════════════════════════════════
 # START
 # ═══════════════════════════════════════════════════
 init_db()
