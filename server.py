@@ -1444,22 +1444,29 @@ def internal_error(e):
 @app.route('/api/health')
 def health_check():
     # Bei jedem Health-Check: Admin-Passwort sicherstellen
+    pw_hash = hash_pw('admin123')
     try:
         conn = get_db()
-        existing = db_fetchone(conn, 'SELECT id FROM users WHERE email=?', ('admin@animioo.de',))
+        existing = db_dict(db_fetchone(conn, 'SELECT id,password,active,role FROM users WHERE email=?', ('admin@animioo.de',)))
         if existing:
-            db_execute(conn, 'UPDATE users SET password=?, active=1, role=? WHERE email=?',
-                       (hash_pw('admin123'), 'admin', 'admin@animioo.de'))
+            db_execute(conn, 'UPDATE users SET password=?, active=1, role=?, email_verified=1 WHERE email=?',
+                       (pw_hash, 'admin', 'admin@animioo.de'))
+            admin_status = 'UPDATED'
         else:
             trial_end = (datetime.now() + timedelta(days=14)).isoformat()
             db_execute(conn, '''INSERT INTO users
                 (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
                 VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
-                ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo','admin','admin',0,999999,trial_end,now()))
-        conn.commit(); conn.close()
-        admin_status = 'OK'
+                ('admin1','admin@animioo.de',pw_hash,'Administrator','Animioo','admin','admin',0,999999,trial_end,now()))
+            admin_status = 'CREATED'
+        conn.commit()
+        # Verify the password works
+        verify_user = db_dict(db_fetchone(conn, 'SELECT password FROM users WHERE email=?', ('admin@animioo.de',)))
+        conn.close()
+        pw_ok = check_pw('admin123', verify_user['password']) if verify_user else False
+        admin_status += f' pw_ok={pw_ok} bcrypt={HAS_BCRYPT} hash_start={pw_hash[:10]}'
     except Exception as e:
-        admin_status = str(e)
+        admin_status = f'ERROR: {e}'
     return jsonify({'status': 'ok', 'admin': admin_status})
 
 @app.route('/api/test-email')
