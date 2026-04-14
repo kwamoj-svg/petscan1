@@ -322,20 +322,31 @@ def send_email(to, subject, html_body):
     """Send email via SMTP. Returns True on success."""
     if not SMTP_HOST or not SMTP_USER:
         app.logger.warning(f'E-Mail nicht gesendet (SMTP nicht konfiguriert): {subject} -> {to}')
+        app.logger.warning(f'  SMTP_HOST={SMTP_HOST!r}, SMTP_USER={SMTP_USER!r}, SMTP_PORT={SMTP_PORT}')
         return False
     try:
+        app.logger.info(f'E-Mail senden: {subject} -> {to} via {SMTP_HOST}:{SMTP_PORT}')
         msg = MIMEMultipart('alternative')
-        msg['From'] = SMTP_FROM
+        msg['From'] = f'Animioo <{SMTP_FROM}>'
         msg['To'] = to
         msg['Subject'] = subject
         msg.attach(MIMEText(html_body, 'html'))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.ehlo()
             server.starttls()
+            server.ehlo()
             server.login(SMTP_USER, SMTP_PASS)
             server.send_message(msg)
+        app.logger.info(f'E-Mail erfolgreich gesendet: {subject} -> {to}')
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        app.logger.error(f'SMTP Auth Fehler (Passwort falsch?): {e}')
+        return False
+    except smtplib.SMTPException as e:
+        app.logger.error(f'SMTP Fehler: {e}')
+        return False
     except Exception as e:
-        app.logger.error(f'E-Mail Fehler: {e}')
+        app.logger.error(f'E-Mail Fehler: {type(e).__name__}: {e}')
         return False
 
 def send_verify_email(email, token):
@@ -1433,6 +1444,21 @@ def internal_error(e):
 @app.route('/api/health')
 def health_check():
     return jsonify({'status': 'ok'})
+
+@app.route('/api/test-email')
+@require_admin
+def test_email():
+    """Admin-only: Test ob E-Mail-Versand funktioniert."""
+    ok = send_email(request.user['email'], 'Animioo – Test-E-Mail',
+        '<div style="font-family:Inter,sans-serif;padding:30px;"><h2>Test erfolgreich!</h2><p>Der E-Mail-Versand funktioniert.</p></div>')
+    return jsonify({
+        'ok': ok,
+        'smtp_host': SMTP_HOST,
+        'smtp_port': SMTP_PORT,
+        'smtp_user': SMTP_USER,
+        'smtp_from': SMTP_FROM,
+        'message': 'E-Mail gesendet!' if ok else 'E-Mail-Versand fehlgeschlagen. Siehe Logs.'
+    })
 
 # ═══════════════════════════════════════════════════
 # START
