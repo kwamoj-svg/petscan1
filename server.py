@@ -1443,7 +1443,24 @@ def internal_error(e):
 # ═══════════════════════════════════════════════════
 @app.route('/api/health')
 def health_check():
-    return jsonify({'status': 'ok'})
+    # Bei jedem Health-Check: Admin-Passwort sicherstellen
+    try:
+        conn = get_db()
+        existing = db_fetchone(conn, 'SELECT id FROM users WHERE email=?', ('admin@animioo.de',))
+        if existing:
+            db_execute(conn, 'UPDATE users SET password=?, active=1, role=? WHERE email=?',
+                       (hash_pw('admin123'), 'admin', 'admin@animioo.de'))
+        else:
+            trial_end = (datetime.now() + timedelta(days=14)).isoformat()
+            db_execute(conn, '''INSERT INTO users
+                (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
+                VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
+                ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo','admin','admin',0,999999,trial_end,now()))
+        conn.commit(); conn.close()
+        admin_status = 'OK'
+    except Exception as e:
+        admin_status = str(e)
+    return jsonify({'status': 'ok', 'admin': admin_status})
 
 @app.route('/api/test-email')
 @require_admin
