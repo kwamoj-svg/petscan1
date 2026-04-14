@@ -719,8 +719,8 @@ section#faq::after{content:"";position:absolute;bottom:30px;left:5%;width:35px;h
       <div><div class="foot-col-t">Tierarten</div><div class="foot-links"><a href="/app" class="foot-link">Hunde &amp; Katzen</a><a href="/app" class="foot-link">Pferde</a><a href="/app" class="foot-link">Nutztiere</a><a href="/app" class="foot-link">Exoten &amp; Vögel</a></div></div>
       <div><div class="foot-col-t">Unternehmen</div><div class="foot-links"><a href="#funktionen" class="foot-link">Über uns</a><a href="/admin" class="foot-link">Admin</a><a href="/datenschutz" class="foot-link">Datenschutz</a><a href="/impressum" class="foot-link">Impressum</a><a href="/agb" class="foot-link">AGB</a></div></div>
     </div>
-    <div class="foot-seo">Animioo ist eine KI-gestützte Softwarelösung zur Unterstützung tierärztlicher Radiologiebefundung. Kein Ersatz für ärztliche Diagnose. Kein Medizinprodukt gemäß EU MDR 2017/745. &copy; 2025 Animioo GmbH.</div>
-    <div class="foot-bot"><span>&copy; 2025 Animioo GmbH</span><div class="foot-bot-links"><a href="/datenschutz" class="foot-link">Datenschutz</a><a href="/impressum" class="foot-link">Impressum</a><a href="/agb" class="foot-link">AGB</a></div></div>
+    <div class="foot-seo">Animioo ist eine KI-gestützte Softwarelösung zur Unterstützung tierärztlicher Radiologiebefundung. Kein Ersatz für ärztliche Diagnose. Kein Medizinprodukt gemäß EU MDR 2017/745. &copy; 2025–2026 Animioo.</div>
+    <div class="foot-bot"><span>&copy; 2025–2026 Animioo</span><div class="foot-bot-links"><a href="/datenschutz" class="foot-link">Datenschutz</a><a href="/impressum" class="foot-link">Impressum</a><a href="/agb" class="foot-link">AGB</a></div></div>
   </div>
 </footer>
 
@@ -797,7 +797,7 @@ function togglePricing(){
 </style>
 <div class="cookie-banner" id="cookieBanner">
   <div class="cookie-inner">
-    <div class="cookie-text">Diese Website verwendet Cookies, um die bestmögliche Funktionalität zu bieten. <a href="/datenschutz">Mehr erfahren</a></div>
+    <div class="cookie-text">Wir verwenden ausschlie&szlig;lich <strong>technisch notwendige Cookies</strong> (Session, Pr&auml;ferenzen). Keine Tracking- oder Marketing-Cookies. Daten werden DSGVO-konform auf Servern in Frankfurt (EU) verarbeitet. <a href="/datenschutz">Datenschutzerkl&auml;rung</a></div>
     <div class="cookie-btns">
       <button class="cookie-btn cookie-btn-accept" onclick="acceptCookies('all')">Akzeptieren</button>
       <button class="cookie-btn cookie-btn-necessary" onclick="acceptCookies('necessary')">Nur notwendige</button>
@@ -811,6 +811,7 @@ function togglePricing(){
   if(consent){banner.classList.add('hidden');}
   window.acceptCookies=function(choice){
     localStorage.setItem('cookie_consent',choice);
+    localStorage.setItem('cookie_consent_date',new Date().toISOString());
     banner.classList.add('hidden');
   };
 })();

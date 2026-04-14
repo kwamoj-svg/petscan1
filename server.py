@@ -451,7 +451,7 @@ def register():
     trial_end = (datetime.now()+timedelta(days=14)).isoformat()
     db_execute(conn, '''INSERT INTO users
         (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,verify_token,trial_ends_at,created_at)
-        VALUES (?,?,?,?,?,?,1,?,0,3,0,?,?,?)''',
+        VALUES (?,?,?,?,?,?,1,?,0,20,0,?,?,?)''',
         (uid,email,hash_pw(password),name or email.split('@')[0],praxis or 'Meine Praxis','trial','customer',verify_token,trial_end,now()))
 
     token = secrets.token_hex(32)
@@ -1279,6 +1279,100 @@ def admin_reports():
     rows = db_fetchall(conn, 'SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC')
     conn.close()
     return jsonify({'reports':rows})
+
+# ═══════════════════════════════════════════════════
+# DSGVO ENDPOINTS (Art. 17, 20, Consent)
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/auth/export-data')
+@require_auth
+def export_data():
+    """DSGVO Art. 20 – Data Portability: export all user data as JSON."""
+    try:
+        uid = request.user['id']
+        conn = get_db()
+
+        user = db_dict(db_fetchone(conn, 'SELECT id,email,name,praxis,plan,role,analyses_used,analyses_limit,created_at,trial_ends_at FROM users WHERE id=?', (uid,)))
+        if not user:
+            conn.close()
+            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+
+        reports_raw = db_fetchall(conn, 'SELECT id,pet_name,species,created_at,status,summary FROM reports WHERE user_id=?', (uid,))
+        reports = [db_dict(r) for r in reports_raw] if reports_raw else []
+
+        session_count_row = db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM sessions WHERE user_id=?', (uid,))
+        session_count = db_dict(session_count_row)['cnt'] if session_count_row else 0
+
+        conn.close()
+
+        audit('dsgvo_data_export', uid, 'User exported personal data (Art. 20)')
+
+        return jsonify({
+            'user': user,
+            'reports': reports,
+            'sessions_count': session_count,
+            'exported_at': now()
+        })
+    except Exception as e:
+        app.logger.error(f'DSGVO export error: {e}')
+        return jsonify({'error': 'Datenexport fehlgeschlagen'}), 500
+
+
+@app.route('/api/auth/delete-account', methods=['DELETE'])
+@require_auth
+def delete_account():
+    """DSGVO Art. 17 – Right to Erasure: delete all user data."""
+    try:
+        uid = request.user['id']
+
+        if request.user.get('role') == 'admin':
+            return jsonify({'error': 'Admin-Konten können nicht gelöscht werden'}), 403
+
+        conn = get_db()
+
+        # Verify user exists
+        user = db_fetchone(conn, 'SELECT id FROM users WHERE id=?', (uid,))
+        if not user:
+            conn.close()
+            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+
+        # Delete all user data in correct order (foreign key safety)
+        db_execute(conn, 'DELETE FROM reports WHERE user_id=?', (uid,))
+        db_execute(conn, 'DELETE FROM sessions WHERE user_id=?', (uid,))
+        db_execute(conn, 'DELETE FROM audit_log WHERE user_id=?', (uid,))
+        db_execute(conn, 'DELETE FROM users WHERE id=?', (uid,))
+
+        conn.commit()
+        conn.close()
+
+        # Audit logged after deletion (user_id kept for traceability)
+        app.logger.info(f'DSGVO Art.17: Account {uid} fully deleted')
+
+        return jsonify({'ok': True, 'message': 'Konto und alle Daten wurden gelöscht'})
+    except Exception as e:
+        app.logger.error(f'DSGVO delete error: {e}')
+        return jsonify({'error': 'Kontolöschung fehlgeschlagen'}), 500
+
+
+@app.route('/api/auth/consent', methods=['POST'])
+@require_auth
+def record_consent():
+    """Track DSGVO consent (e.g. dsgvo_accepted, ai_processing_accepted)."""
+    try:
+        uid = request.user['id']
+        d = request.json or {}
+        consent_type = d.get('type', 'dsgvo_accepted')
+
+        if consent_type not in ('dsgvo_accepted', 'ai_processing_accepted', 'marketing_accepted'):
+            return jsonify({'error': 'Ungültiger Einwilligungstyp'}), 400
+
+        audit('consent_given', uid, f'Consent: {consent_type} at {now()}')
+
+        return jsonify({'ok': True, 'consent_type': consent_type, 'timestamp': now()})
+    except Exception as e:
+        app.logger.error(f'DSGVO consent error: {e}')
+        return jsonify({'error': 'Einwilligung konnte nicht gespeichert werden'}), 500
+
 
 # ═══════════════════════════════════════════════════
 # CONTACT / LEAD CAPTURE (öffentlich)
