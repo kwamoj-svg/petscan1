@@ -490,6 +490,24 @@ def verify_email():
     audit('E-Mail verifiziert',user['id'],user['email'])
     return jsonify({'ok':True,'message':'E-Mail erfolgreich bestätigt!'})
 
+@app.route('/api/auth/resend-verification', methods=['POST'])
+@require_auth
+@limiter.limit("3 per minute")
+def resend_verification():
+    """Verifizierungs-E-Mail erneut senden."""
+    user = request.user
+    if user.get('email_verified'):
+        return jsonify({'ok':True,'message':'E-Mail ist bereits bestätigt.'})
+
+    conn = get_db()
+    verify_token = secrets.token_urlsafe(32)
+    db_execute(conn, 'UPDATE users SET verify_token=? WHERE id=?', (verify_token, user['id']))
+    conn.commit(); conn.close()
+
+    send_verify_email(user['email'], verify_token)
+    audit('Verifizierung erneut gesendet', user['id'], user['email'])
+    return jsonify({'ok':True,'message':'Bestätigungs-E-Mail wurde erneut gesendet. Bitte prüfen Sie Ihr Postfach.'})
+
 @app.route('/api/auth/forgot-password', methods=['POST'])
 @limiter.limit("3 per minute")
 def forgot_password():
@@ -575,7 +593,7 @@ def login():
     audit('Login',user['id'],em)
     return jsonify({
         'token': token,
-        'user': {k: user[k] for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit']}
+        'user': {k: user[k] for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','email_verified']}
     })
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -608,6 +626,10 @@ def analyse():
         return jsonify({'error':'KI nicht konfiguriert. Admin muss ANTHROPIC_API_KEY setzen.'}), 503
 
     user = request.user
+    # E-Mail muss bestätigt sein (Admins ausgenommen)
+    if user['role'] != 'admin' and not user.get('email_verified'):
+        return jsonify({'error':'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse. Prüfen Sie Ihr Postfach oder lassen Sie die Bestätigungs-E-Mail erneut senden.','code':'EMAIL_NOT_VERIFIED'}), 403
+
     if user['role'] != 'admin':
         if user['plan'] in ('trial',) and user['analyses_used'] >= user['analyses_limit']:
             return jsonify({
