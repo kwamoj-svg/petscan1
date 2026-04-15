@@ -664,10 +664,10 @@ def analyse():
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
     prompts = {
-        'single':  f'Erstelle einen vollständigen veterinärradiologischen Befundbericht für einen {species} im Bereich {region}. Analysiere das Bild EXTREM GRÜNDLICH. Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Achte BESONDERS auf: Frakturlinien, Fissuren, Luxationen, Stufenbildungen, Periostreaktionen, Osteolysen, abnorme Verschattungen, Fremdkörper, Weichteilschwellungen. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
-        'compare': f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region}. Beschreibe ALLE Veränderungen zwischen den Aufnahmen präzise. Achte besonders auf: Frakturheilung/Konsolidierung, Kallusbildung, Veränderungen der Gelenkspalten, neue oder verschwundene Pathologien, Implantatposition.',
+        'single':  f'Erstelle einen vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}. WICHTIG: Erkenne zuerst die Bildmodalität (Röntgen, CT oder MRT) und passe deine Analyse entsprechend an. Bei Röntgen: Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Bei CT: Analysiere Schnittebene, Fensterung, Dichteunterschiede. Bei MRT: Bestimme die Sequenz (T1, T2, FLAIR, etc.), analysiere Signalintensitäten, Gewebskontraste, Atrophien, Raumforderungen, Ödeme. Analysiere das Bild EXTREM GRÜNDLICH. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
+        'compare': f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität. Beschreibe ALLE Veränderungen zwischen den Aufnahmen präzise. Achte besonders auf: Größenveränderungen, neue oder verschwundene Pathologien, Progression oder Regression von Läsionen.',
         'diff':    f'Analysiere die Unterschiede zwischen Aufnahme A und B bei einem {species} im Bereich {region}. Erstelle eine systematische Gegenüberstellung aller Veränderungen.',
-        'second':  f'Erstelle eine kritische Zweitmeinung zu den Röntgenaufnahmen eines {species} im Bereich {region}. Hinterfrage offensichtliche Diagnosen und suche gezielt nach übersehenen Pathologien. Untersuche jede Struktur einzeln.',
+        'second':  f'Erstelle eine kritische Zweitmeinung zu den Aufnahmen eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität (Röntgen/CT/MRT). Hinterfrage offensichtliche Diagnosen und suche gezielt nach übersehenen Pathologien. Untersuche jede Struktur einzeln.',
     }
 
     # DSGVO: Bilddaten werden NUR zur KI-Analyse an Anthropic gesendet,
@@ -804,6 +804,103 @@ ZAHNRADIOLOGIE (Dentalröntgen):
   Retinierte Zähne, Überzählige Zähne, Knochenabbau (horizontal vs. vertikal = Grad I-IV)
 - Parodontalerkrankung graduieren: mild (<25% Knochenverlust), moderat (25-50%), schwer (>50%)
 - Kieferfrakturen: Symphyse, Corpus mandibulae (pathologisch bei Tumorlyse?), Ramus
+
+═══════════════════════════════════════════════════════
+MRT-ANALYSE (Magnetresonanztomographie):
+═══════════════════════════════════════════════════════
+
+GRUNDREGELN MRT:
+- ZUERST Sequenz identifizieren: T1 (Fett hell, Liquor dunkel), T2 (Liquor hell, Fett mittel),
+  FLAIR (Liquor unterdrückt/dunkel, Ödeme hell), T1+Kontrast (Enhancement = hell), DWI, GRE/SWI
+- Schnittebene: Sagittal, Transversal (axial), Dorsal (koronal)
+- Signalintensität beschreiben: hyperintens, isointens, hypointens (immer relativ zur Sequenz!)
+
+GEHIRN/SCHÄDEL MRT:
+- Großhirn: Symmetrie der Hemisphären, Gyri/Sulci (Atrophie = erweiterte Sulci!), graue/weiße Substanz
+- Kleinhirn (Cerebellum): Größe, Form, Fissurenmuster — ATROPHIE erkennen! (verkleinert, verbreiterte
+  Fissuren, vergrößerter Subarachnoidalraum um Cerebellum = Kleinhirnatrophie!)
+- Hirnstamm: Mesencephalon, Pons, Medulla oblongata — Symmetrie, Läsionen, Kompression
+- Ventrikel: Größe (Hydrozephalus?), Symmetrie, Inhalt (Blutung? Tumor?)
+- Meningen: Verdickung, Enhancement nach Kontrast (Meningitis/Meningoenzephalitis!)
+- Raumforderungen: Intra- vs. extraaxial, Enhancement-Muster, Ödem, Masseneffekt, Mittellinienverlagerung
+- Häufige Diagnosen Hund:
+  * Meningoenzephalitis unbekannter Ursache (MUO/GME/NME) — multifokal, T2-hyperintens, ringförmiges Enhancement
+  * Neospora caninum / Toxoplasma — Kleinhirnatrophie, multifokale Läsionen, junge Hunde!
+  * Staupe-Enzephalitis — Demyelinisierung, T2-hyperintense Läsionen weiße Substanz
+  * Hirntumoren: Meningeom (extra-axial, starkes homogenes Enhancement, Dural Tail Sign),
+    Gliom (intra-axial, heterogen, wenig Enhancement), Choroidplexustumor (intraventrikulär)
+  * Hydrozephalus: internus (Ventrikel erweitert) vs. externus (Subarachnoidalraum erweitert)
+  * Chiari-ähnliche Malformation (CM/SM) — Herniation Kleinhirntonsillen, Syringomyelie (Cavalier!)
+- Häufige Diagnosen Katze:
+  * FIP-Meningoenzephalitis — periventrikuläres Enhancement, Hydrozephalus, Ependymitis
+  * Lymphom — solitäre oder multifokale Masse, starkes Enhancement
+  * Ischämischer Infarkt — keilförmig, territoriale Verteilung
+
+WIRBELSÄULE MRT:
+- Rückenmark: Signalintensität (T2-Hyperintensität = Ödem/Myelomalazie!), Dicke, Kompression
+- Bandscheiben: Protrusion vs. Extrusion (Hansen I vs. II), Signalverlust T2 = Degeneration
+- Epiduralraum: Kompression, Empyem, Hämatom, Fett
+- Foramina: Nervenwurzelkompression
+- Häufige Diagnosen:
+  * IVDD (Diskopathie) — Bandscheibenextrusion, Rückenmarkkompression, Myelopathie-Signal
+  * Fibrokartilaginöse Embolie (FCE) — akut, asymmetrisch, intramedullär T2-hyperintens
+  * Diskospondylitis — Endplattendestruktion, paravertebraler Abszess
+  * Spinale Tumoren: Intramedullär, intradural-extramedullär, extradural
+  * Wobbler-Syndrom — dynamische Kompression, Rückenmark-Myelopathie
+  * Degenerative Myelopathie — Rückenmarkatrophie, T2-Signalveränderung
+
+GELENKE/MUSKULOSKELETTAL MRT:
+- Kreuzband: Integrität, Signal, Verlaufsrichtung (T2 = normal hypointens, Riss = Signalverlust/Ausdünnung)
+- Menisken: Signalveränderungen, Risse (erhöhtes Signal auf T2)
+- Knorpel: Dicke, Defekte, Signal
+- Knochenödem: T2/STIR hyperintens (= Bone Bruise, Stressfraktur, Tumor)
+
+═══════════════════════════════════════════════════════
+CT-ANALYSE (Computertomographie):
+═══════════════════════════════════════════════════════
+
+GRUNDREGELN CT:
+- Fensterung beachten: Knochenfenster (W:2000, L:400), Weichteilfenster (W:400, L:40),
+  Lungenfenster (W:1500, L:-600), Hirnfenster (W:80, L:40)
+- Dichtewerte in Hounsfield-Einheiten (HU): Luft -1000, Fett -100, Wasser 0, Weichteil 20-60,
+  Blut akut 50-70, Knochen >400, Metall >1000
+- Kontrastmittel: Pre- vs. Post-Kontrast vergleichen, Enhancement-Muster beschreiben
+
+SCHÄDEL CT:
+- Nasen-/Stirnhöhlen: Destruktion, Masse, Flüssigkeit (Rhinitis, Tumor, Aspergillose)
+- Bulla tympanica: Verdickung, Flüssigkeit, Osteolyse (Otitis media)
+- Orbita: Retrobulbäre Masse, Zellulitis, Fremdkörper
+- Gehirn: Blutung (hyperdens!), Tumor, Hydrozephalus, Ödem
+
+THORAX CT:
+- Lungenmetastasen-Suche (CT ist sensitiver als Röntgen!)
+- Mediastinale Massen, Lymphknoten
+- Pulmonale Angiographie: Thromboembolie
+
+ABDOMEN CT:
+- Lebertumoren, Milztumoren (Triple-Phase CT!)
+- Nebennieren: Phäochromozytom, Adenom, Karzinom
+- Portosystemischer Shunt (Angiographie-Phase!)
+- Ektopische Ureteren
+
+SKELETT CT:
+- Ellbogengelenkdysplasie (FPC, IPA, UAP, OCD — besser als Röntgen!)
+- Frakturen: Komplexe Gelenkfrakturen, Schädelfrakturen
+- Wirbelsäule: Atlantoaxiale Instabilität, Wirbelkörperfrakturen
+
+═══════════════════════════════════════════════════════
+MODALITÄTSERKENNUNG — ENTSCHEIDEND:
+═══════════════════════════════════════════════════════
+
+BEVOR du mit der Analyse beginnst, identifiziere die Bildmodalität:
+- RÖNTGEN: 2D-Projektionsbild, Graustufen, Knochen weiß, Luft schwarz, typische Projektionen (VD, lateral)
+- CT: Schnittbild (axial/sagittal/koronal), scharfe Knochendetails, verschiedene Fensterungen möglich
+- MRT: Schnittbild, hervorragender Weichteilkontrast, Liquor hell (T2) oder dunkel (T1),
+  typisches Hirngewebe sichtbar mit Gyri/Sulci, kein Knochendetail
+- Ultraschall: Echogenitäten, Schallschatten, typisches Sondenbild
+
+Passe deine GESAMTE Analyse an die erkannte Modalität an! Ein MRT des Gehirns wird VÖLLIG ANDERS
+befundet als ein Röntgenbild des Thorax!
 
 ═══════════════════════════════════════════════════════
 NORMWERTE & MESSSTANDARDS:
