@@ -738,10 +738,15 @@ function loadImg(file, k) {
     img.onload=function(){
       var canvas=document.createElement('canvas');
       var w=img.naturalWidth, h=img.naturalHeight;
-      if(w>1200){ h=Math.round(h*1200/w); w=1200; }
+      // Höhere Auflösung für bessere Diagnostik — Röntgenbilder brauchen Details!
+      var maxDim=2048;
+      if(w>maxDim||h>maxDim){
+        if(w>h){ h=Math.round(h*maxDim/w); w=maxDim; }
+        else{ w=Math.round(w*maxDim/h); h=maxDim; }
+      }
       canvas.width=w; canvas.height=h;
       canvas.getContext('2d').drawImage(img,0,0,w,h);
-      var url=canvas.toDataURL('image/jpeg',0.88);
+      var url=canvas.toDataURL('image/jpeg',0.95);
       if(k==='a') AN.imgA={url:url,b64:url.split(',')[1],name:file.name};
       else AN.imgB={url:url,b64:url.split(',')[1],name:file.name};
       var uz=document.getElementById('uz-'+k);
