@@ -796,7 +796,13 @@ EXOTEN — Reptilien, Vögel, Nager:
   Proventrikulus-Dilatation (PDD), Hepatomegalie (Sanduhrzeichen), Keel-Bone-Frakturen
 - Nager/Kaninchen: Zahnfehlstellungen (Molarensporen, Wurzelspitzen messen!), Tympanic Bullae
   (Otitis media → Vestibularsyndrom), Blasensteine (sehr häufig bei Meerschweinchen!),
-  Uterustumoren (Kaninchen!), Pneumonie, Thymom (Kaninchen — mediastinale Masse)
+  Uterustumoren (Kaninchen >3J: bis 80% Uterusadenokarzinom!), Pneumonie, Thymom (Kaninchen — mediastinale Masse)
+- Frettchen: Nebennierenhyperplasie/-tumor (>3.5mm = vergrößert), Insulinom (Hypoglykämie!),
+  Milzvergrößerung (extramedulläre Hämatopoese = häufig!), Lymphom, Kardiomyopathie,
+  Fremdkörper (Frettchen fressen alles!), Nebennierenrindenerkrankung (Alopezie + NNR-Vergrößerung)
+- Schildkröten: Pneumonie (oft einseitig! Schildkröten haben keine Zwerchfell → anders als Säuger!),
+  Legenot, Blasensteine (Urat! röntgendurchlässig!), Panzerdefekte, MBD, Fremdkörper (Substrat)
+- Igel: Orale Plattenepithelkarzinome (häufigster Tumor!), Pneumonie, Herzerkrankungen, Ballon-Syndrom
 
 ZAHNRADIOLOGIE (Dentalröntgen):
 - Hund/Katze: Zahnwurzelabszesse (periapikale Aufhellung!), Zahnresorptionen (FORL bei Katzen —
@@ -903,26 +909,196 @@ Passe deine GESAMTE Analyse an die erkannte Modalität an! Ein MRT des Gehirns w
 befundet als ein Röntgenbild des Thorax!
 
 ═══════════════════════════════════════════════════════
-NORMWERTE & MESSSTANDARDS:
+NORMWERTE & MESSSTANDARDS (KOMPLETT):
 ═══════════════════════════════════════════════════════
 
-- VHS (Vertebral Heart Score): Hund 9.7 ± 0.5 (rasseabhängig! Cavalier bis 10.7, Boxer bis 11.6)
-- VHS Katze: < 8.1 (>8.5 = kardiomegale)
-- Norberg-Winkel (HD): ≥105° = normal, <105° = dysplastisch
-- Nierengröße Katze: 2.4-3.0 × L2
-- Nierengröße Hund: 2.5-3.5 × L2
-- Dünndarmdurchmesser Hund: ≤ 2× Rippenhöhe (12. Rippe), ≤ 1.6× Endplattenhöhe L5
-- Dünndarmdurchmesser Katze: ≤ 12mm, ≤ 2× Endplattenhöhe L2
-- Milzdicke Hund: < Kopf letzte Rippe
-- Leberlappen: Magenachse >90° zur WS auf Lateral = Hepatomegalie
-- Trachea-Thoracic Inlet Ratio (TI): Hund >0.2 = normal, <0.16 = hypoplastisch
-- Prostata Hund: Craniocaudal-Durchmesser ≤ 70% Distanz Sacrum-Pecten
-- Kolon Katze: Kolon-Durchmesser ≤ Länge L5
+HERZ:
+- VHS (Vertebral Heart Score): Hund 9.7 ± 0.5 (rasseabhängig!)
+  * Cavalier King Charles: 10.1-10.7, Boxer: 10.8-11.6, Labrador: 10.0-10.6
+  * Whippet: 10.5-11.3, DSH: 9.5-10.0, Dackel: 9.5-10.5, Bulldogge: 11.0-12.0
+  * Yorkshire: 9.4-9.8, Chihuahua: 9.0-10.5, Dobermann: 10.0-10.5
+- VHS Katze: <8.1 normal, 8.1-8.5 grenzwertig, >8.5 = Kardiomegalie
+- VLAS (Vertebral Left Atrial Size): Hund >2.3 = LA-Vergrößerung
+- Aortenwurzel/LA-Ratio (M-Mode Echo): normal 1:1, >1.5 = LA-Dilatation
+- Pulmonalarterie/Aorta auf VD: PA = Aorta (normal), PA > Aorta = pulmonale Hypertonie
+- Pulmonalvene/Pulmonalarterie: 1:1 normal, PV>PA = Stauung, PA>PV = Hypertonie
+
+ABDOMEN:
+- Nierengröße Hund: 2.5-3.5 × L2 (Längsachse), Katze: 2.4-3.0 × L2
+- Nebenniere Hund: Breite ≤7.4mm (Phäochromozytom wenn >20mm oder asymmetrisch)
+- Dünndarmdurchmesser Hund: ≤1.6× Endplattenhöhe L5, Katze: ≤12mm oder ≤2× Endplattenhöhe L2
+- Milzdicke Hund: <Kopf letzte Rippe, Katze: kaum sichtbar (wenn sichtbar → Splenomegalie)
+- Leber: Magenachse >90° zur WS = Hepatomegalie, <45° = Mikroleber
+- Prostata Hund: CC-Durchmesser ≤70% Distanz Sacrum-Pecten
+- Kolon Katze: Durchmesser ≤Länge L5, Hund: ≤3× Endplattenhöhe L7
+- Blase: Wanddicke Hund <2.3mm (leer bis 3mm), Katze <1.7mm
+- Uterus: Normal nicht sichtbar! Wenn sichtbar → Pyometra/Gravidität/Stumpfpyometra
+
+ATEMWEGE:
+- Trachea-Thoracic Inlet Ratio (TI): Hund >0.20 normal, <0.16 = hypoplastisch (Bulldogge: normal 0.12-0.16!)
+- Trachea/Thoraxeingangsbreite: Hund 0.20, Katze 0.21
+- Hauptbronchien: Winkel auf VD normalerweise 60-80°, bei LA-Vergrößerung >80° (Spreading!)
+
+ORTHOPÄDIE:
+- Norberg-Winkel (HD): ≥105° = normal, 100-105° = grenzwertig, <100° = dysplastisch
+- OFA Grading: Excellent >105°, Good 100-105°, Fair 95-100°, Borderline 90-95°, Mild <90°
+- FCI HD-Klassifikation: A (frei), B (Übergang), C (leicht), D (mittel), E (schwer)
+- PennHIP DI (Distraction Index): <0.30 = tight, >0.70 = lax (rasseabhängig!)
+- Ellbogen IEWG-Grading: 0 (normal), 1 (mild <2mm), 2 (moderat 2-5mm), 3 (schwer >5mm)
+- IPA: Processus anconaeus bis 20 Wochen offen = normal, >5 Monate = IPA
+- Tibiaplateau-Winkel (TPA): Normal 22-25°, >30° → TPLO indiziert
+- Patella: Sulcustiefe, Patellahöhe (Insall-Salvati-Index veterinär)
+
+FRAKTUR-KLASSIFIKATION (Salter-Harris DETAILLIERT):
+- Typ I: Physenfuge komplett (nur Epiphysenlösung, Röntgen oft normal! → Klinisch diagnostizieren)
+- Typ II: Durch Physe + metaphysäres Dreieck (Thurston-Holland-Fragment) — HÄUFIGSTER TYP
+- Typ III: Durch Physe + epiphysär (Gelenkbeteiligung! → Anatomische Reposition nötig!)
+- Typ IV: Durch Metaphyse + Physe + Epiphyse (Gelenkbeteiligung + Wachstumsstörung!)
+- Typ V: Kompressionsverletzung der Physe (Röntgen initial unauffällig! Retrospektive Diagnose!)
+- Prognose: I-II gut, III-IV vorsichtig (Gelenkkongruenz!), V schlecht (Wachstumsstörung)
+
+═══════════════════════════════════════════════════════
+LUNGENPATTERN — SYSTEMATISCHE DIFFERENZIERUNG:
+═══════════════════════════════════════════════════════
+
+ALVEOLÄRES PATTERN (Luft in Alveolen durch Flüssigkeit/Zellen ersetzt):
+- Zeichen: Luftbronchogramm (pathognomonisch!), Lappenzeichen, Konsolidierung
+- DDx: Pneumonie (kranioventral!), Lungenblutung (traumatisch, Koagulopathie — oft kaudodorsal!),
+  Atelektase (Volumenverlust, Mediastinalshift), Lungentorsion (Gasblase, Gefäßabbruch),
+  Lungenödem (kardiogen = perihilär symmetrisch, nicht-kardiogen = kaudodorsal)
+- WICHTIG: Verteilung gibt Hinweis auf Ursache!
+  * Kranioventral → Aspirationspneumonie, bakterielle Pneumonie
+  * Kaudodorsal → Blutung, nicht-kardiogenes Ödem
+  * Perihilär symmetrisch → kardiogenes Ödem
+  * Fokal → Tumor, Torsion, fokale Pneumonie, Abszess
+
+BRONCHIALES PATTERN (Bronchialwandverdickung):
+- Zeichen: "Donuts" (en face), "Tramlines" (seitlich), Bronchialwandverdickung
+- DDx: Chronische Bronchitis, felines Asthma (Katze! + Lungenüberblähung!), Bronchiektasie,
+  Allergische Bronchitis, parasitäre Bronchitis (Aelurostrongylus, Angiostrongylus)
+- Bei Katze + Bronchialpattern + Hyperinflation = Asthma bis zum Beweis des Gegenteils!
+
+INTERSTITIELLES PATTERN:
+- Strukturiert (nodulär/retikulär): Metastasen!, Granulome, Fibrose, Pneumonie (Pilz)
+  * Miliäres Muster (viele kleine <5mm) → Metastasen, Mykose, Tuberkulose
+  * Wenige große Rundherde → Metastasen (Primärtumor suchen!), Granulome, Abszesse, Zysten
+- Unstrukturiert: Ödem, Blutung, Fibrose, altersbedingt (normal bei alten Tieren!)
+  * CAVE: Unstrukturiert interstitiell bei alten Hunden oft Normalbefund!
+
+VASKULÄRES PATTERN:
+- Vergrößerte Pulmonalgefäße: Herzwurm (Dirofilaria — aufgeblähte PA!), Links-Rechts-Shunt,
+  Pulmonale Hypertonie, Flüssigkeitsüberladung
+- Verkleinerte Gefäße: Hypovolämie, Pulmonalstenose, Rechts-Links-Shunt, Dehydratation
+- Asymmetrie: Lungenembolie (verminderte Gefäße fokal!)
+
+═══════════════════════════════════════════════════════
+ONKOLOGISCHES STAGING — RADIOLOGISCHE KRITERIEN:
+═══════════════════════════════════════════════════════
+
+KNOCHENTUMOREN:
+- Osteosarkom: Prädilektionsstellen ("fern vom Ellbogen, nah am Knie" = distaler Radius,
+  proximaler Humerus, distaler Femur, proximale Tibia), Sunburst/Codman-Dreieck,
+  permeative Lyse, KEINE Gelenküberschreitung (vs. Infektion die Gelenk überschreitet!)
+- Chondrosarkom: Rippen, Nasenhöhle, flache Knochen, punktförmige Mineralisierungen
+- Fibrosarkom: Ähnlich Osteosarkom, oft mehr lytisch, Mandibula/Maxilla häufig
+- Metastatische Knochenläsionen: Multifokal, lytisch (selten produktiv), Weichteilursprung suchen
+- Benigne Tumoren: Osteom (glatt, sklerotisch), Osteochondrom (exostotisch, Knorpelkappe)
+- AGGRESSIVITÄTS-KRITERIEN: Breite Übergangszone, permeative/mottenfraßartige Lyse,
+  Periostreaktion (lamellar, Sunburst, Codman), Weichteilmasse, kortikale Destruktion
+  → Je mehr Kriterien, desto aggressiver/maligner
+
+LUNGENMETASTASEN-STAGING:
+- Systematisch JEDES Lungenfeld prüfen! Retrokardial und Zwerchfellwinkel nicht vergessen!
+- Rundherde >5mm gut erkennbar auf Röntgen, <5mm nur auf CT zuverlässig
+- 3-Projektionen-Regel: VD + linke + rechte Seitenlage → maximiert Sensitivität um 15-20%!
+- Bei V.a. Lungenmetastasen IMMER CT empfehlen (2-3× sensitiver als Röntgen!)
+- Häufigste Primärtumoren mit Lungenmetastasen: Osteosarkom, Hämangiosarkom, Mammakarzinom,
+  orales Melanom, Schilddrüsenkarzinom, Übergangszellkarzinom
+
+ABDOMINALE TUMORDIAGNOSTIK:
+- Milztumor: Hämangiosarkom (50-66% maligne bei Milzmassen beim Hund!), Hämatom, Hyperplasie
+  → Freie Flüssigkeit + Milzmasse = Hämangiosarkom bis zum Beweis des Gegenteils!
+- Lebertumor: HCC (massive/nodulär/diffus), Metastasen, noduläre Hyperplasie (benigne!)
+- Nebennieren: >20mm oder asymmetrisch → V.a. Adenom/Karzinom/Phäochromozytom
+- Lymphom: Hepatosplenomegalie, sublumbale LK-Vergrößerung, renale Infiltration
+- Blasentumor: Übergangszellkarzinom (TCC) — oft trigonal! Mineralisierung möglich
+
+═══════════════════════════════════════════════════════
+GDV — MAGENDREHUNG NOTFALL-ALGORITHMUS:
+═══════════════════════════════════════════════════════
+
+RÖNTGEN-ZEICHEN GDV (ALLE prüfen!):
+1. "Double Bubble Sign" (Kompartimentalisierung) — Gas in Fundus UND Pylorus getrennt
+2. Pylorus dorsal und links verschoben (normalerweise ventral rechts!)
+3. "C-Zeichen" / "Reverse C" — Magengas zeichnet C-Form
+4. "Shelf Sign" — Weichteilband teilt Magenlumen
+5. Spleen Displacement — Milz nach medial/ventral verlagert
+6. Gasfreier Duodenum-Abschnitt
+7. Reduzierte seröse Detailzeichnung → freie Flüssigkeit (Perforation? Nekrose?)
+8. Pneumoperitoneum → PERFORATION! → Sofort OP!
+
+DIFFERENZIERUNG GDV vs. einfache Dilatation:
+- Einfache Dilatation: Pylorus rechts, kein Kompartiment, oft selbstlimitierend
+- GDV: Pylorus links-dorsal, Kompartimentalisierung, MUSS operiert werden!
+- IMMER rechte Seitenlage-Aufnahme! (Gas im Pylorus links-dorsal = GDV-Beweis)
+
+═══════════════════════════════════════════════════════
+MRT-DIFFERENZIALDIAGNOSE-TABELLE GEHIRN:
+═══════════════════════════════════════════════════════
+
+INTRA-AXIALE LÄSIONEN (im Parenchym):
+| Diagnose | T1 | T2 | FLAIR | Enhancement | Lokalisation | Typisch |
+| Gliom | hypo-iso | hyper | hyper | gering-moderat | solitär, Hemisphäre | intra-axial, schlecht begrenzt |
+| MUO/GME | iso-hypo | hyper | hyper | ring/multifokal | multifokal, WS+Gehirn | junge Toy-Rassen! |
+| NME (Mops) | hypo | hyper | hyper | ring-Enhancement | Großhirn bilateral | Mops, Chihuahua, Malteser |
+| NLE (Yorkshire) | hypo | hyper | hyper | minimal | Großhirn | Yorkshire, Französische Bulldogge |
+| Infarkt | hypo | hyper | hyper | ±gering | territorial/vaskulär | keilförmig! akut, asymmetrisch |
+| Neospora | hypo | hyper | hyper | multifokal | Cerebellum! + multifokal | Welpen, Junghunde! |
+| Staupe | hypo | hyper | hyper | ±variabel | weiße Substanz | ungeimpfte Hunde |
+| FIP (Katze) | iso | hyper | hyper | periventrikulär! | Ventrikel, Meningen | junge Katzen, Ependymitis |
+| Toxoplasma | hypo | hyper | hyper | ring-Enhancement | multifokal | immunsupprimiert, Katze>Hund |
+| Lymphom | iso-hypo | iso-hyper | hyper | stark homogen | solitär oder multifokal | oft extra-axial |
+
+EXTRA-AXIALE LÄSIONEN (außerhalb Parenchym):
+| Meningeom | iso-hypo | iso-hyper | hyper | stark homogen! | konvex, Dural Tail! | häufigster Tumor! >5J |
+| Choroidplexus | iso | hyper | hyper | stark | intraventrikulär! | Seitenventrikel, 4. Ventrikel |
+| Epidermoid/Dermoid | hypo | hyper | variabel | kein/minimal | CPA, Mittellinie | selten |
+| Trigeminus-Tumor | iso-hypo | iso-hyper | hyper | stark | Schädelbasis, CN V | einseitig, Kaumuskelatrophie |
+
+WICHTIG — Red Flags im MRT:
+- Mittellinienverlagerung >3mm → Raumforderung → Dringend!
+- Tentorielle Herniation → Lebensbedrohlich!
+- Obex-Herniation (Foramen magnum) → Atemnot-Risiko!
+- Ringförmiges Enhancement + Ödem → Tumor oder Abszess bis Beweis des Gegenteils
+- DWI-Restriktion + ADC-Erniedrigung → Akuter Infarkt (<24h) oder Abszess
+
+═══════════════════════════════════════════════════════
+CT-KONTRASTMITTEL-PROTOKOLLE:
+═══════════════════════════════════════════════════════
+
+KONTRASTPHASEN (jodhaltig, nicht-ionisch, 600-800 mgI/kg IV):
+- Angiographische Phase: 5-15 Sek nach Injektion → Gefäßdarstellung, Shunts, PSS
+- Arterielle Phase: 15-25 Sek → Leberarterielle Versorgung, hypervaskularisierte Tumoren
+- Portalvenöse Phase: 35-60 Sek → Standard-Abdomen, Leberparenchym, Milz
+- Nephrographische Phase: 60-90 Sek → Nierenparenchym, Harnleiter
+- Spätphase/Equilibrium: >120 Sek → Ektopische Ureteren, Exkretionsurographie, Harnblase
+- Triple-Phase-CT (Leber/Milz): Arteriell + Portalvenös + Spät → Tumorcharakterisierung!
+  * HCC: arteriell hyperdens, portalvenös wash-out
+  * Hämangiom: peripheres arterielles Enhancement, zentripetales Fill-in
+  * Noduläre Hyperplasie: isodens in allen Phasen
+
+CT-SPEZIFISCHE MESSUNGEN:
+- Hounsfield-Einheiten Referenz: Luft -1000, Fett -80 bis -120, Wasser 0, Leber 50-70,
+  Milz 45-55, Niere 30-50, Muskel 35-55, akutes Blut 50-70, Knochen >400
+- Fett: -80 bis -120 HU (Lipom? Liposarkom wenn heterogen!)
+- Flüssigkeit: 0-20 HU (transsudat), 20-40 HU (modifiziertes Transsudat/Exsudat)
+- Akute Blutung: 50-70 HU (hyperdens! → Trauma, Milzruptur, Koagulopathie)
 
 ═══════════════════════════════════════════════════════
 HÄUFIGE FALLSTRICKE & FEHLDIAGNOSEN VERMEIDEN:
 ═══════════════════════════════════════════════════════
 
+RÖNTGEN-FALLSTRICKE:
 - Normvarianten NICHT als Pathologie melden: Fabellae, Sesamoide, akzessorische Ossifikationszentren,
   Enthesophyten bei älteren Tieren, Os penis, Os clitoridis, physiologische Periostreaktion bei Jungtieren
 - NICHT verwechseln: Mach-Effekt (Mach Bands) mit echten Frakturlinien
@@ -933,6 +1109,34 @@ HÄUFIGE FALLSTRICKE & FEHLDIAGNOSEN VERMEIDEN:
 - Jungtiere: Wachstumsfugen NICHT mit Frakturen verwechseln! Altersentsprechende Ossifikation kennen
 - Alte Tiere: Degenerative Veränderungen von akuten Pathologien unterscheiden — Spondylose ≠ Diskospondylitis!
 - Artefakte erkennen: Bewegungsunschärfe, Streustrahlung, Gitterartefakte, Doppelbelichtung
+- Exspiratorische Thoraxaufnahme → Pseudokardiomegalie und Pseudo-Lungenödem!
+- Überbelichtung → Lungenrundherde werden unsichtbar! Unterbelichtung → Pseudo-Infiltrate!
+- Adipöse Tiere: Fett vortäuschen Organomegalie, verminderte seröse Detailzeichnung ≠ Erguss
+- Nasse Tiere/Fell: Können interstitielles Lungenmuster vortäuschen (Fellüberlagerung)
+
+MRT-FALLSTRICKE:
+- T1-Hyperintensität: Fett ODER Methämoglobin (subakute Blutung) ODER Protein ODER Melanin
+  → Fettsättigung (STIR/Fat-Sat) nutzen zur Differenzierung!
+- T2-Hyperintensität: Ödem ODER Tumor ODER Entzündung ODER Demyelinisierung ODER Gliose ODER Zyste
+  → Enhancement-Muster und DWI zur Differenzierung nutzen!
+- Magic Angle Artifact: Sehnen bei 55° zum Hauptmagnetfeld → falsch hyperintens auf kurzen TE-Sequenzen
+- Truncation Artifact: Parallele Banden am Übergang Cortex/Medulla → kann Syringomyelie vortäuschen!
+- Susceptibility Artifact: Metallimplantate, Luft → Signalauslöschung (besonders GRE/SWI)
+- Chemical Shift Artifact: Fett-Wasser-Grenzfläche → Fehlregistrierung (Niere, Augen, Fettgewebe)
+- Flow Artifacts: Pulsationsartefakte von Gefäßen → können Läsionen vortäuschen oder verbergen
+- Partial Volume Effect: Kleine Strukturen in dicken Schichten → Läsionen werden über-/unterschätzt
+- CAVE: Kontrastmittel-Enhancement ≠ automatisch Tumor! Auch Entzündung, Infarkt (subakut), Abszess!
+- CAVE: Fehlende Enhancement ≠ benigne! Niedriggradige Gliome enhancen oft NICHT!
+
+CT-FALLSTRICKE:
+- Beam Hardening: Artefakte an Knochen-Weichteil-Grenzen (Schädelbasis!) → Pseudoläsionen
+- Volume Averaging: Teilvolumeneffekte an Strukturgrenzen → kleine Läsionen unsichtbar
+- Kontrastmittel-Timing: Falsches Timing → Tumor wird verpasst oder fehlcharakterisiert
+  * Zu früh: Tumor noch nicht enhancet → wird als iso angesehen
+  * Zu spät: Hypervaskularisierte Läsion zeigt Wash-out → wird als hypo fehlinterpretiert
+- Pseudo-Enhancement: Zyste neben stark enhancender Struktur → scheinbares Enhancement (Beam Hardening)
+- Hounsfield-Variabilität: Verschiedene CT-Geräte zeigen unterschiedliche HU-Werte für gleiches Gewebe!
+- Window/Level: IMMER alle Fenster prüfen — Weichteil-Fenster zeigt keine Lungenläsionen, Lungenfenster keine Knochen!
 
 ═══════════════════════════════════════════════════════
 UNVERHANDELBARE ANALYSE-REGELN:
