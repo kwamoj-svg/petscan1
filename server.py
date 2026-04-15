@@ -1515,6 +1515,36 @@ def get_report_image(rid):
         return jsonify({'error':'Kein Bild vorhanden'}), 404
     return jsonify({'image_data':r['image_data']})
 
+@app.route('/api/reports/<rid>/thumbnail')
+@require_auth
+def get_report_thumbnail(rid):
+    """Generate a small thumbnail (120px) from the report image"""
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT image_data,user_id FROM reports WHERE id=?',(rid,))
+    conn.close()
+    if not rows: return jsonify({'error':'Befund nicht gefunden'}), 404
+    r = rows[0]
+    if r['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error':'Kein Zugriff'}), 403
+    if not r.get('image_data'):
+        return jsonify({'error':'Kein Bild vorhanden'}), 404
+    try:
+        import base64, io
+        from PIL import Image
+        img_bytes = base64.b64decode(r['image_data'])
+        img = Image.open(io.BytesIO(img_bytes))
+        img.thumbnail((120, 120), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG', quality=60)
+        thumb_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return jsonify({'thumbnail': thumb_b64})
+    except ImportError:
+        # Pillow not installed — return first chars of original as fallback
+        return jsonify({'thumbnail': r['image_data']})
+    except Exception as e:
+        app.logger.warning(f'Thumbnail-Fehler: {e}')
+        return jsonify({'thumbnail': r['image_data']})
+
 @app.route('/api/reports/<rid>', methods=['DELETE'])
 @require_auth
 def delete_report(rid):

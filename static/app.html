@@ -950,7 +950,8 @@ function filterReps(q) {
       var ml={single:'Einzelanalyse',compare:'Verlauf',diff:'Vergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
       var sb={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
       var sl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
-      return '<div class="report-item" onclick="openReport(\''+r.id+'\')"><div style="width:38px;height:38px;border-radius:8px;background:var(--blue-dim);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>'
+      var thumbId = 'thumb-'+r.id;
+      return '<div class="report-item" onclick="openReport(\''+r.id+'\')"><div id="'+thumbId+'" style="width:48px;height:48px;border-radius:8px;background:var(--blue-dim);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">'+(r.has_image?'<div style="width:48px;height:48px;background:var(--s2);border-radius:8px;display:flex;align-items:center;justify-content:center;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>':'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>')+'</div>'
         +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
         +'<span class="badge '+sb+'">'+sl+'</span>'
         +'<div style="display:flex;gap:4px;" onclick="event.stopPropagation()">'
@@ -961,6 +962,20 @@ function filterReps(q) {
         +'<button onclick="delReport(\''+r.id+'\',event)" style="padding:5px 9px;font-size:11px;font-weight:600;color:var(--red);border:1px solid var(--border);border-radius:var(--r);background:var(--surface);">✕</button>'
         +'</div></div>';
     }).join('');
+
+  // Lazy-load thumbnails for reports with images
+  filtered.forEach(function(r){
+    if(!r.has_image) return;
+    var thumbEl = document.getElementById('thumb-'+r.id);
+    if(!thumbEl) return;
+    api('/api/reports/'+r.id+'/thumbnail')
+      .then(function(data){
+        if(!data.thumbnail) return;
+        var el = document.getElementById('thumb-'+r.id);
+        if(el) el.innerHTML='<img src="data:image/jpeg;base64,'+data.thumbnail+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;">';
+      })
+      .catch(function(){});
+  });
 }
 
 function openReport(id) {
@@ -975,13 +990,6 @@ function openReport(id) {
   var m=document.createElement('div');
   m.id='rep-modal';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;overflow-y:auto;padding:20px;display:flex;align-items:flex-start;justify-content:center;';
-  var imgs='';
-  if(r.img_a){
-    imgs='<div style="display:flex;gap:10px;margin-bottom:16px;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;">'
-      +'<div style="flex:1;text-align:center;"><img src="'+r.img_a+'" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:4px;"><div style="font-size:10px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px;">Aufnahme A</div></div>'
-      +(r.img_b?'<div style="flex:1;text-align:center;"><img src="'+r.img_b+'" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:4px;"><div style="font-size:10px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px;">Aufnahme B</div></div>':'')
-      +'</div>';
-  }
   m.innerHTML='<div style="background:var(--surface);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.3);width:100%;max-width:820px;margin:auto;">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;border-radius:12px 12px 0 0;">'
     +'<div><div style="font-size:11px;color:var(--text3)">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+' · '+modeLabel+'</div><div style="font-size:16px;font-weight:800;">Radiologischer Befundbericht</div></div>'
@@ -993,13 +1001,147 @@ function openReport(id) {
     +'</div></div>'
     +'<div style="padding:22px;">'
     +'<div style="display:flex;justify-content:space-between;margin-bottom:12px;"><span style="font-size:12px;color:var(--text3)">'+fmtDate(r.created_at)+'</span><span class="badge '+sevBadge+'">'+sevBadgeLbl+'</span></div>'
-    +imgs
+    +'<div id="report-image-area" style="margin-bottom:16px;"></div>'
     +'<div class="sev-bar '+sevCls+'" style="margin-bottom:16px;"><div style="flex:1"><div class="sev-lbl">DRINGLICHKEIT: '+sevLbl+'</div></div><div class="sev-track"><div class="sev-fill"></div></div></div>'
     +'<div class="result-body">'+mdToHtml(r.report_text)+'</div>'
     +'<div class="disclaimer" style="margin-top:12px;">⚠️ KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
     +'</div></div>';
   m.addEventListener('click',function(e){ if(e.target===m) m.remove(); });
   document.body.appendChild(m);
+
+  // Load image from API and display in report
+  if(r.has_image) {
+    var imgArea = document.getElementById('report-image-area');
+    imgArea.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Bild wird geladen…</div>';
+    api('/api/reports/'+id+'/image')
+      .then(function(data){
+        if(!data.image_data) { imgArea.innerHTML=''; return; }
+        var imgSrc = 'data:image/jpeg;base64,' + data.image_data;
+        // Cache image data on report object for reuse
+        r._cachedImgData = data.image_data;
+        imgArea.innerHTML=
+          '<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px;overflow:hidden;">'
+          +'<div style="text-align:center;position:relative;">'
+          +'<img src="'+imgSrc+'" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:6px;cursor:pointer;" onclick="openImageFullscreen(this.src)" title="Klicken zum Vergrößern">'
+          +'<div style="font-size:10px;color:var(--text3);margin-top:6px;text-transform:uppercase;letter-spacing:1px;">Originalaufnahme</div>'
+          +'</div>'
+          +'<div style="display:flex;gap:8px;margin-top:10px;justify-content:center;">'
+          +'<button class="abt ab-p" onclick="useImageForCompare(\''+id+'\')" style="font-size:11px;padding:6px 14px;">'
+          +'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/><path d="M13 7h4v4"/><path d="M11 17H7v-4"/></svg>'
+          +'Für Vergleich verwenden</button>'
+          +'<button class="abt ab-g" onclick="useImageForSecondOpinion(\''+id+'\')" style="font-size:11px;padding:6px 14px;">'
+          +'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
+          +'Zweitmeinung anfordern</button>'
+          +'</div>'
+          +'</div>';
+      })
+      .catch(function(){ imgArea.innerHTML=''; });
+  }
+}
+
+// Fullscreen image viewer
+function openImageFullscreen(src) {
+  var ov = document.createElement('div');
+  ov.id='img-fullscreen';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:3000;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;';
+  ov.innerHTML='<img src="'+src+'" style="max-width:95%;max-height:95%;object-fit:contain;border-radius:4px;">'
+    +'<button style="position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);border:none;cursor:pointer;font-size:22px;color:#fff;">×</button>';
+  ov.addEventListener('click',function(){ ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+// Use image from report for comparison
+function useImageForCompare(reportId) {
+  var r = ALL_REPORTS.find(function(x){ return x.id===reportId; });
+  if(!r){ toast('Befund nicht gefunden','red'); return; }
+  var modal = document.getElementById('rep-modal');
+  if(modal) modal.remove();
+
+  function loadAndSetup(imgData) {
+    AN.species = r.species || 'Hund';
+    AN.region = r.region || 'Thorax';
+    AN.mode = 'compare';
+    AN.petName = r.pet_name || '';
+    AN.imgA = { b64: imgData, url: 'data:image/jpeg;base64,' + imgData };
+    AN.imgB = null;
+    navTo('analyse', document.querySelector('.nb'));
+    setTimeout(function(){
+      var uzA = document.getElementById('uz-a');
+      if(uzA){
+        uzA.className = 'uz has';
+        uzA.onclick = null;
+        uzA.innerHTML = '<span class="uz-tag">AUFNAHME A — VORHERIGES BILD</span>'
+          + '<img class="uz-preview" src="' + AN.imgA.url + '">'
+          + '<div class="uz-name" style="color:var(--blue);font-weight:600;">Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
+          + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
+      }
+      var uzB = document.getElementById('uz-b');
+      if(uzB){ uzB.style.borderColor = 'var(--blue)'; uzB.style.background = 'var(--blue-dim)'; }
+      // Set mode selector to compare
+      var modeSelect = document.querySelector('select[onchange*="AN.mode"]') || document.getElementById('mode-select');
+      if(modeSelect) { modeSelect.value = 'compare'; AN.mode = 'compare'; }
+      toast('Bild geladen — jetzt neues Bild als Aufnahme B hochladen', 'blue');
+    }, 150);
+  }
+
+  if(r._cachedImgData) {
+    loadAndSetup(r._cachedImgData);
+  } else {
+    toast('Lade Bild…');
+    api('/api/reports/'+reportId+'/image')
+      .then(function(data){
+        if(!data.image_data){ toast('Kein Bild vorhanden','amber'); return; }
+        r._cachedImgData = data.image_data;
+        loadAndSetup(data.image_data);
+      })
+      .catch(function(e){ toast('Fehler: ' + e.message, 'red'); });
+  }
+}
+
+// Use image for second opinion
+function useImageForSecondOpinion(reportId) {
+  var r = ALL_REPORTS.find(function(x){ return x.id===reportId; });
+  if(!r){ toast('Befund nicht gefunden','red'); return; }
+  var modal = document.getElementById('rep-modal');
+  if(modal) modal.remove();
+
+  function loadAndSetup(imgData) {
+    AN.species = r.species || 'Hund';
+    AN.region = r.region || 'Thorax';
+    AN.mode = 'second';
+    AN.petName = r.pet_name || '';
+    AN.imgA = { b64: imgData, url: 'data:image/jpeg;base64,' + imgData };
+    AN.imgB = null;
+    navTo('analyse', document.querySelector('.nb'));
+    setTimeout(function(){
+      var uzA = document.getElementById('uz-a');
+      if(uzA){
+        uzA.className = 'uz has';
+        uzA.onclick = null;
+        uzA.innerHTML = '<span class="uz-tag">AUFNAHME — ZWEITMEINUNG</span>'
+          + '<img class="uz-preview" src="' + AN.imgA.url + '">'
+          + '<div class="uz-name" style="color:var(--blue);font-weight:600;">Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
+          + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
+      }
+      // Set mode to second opinion
+      var modeSelect = document.querySelector('select[onchange*="AN.mode"]') || document.getElementById('mode-select');
+      if(modeSelect) { modeSelect.value = 'second'; AN.mode = 'second'; }
+      toast('Bild geladen — Zweitmeinung wird vorbereitet', 'blue');
+    }, 150);
+  }
+
+  if(r._cachedImgData) {
+    loadAndSetup(r._cachedImgData);
+  } else {
+    toast('Lade Bild…');
+    api('/api/reports/'+reportId+'/image')
+      .then(function(data){
+        if(!data.image_data){ toast('Kein Bild vorhanden','amber'); return; }
+        r._cachedImgData = data.image_data;
+        loadAndSetup(data.image_data);
+      })
+      .catch(function(e){ toast('Fehler: ' + e.message, 'red'); });
+  }
 }
 
 function delReport(id,e) {
@@ -1010,41 +1152,9 @@ function delReport(id,e) {
     .catch(function(e){ toast(e.message,'red'); });
 }
 
-// COMPARE FROM EXISTING REPORT
+// COMPARE FROM EXISTING REPORT (delegate to new function)
 function startCompareFromReport(reportId) {
-  var r = ALL_REPORTS.find(function(x){ return x.id===reportId; });
-  if(!r){ toast('Befund nicht gefunden','red'); return; }
-  toast('Lade Bild für Vergleich…');
-  api('/api/reports/'+reportId+'/image')
-    .then(function(data){
-      if(!data.image_data){ toast('Kein Bild vorhanden','amber'); return; }
-      // Pre-fill analysis form
-      AN.species = r.species || 'Hund';
-      AN.region = r.region || 'Thorax';
-      AN.mode = 'compare';
-      AN.petName = r.pet_name || '';
-      AN.imgA = { b64: data.image_data, url: 'data:image/jpeg;base64,' + data.image_data };
-      AN.imgB = null;
-      // Switch to analysis view
-      navTo('analyse', document.querySelector('.nb'));
-      // After render, update the upload zone A to show the old image
-      setTimeout(function(){
-        var uzA = document.getElementById('uz-a');
-        if(uzA){
-          uzA.className = 'uz has';
-          uzA.onclick = null;
-          uzA.innerHTML = '<span class="uz-tag">AUFNAHME A — VORHERIGES BILD</span>'
-            + '<img class="uz-preview" src="' + AN.imgA.url + '">'
-            + '<div class="uz-name" style="color:var(--blue);font-weight:600;">📋 Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
-            + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
-        }
-        // Highlight upload zone B
-        var uzB = document.getElementById('uz-b');
-        if(uzB){ uzB.style.borderColor = 'var(--blue)'; uzB.style.background = 'var(--blue-dim)'; }
-        toast('Altes Bild geladen — jetzt neues Bild als Aufnahme B hochladen');
-      }, 100);
-    })
-    .catch(function(e){ toast('Fehler beim Laden: ' + e.message, 'red'); });
+  useImageForCompare(reportId);
 }
 
 // ACCOUNT
