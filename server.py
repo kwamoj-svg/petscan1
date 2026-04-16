@@ -3,11 +3,11 @@ Animioo – Produktions-Server v2
 Auth + KI-Analyse + Stripe Payments + Admin
 + bcrypt, rate limiting, email, Sentry, PostgreSQL
 """
-from flask import Flask, request, jsonify, send_from_directory, redirect
+from flask import Flask, request, jsonify, send_from_directory, redirect, make_response
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-import anthropic, hashlib, secrets, os, json, smtplib, logging
+import anthropic, hashlib, secrets, os, json, smtplib, logging, math, io
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -177,6 +177,15 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 action TEXT, user_id TEXT,
                 detail TEXT, created_at TEXT
+            )''',
+            '''CREATE TABLE IF NOT EXISTS report_feedback (
+                id TEXT PRIMARY KEY,
+                report_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                rating INTEGER,
+                correct INTEGER,
+                comment TEXT DEFAULT '',
+                created_at TEXT
             )'''
         ]
         for t in tables:
@@ -249,6 +258,15 @@ def init_db():
                 action TEXT, user_id TEXT,
                 detail TEXT, created_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS report_feedback (
+                id TEXT PRIMARY KEY,
+                report_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                rating INTEGER,
+                correct INTEGER,
+                comment TEXT DEFAULT "",
+                created_at TEXT
+            );
         ''')
 
     # Migrate: add new columns if missing (for existing DBs)
@@ -270,6 +288,32 @@ def init_db():
     try:
         db_execute(conn, "ALTER TABLE reports ADD COLUMN image_data TEXT DEFAULT ''")
     except: pass
+    try:
+        db_execute(conn, "ALTER TABLE reports ADD COLUMN image_hash TEXT DEFAULT ''")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE reports ADD COLUMN quality_score INTEGER DEFAULT NULL")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN api_key TEXT DEFAULT ''")
+    except: pass
+
+    # ── DB-INDIZES ──
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_reports_severity ON reports(severity)",
+        "CREATE INDEX IF NOT EXISTS idx_reports_species ON reports(species)",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_log(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+    ]
+    for idx in indexes:
+        try:
+            db_execute(conn, idx)
+        except Exception as e:
+            app.logger.warning(f'Index creation: {e}')
+    conn.commit()
 
     # Admin-User anlegen oder Passwort aktualisieren
     try:
@@ -314,6 +358,10 @@ def check_pw(pw, hashed):
 
 def nid():   return secrets.token_hex(8)
 def now():   return datetime.now().isoformat()
+
+def image_hash(base64_data):
+    """Create a SHA-256 hash of the first 10000 chars of base64 image data for deduplication."""
+    return hashlib.sha256(base64_data[:10000].encode()).hexdigest()
 
 # ═══════════════════════════════════════════════════
 # E-MAIL
@@ -414,6 +462,22 @@ def require_admin(f):
         return f(*args, **kwargs)
     return require_auth(dec)
 
+def require_api_key(f):
+    """Authenticate via X-API-Key header for external integrations."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get('X-API-Key', '').strip()
+        if not api_key:
+            return jsonify({'error': 'API-Key fehlt. Header X-API-Key erforderlich.'}), 401
+        conn = get_db()
+        user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE api_key=? AND active=1', (api_key,)))
+        conn.close()
+        if not user:
+            return jsonify({'error': 'Ungültiger API-Key'}), 401
+        request.user = user
+        return f(*args, **kwargs)
+    return decorated
+
 # ═══════════════════════════════════════════════════
 # STATIC ROUTES
 # ═══════════════════════════════════════════════════
@@ -434,6 +498,9 @@ def datenschutz(): return send_from_directory('static','datenschutz.html')
 
 @app.route('/agb')
 def agb(): return send_from_directory('static','agb.html')
+
+@app.route('/wissen')
+def wissen(): return send_from_directory('static','wissen.html')
 
 # ═══════════════════════════════════════════════════
 # AUTH API
@@ -662,6 +729,20 @@ def analyse():
     img_b      = d.get('img_b','')
 
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
+
+    # ── Image hash deduplication / caching ──
+    img_h = image_hash(img_a)
+    conn = get_db()
+    cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
+    conn.close()
+    if cached:
+        # Return cached report instead of calling AI again
+        result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
+        result['cached'] = True
+        if cached.get('quality_score') is not None:
+            result['quality_score'] = cached['quality_score']
+            result['quality_ok'] = cached['quality_score'] >= 1
+        return jsonify(result)
 
     prompts = {
         'single':  f'Erstelle einen vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}. WICHTIG: Erkenne zuerst die Bildmodalität (Röntgen, CT oder MRT) und passe deine Analyse entsprechend an. Bei Röntgen: Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Bei CT: Analysiere Schnittebene, Fensterung, Dichteunterschiede. Bei MRT: Bestimme die Sequenz (T1, T2, FLAIR, etc.), analysiere Signalintensitäten, Gewebskontraste, Atrophien, Raumforderungen, Ödeme. Analysiere das Bild EXTREM GRÜNDLICH. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
@@ -1406,15 +1487,23 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
     tl   = text.lower()
     sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
 
+    # ── Qualitätskontrolle ──
+    required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
+    sections_found = sum(1 for s in required_sections if s in tl)
+    quality_ok = sections_found >= len(required_sections) and len(text) >= 500
+    quality_score = sections_found  # 0-4, 4 = all sections present
+
     rid = 'r_'+nid()
     conn = get_db()
-    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                 (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,now()))
+    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                 (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,now()))
     db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
     conn.commit(); conn.close()
 
     audit('Analyse',user['id'],f'{species}/{region}/{mode} via {used_provider}')
-    return jsonify({'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now()})
+    result = {'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now(),
+              'quality_ok':quality_ok,'quality_score':quality_score}
+    return jsonify(result)
 
 # ═══════════════════════════════════════════════════
 # CHAT (Rückfragen zum Befund)
@@ -1498,17 +1587,53 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
 @app.route('/api/reports')
 @require_auth
 def get_reports():
+    page = request.args.get('page', None, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    severity_filter = request.args.get('severity', '').strip()
+    species_filter = request.args.get('species', '').strip()
+    per_page = min(max(per_page, 1), 100)  # clamp 1-100
+
     conn = get_db()
-    if request.user['role'] == 'admin':
-        rows = db_fetchall(conn, 'SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC')
+    is_admin = request.user['role'] == 'admin'
+
+    # Build WHERE clause
+    conditions = []
+    params = []
+    if not is_admin:
+        conditions.append('r.user_id=?')
+        params.append(request.user['id'])
+    if severity_filter:
+        conditions.append('r.severity=?')
+        params.append(severity_filter)
+    if species_filter:
+        conditions.append('r.species=?')
+        params.append(species_filter)
+
+    where = (' WHERE ' + ' AND '.join(conditions)) if conditions else ''
+    join = ' LEFT JOIN users u ON r.user_id=u.id' if is_admin else ''
+    select_extra = ',u.name as user_name,u.praxis' if is_admin else ''
+
+    # If page param provided, use pagination; otherwise return all (backward compat)
+    if page is not None:
+        page = max(page, 1)
+        # Get total count
+        count_row = db_dict(db_fetchone(conn, f'SELECT COUNT(*) as n FROM reports r{join}{where}', params))
+        total = count_row['n']
+        pages = math.ceil(total / per_page) if per_page > 0 else 1
+        offset = (page - 1) * per_page
+        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?', params + [per_page, offset])
+        conn.close()
+        for r in rows:
+            r['has_image'] = bool(r.get('image_data'))
+            r.pop('image_data', None)
+        return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
     else:
-        rows = db_fetchall(conn, 'SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC',(request.user['id'],))
-    conn.close()
-    # Don't send image_data in list (too large), add has_image flag instead
-    for r in rows:
-        r['has_image'] = bool(r.get('image_data'))
-        r.pop('image_data', None)
-    return jsonify({'reports':rows})
+        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC', params)
+        conn.close()
+        for r in rows:
+            r['has_image'] = bool(r.get('image_data'))
+            r.pop('image_data', None)
+        return jsonify({'reports': rows})
 
 @app.route('/api/reports/<rid>/image')
 @require_auth
@@ -1886,6 +2011,346 @@ def contact():
         f'Name: {d.get("name","k.A.")}<br>E-Mail: {d.get("email","k.A.")}<br>Nachricht: {d.get("message","k.A.")}')
 
     return jsonify({'ok':True}), 201
+
+# ═══════════════════════════════════════════════════
+# PDF-EXPORT
+# ═══════════════════════════════════════════════════
+@app.route('/api/reports/<rid>/pdf')
+@require_auth
+def export_report_pdf(rid):
+    """Generate a professional PDF for a report."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=?', (rid,)))
+    conn.close()
+    if not report:
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    if report['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error': 'Kein Zugriff'}), 403
+
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        return jsonify({'error': 'PDF-Bibliothek (fpdf2) nicht installiert'}), 503
+
+    class AnimiooPDF(FPDF):
+        def header(self):
+            self.set_fill_color(26, 86, 219)  # #1a56db
+            self.rect(0, 0, 210, 28, 'F')
+            self.set_font('Helvetica', 'B', 18)
+            self.set_text_color(255, 255, 255)
+            self.set_y(8)
+            self.cell(0, 10, 'Animioo KI-Befundassistent', align='C')
+            self.ln(18)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(128, 128, 128)
+            self.cell(0, 10, 'Animioo KI-Befundassistent -- Kein Ersatz fuer tieraerztliche Diagnose.', align='C')
+            self.cell(0, 10, f'Seite {self.page_no()}/{{nb}}', align='R')
+
+    pdf = AnimiooPDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+
+    # ── Report Metadata ──
+    pdf.set_y(32)
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_text_color(26, 86, 219)
+    pdf.cell(0, 8, 'Befund-Metadaten', ln=True)
+
+    pdf.set_font('Helvetica', '', 10)
+    pdf.set_text_color(60, 60, 60)
+    meta_items = [
+        ('Datum', report.get('created_at', '')[:19].replace('T', ' ')),
+        ('Tierart', report.get('species', '')),
+        ('Region', report.get('region', '')),
+        ('Modus', report.get('mode', '')),
+        ('Dringlichkeit', {'low': 'Niedrig', 'mid': 'Mittel', 'high': 'Hoch'}.get(report.get('severity', ''), report.get('severity', ''))),
+    ]
+    if report.get('pet_name'):
+        meta_items.insert(1, ('Patient', report['pet_name']))
+
+    for label, value in meta_items:
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(35, 6, f'{label}:', ln=False)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(0, 6, str(value), ln=True)
+
+    pdf.ln(4)
+    # Separator line
+    pdf.set_draw_color(26, 86, 219)
+    pdf.set_line_width(0.5)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
+
+    # ── Report text ──
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_text_color(26, 86, 219)
+    pdf.cell(0, 8, 'Befundbericht', ln=True)
+
+    report_text = report.get('report_text', '')
+    # Parse markdown-style text into PDF
+    pdf.set_text_color(30, 30, 30)
+    for line in report_text.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('## '):
+            pdf.ln(3)
+            pdf.set_font('Helvetica', 'B', 11)
+            pdf.set_text_color(26, 86, 219)
+            pdf.multi_cell(0, 6, stripped[3:])
+            pdf.set_text_color(30, 30, 30)
+        elif stripped.startswith('### '):
+            pdf.ln(2)
+            pdf.set_font('Helvetica', 'B', 10)
+            pdf.multi_cell(0, 6, stripped[4:])
+        elif stripped.startswith('**') and stripped.endswith('**'):
+            pdf.set_font('Helvetica', 'B', 10)
+            pdf.multi_cell(0, 5, stripped.strip('*'))
+            pdf.set_font('Helvetica', '', 10)
+        elif stripped.startswith('|') and '|' in stripped[1:]:
+            # Table row — render as simple text
+            cells = [c.strip() for c in stripped.split('|') if c.strip() and c.strip() != '---']
+            if cells and not all(set(c) <= set('-| ') for c in cells):
+                pdf.set_font('Helvetica', '', 9)
+                pdf.multi_cell(0, 5, '  |  '.join(cells))
+                pdf.set_font('Helvetica', '', 10)
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            pdf.set_font('Helvetica', '', 10)
+            pdf.multi_cell(0, 5, '  ' + stripped)
+        elif stripped.startswith('---'):
+            pdf.ln(2)
+            pdf.set_draw_color(180, 180, 180)
+            pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+            pdf.ln(2)
+        elif stripped:
+            # Handle inline bold
+            clean = stripped.replace('**', '')
+            pdf.set_font('Helvetica', '', 10)
+            pdf.multi_cell(0, 5, clean)
+        else:
+            pdf.ln(2)
+
+    # Output PDF
+    pdf_bytes = pdf.output()
+    response = make_response(pdf_bytes)
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename="Animioo-Befund-{rid}.pdf"'
+    return response
+
+# ═══════════════════════════════════════════════════
+# BEFUND-FEEDBACK API
+# ═══════════════════════════════════════════════════
+@app.route('/api/reports/<rid>/feedback', methods=['POST'])
+@require_auth
+def create_report_feedback(rid):
+    """Submit feedback for a report (rating, correctness, comment)."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT id,user_id FROM reports WHERE id=?', (rid,)))
+    if not report:
+        conn.close()
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    if report['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        conn.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+
+    d = request.json or {}
+    rating = d.get('rating')
+    correct = d.get('correct')
+    comment = d.get('comment', '').strip()
+
+    if rating is not None and (not isinstance(rating, int) or rating < 1 or rating > 5):
+        conn.close()
+        return jsonify({'error': 'Rating muss zwischen 1 und 5 liegen'}), 400
+
+    fid = 'fb_' + nid()
+    db_execute(conn, 'INSERT INTO report_feedback (id,report_id,user_id,rating,correct,comment,created_at) VALUES (?,?,?,?,?,?,?)',
+               (fid, rid, request.user['id'], rating, 1 if correct else 0 if correct is not None else None, comment, now()))
+    conn.commit(); conn.close()
+
+    audit('Feedback', request.user['id'], f'Report {rid}: rating={rating}, correct={correct}')
+    return jsonify({'ok': True, 'id': fid}), 201
+
+@app.route('/api/reports/<rid>/feedback')
+@require_auth
+def get_report_feedback(rid):
+    """Get feedback for a report."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT id,user_id FROM reports WHERE id=?', (rid,)))
+    if not report:
+        conn.close()
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    if report['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        conn.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+
+    rows = db_fetchall(conn, 'SELECT * FROM report_feedback WHERE report_id=? ORDER BY created_at DESC', (rid,))
+    conn.close()
+    return jsonify({'feedback': rows})
+
+# ═══════════════════════════════════════════════════
+# API-KEY MANAGEMENT
+# ═══════════════════════════════════════════════════
+@app.route('/api/auth/api-key')
+@require_auth
+def get_api_key():
+    """Get or generate an API key for the current user."""
+    conn = get_db()
+    user = db_dict(db_fetchone(conn, 'SELECT api_key FROM users WHERE id=?', (request.user['id'],)))
+    api_key = user.get('api_key', '') if user else ''
+    if not api_key:
+        api_key = 'ak_' + secrets.token_hex(24)
+        db_execute(conn, 'UPDATE users SET api_key=? WHERE id=?', (api_key, request.user['id']))
+        conn.commit()
+    conn.close()
+    return jsonify({'api_key': api_key})
+
+# ═══════════════════════════════════════════════════
+# PRAXISMANAGEMENT-INTEGRATION API (v1)
+# ═══════════════════════════════════════════════════
+@app.route('/api/v1/analyse', methods=['POST'])
+@require_api_key
+@limiter.limit("10 per minute")
+def v1_analyse():
+    """External API: analyse an image via multipart/form-data with API key auth."""
+    user = request.user
+
+    if user['role'] != 'admin':
+        if user['plan'] in ('trial',) and user['analyses_used'] >= user['analyses_limit']:
+            return jsonify({'error': 'Analyse-Kontingent aufgebraucht', 'upgrade_required': True}), 402
+        if user['plan'] == 'starter' and user['analyses_used'] >= 50:
+            return jsonify({'error': 'Monatliches Kontingent erreicht', 'upgrade_required': True}), 402
+
+    import base64
+
+    # Accept either multipart form or JSON
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        image_file = request.files.get('image')
+        if not image_file:
+            return jsonify({'error': 'Kein Bild hochgeladen (multipart field "image" erwartet)'}), 400
+        img_a = base64.b64encode(image_file.read()).decode('utf-8')
+        species = request.form.get('species', 'Hund')
+        region = request.form.get('region', 'Thorax')
+    else:
+        d = request.json or {}
+        img_a = d.get('image', '')
+        species = d.get('species', 'Hund')
+        region = d.get('region', 'Thorax')
+
+    if not img_a:
+        return jsonify({'error': 'Kein Bild-Daten'}), 400
+
+    # Reuse the main analyse logic by forwarding internally
+    # Build the JSON body and call the analyse function indirectly
+    from flask import g
+    # Store original json and set up the request data
+    request._v1_data = {
+        'img_a': img_a, 'species': species, 'region': region,
+        'mode': 'single', 'context': '', 'focus_mode': 'general', 'focus_text': '',
+        'pet_name': '', 'img_b': ''
+    }
+
+    # Check cache
+    img_h = image_hash(img_a)
+    conn = get_db()
+    cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
+    conn.close()
+    if cached:
+        result = {k: cached.get(k, '') for k in ['id', 'report_text', 'severity', 'species', 'region', 'mode', 'created_at']}
+        result['cached'] = True
+        return jsonify(result)
+
+    # Call AI (simplified — use same providers)
+    if not ANTHROPIC_API_KEY and not OPENAI_API_KEY and not GEMINI_API_KEY:
+        return jsonify({'error': 'KI nicht konfiguriert'}), 503
+
+    import time as _time
+
+    system_prompt = "Du bist ein erfahrener Veterinärradiologe. Erstelle einen vollständigen Befundbericht auf Deutsch."
+    msgs = [
+        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': img_a}},
+        {'type': 'text', 'text': f'Erstelle einen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}.'}
+    ]
+
+    text = None
+    # Try OpenAI
+    if OPENAI_API_KEY and not text:
+        try:
+            from openai import OpenAI
+            oc = OpenAI(api_key=OPENAI_API_KEY)
+            oai_content = []
+            for m in msgs:
+                if m['type'] == 'image':
+                    oai_content.append({'type': 'image_url', 'image_url': {'url': f"data:{m['source']['media_type']};base64,{m['source']['data']}", 'detail': 'high'}})
+                else:
+                    oai_content.append({'type': 'text', 'text': m['text']})
+            resp = oc.chat.completions.create(model='gpt-4o', max_tokens=4096, temperature=0,
+                messages=[{'role': 'system', 'content': system_prompt}, {'role': 'user', 'content': oai_content}])
+            text = resp.choices[0].message.content
+        except Exception as e:
+            app.logger.warning(f'v1 OpenAI Fehler: {e}')
+
+    # Try Anthropic
+    if ANTHROPIC_API_KEY and not text:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=4096, temperature=0,
+                system=system_prompt, messages=[{'role': 'user', 'content': msgs}])
+            text = resp.content[0].text
+        except Exception as e:
+            app.logger.warning(f'v1 Anthropic Fehler: {e}')
+
+    if not text:
+        return jsonify({'error': 'KI-Analyse fehlgeschlagen'}), 503
+
+    tl = text.lower()
+    sev = 'high' if ('**hoch**' in tl or '**notfall**' in tl) else ('low' if '**niedrig**' in tl else 'mid')
+
+    required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
+    sections_found = sum(1 for s in required_sections if s in tl)
+    quality_score = sections_found
+
+    rid = 'r_' + nid()
+    conn = get_db()
+    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+               (rid, user['id'], '', species, region, 'single', sev, text, img_a, img_h, quality_score, now()))
+    db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?', (user['id'],))
+    conn.commit(); conn.close()
+
+    audit('v1_Analyse', user['id'], f'{species}/{region}')
+    return jsonify({'id': rid, 'report_text': text, 'severity': sev, 'species': species, 'region': region,
+                    'quality_score': quality_score, 'created_at': now()})
+
+@app.route('/api/v1/reports')
+@require_api_key
+def v1_list_reports():
+    """External API: list reports for API key user."""
+    page = request.args.get('page', 1, type=int)
+    per_page = min(max(request.args.get('per_page', 20, type=int), 1), 100)
+    page = max(page, 1)
+
+    conn = get_db()
+    count_row = db_dict(db_fetchone(conn, 'SELECT COUNT(*) as n FROM reports WHERE user_id=?', (request.user['id'],)))
+    total = count_row['n']
+    pages = math.ceil(total / per_page) if per_page > 0 else 1
+    offset = (page - 1) * per_page
+    rows = db_fetchall(conn, 'SELECT id,pet_name,species,region,mode,severity,quality_score,created_at FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                       (request.user['id'], per_page, offset))
+    conn.close()
+    return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
+
+@app.route('/api/v1/reports/<rid>')
+@require_api_key
+def v1_get_report(rid):
+    """External API: get a single report by ID."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=? AND user_id=?', (rid, request.user['id'])))
+    conn.close()
+    if not report:
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    report.pop('image_data', None)
+    return jsonify({'report': report})
 
 # ═══════════════════════════════════════════════════
 # ERROR HANDLER
