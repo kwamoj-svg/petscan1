@@ -857,7 +857,7 @@ function renderResult(r) {
     +imgs
     +'<div class="sev-bar '+sevCls+'"><div style="flex:1"><div class="sev-lbl">DRINGLICHKEIT: '+sevLbl+'</div></div><div class="sev-track"><div class="sev-fill"></div></div></div>'
     +'<div class="result-body">'+mdToHtml(r.report_text)+'</div>'
-    +'<div class="disclaimer">⚠️ KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
+    +'<div class="disclaimer">Hinweis: KI-generierter Befund. Kein Ersatz fuer tieraerztliche Diagnose.</div>'
     +'</div>'
     +'<div class="chat-box" id="chat-box">'
     +'<div class="chat-header"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Rückfragen zum Befund</div>'
@@ -1004,7 +1004,7 @@ function openReport(id) {
     +'<div id="report-image-area" style="margin-bottom:16px;"></div>'
     +'<div class="sev-bar '+sevCls+'" style="margin-bottom:16px;"><div style="flex:1"><div class="sev-lbl">DRINGLICHKEIT: '+sevLbl+'</div></div><div class="sev-track"><div class="sev-fill"></div></div></div>'
     +'<div class="result-body">'+mdToHtml(r.report_text)+'</div>'
-    +'<div class="disclaimer" style="margin-top:12px;">⚠️ KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
+    +'<div class="disclaimer" style="margin-top:12px;">Hinweis: KI-generierter Befund. Kein Ersatz fuer tieraerztliche Diagnose.</div>'
     +'</div></div>';
   m.addEventListener('click',function(e){ if(e.target===m) m.remove(); });
   document.body.appendChild(m);
@@ -1302,7 +1302,7 @@ function exportPDF(id) {
     +'<div class="sv"><div class="sl">DRINGLICHKEIT: '+stxt+'</div></div>'
     +(r.img_a?'<div class="imgs"><img src="'+r.img_a+'">'+(r.img_b&&r.mode!=='single'?'<img src="'+r.img_b+'">':'')+'</div>':'')
     +mdToHtml(r.report_text)
-    +'<div class="dis">⚠️ KI-generierter Befundbericht. Kein Ersatz für tierärztliche Diagnose durch einen approbierten Tierarzt.</div>'
+    +'<div class="dis">Hinweis: KI-generierter Befundbericht. Kein Ersatz fuer tieraerztliche Diagnose durch einen approbierten Tierarzt.</div>'
     +'<div class="ft"><span>Animioo GmbH</span><span>'+fmtDate(r.created_at)+'</span></div>'
     +'</body></html>';
   win.document.write(html);

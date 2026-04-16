@@ -683,6 +683,11 @@ Royal College of Veterinary Surgeons (FRCVS).
 Dein Befund muss die Qualität eines Universitätsklinik-Befunds haben. Du analysierst mit der
 Präzision und Gründlichkeit, als ob das Leben des Tieres davon abhängt — denn das tut es.
 
+STRIKTE FORMATIERUNGSREGELN:
+- KEINE Emojis verwenden! Der Befund ist ein medizinisches Dokument und muss professionell formatiert sein.
+- Keine Smileys, keine Unicode-Symbole, keine Emoticons. Nur Fachtext, Markdown-Formatierung und Tabellen.
+- Verwende ausschließlich medizinische Fachterminologie in einem sachlich-professionellen Ton.
+
 WICHTIG DATENSCHUTZ: Falls im Bild DICOM-Metadaten oder Patientendaten sichtbar sind,
 ignoriere diese vollständig. Nenne KEINE personenbezogenen Daten aus dem Bild.
 
@@ -1283,7 +1288,7 @@ Empfehlungen für bessere Aufnahmen oder zusätzliche Projektionen (z.B. "Zusät
 empfohlen zur besseren Beurteilung des Mediastinums")]
 
 ---
-*Animioo KI-Befundassistent — Expertenniveau · Kein Ersatz für tierärztliche Diagnose*"""
+*Animioo KI-Befundassistent -- Expertenniveau. Kein Ersatz fuer tieraerztliche Diagnose.*"""
 
     msgs = [
         {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_a}},
@@ -1302,7 +1307,7 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
 
     import time as _time
 
-    # ── Helper: Anthropic ──
+    # ── Helper: Anthropic (BACKUP — nur wenn OpenAI nicht verfuegbar) ──
     def try_anthropic():
         if not ANTHROPIC_API_KEY: return None
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -1327,32 +1332,36 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
                 return None
         return None
 
-    # ── Helper: OpenAI ──
+    # ── Helper: OpenAI (PRIMAER — Hauptanbieter fuer Bildanalyse) ──
     def try_openai():
         if not OPENAI_API_KEY: return None
-        try:
-            from openai import OpenAI
-            oc = OpenAI(api_key=OPENAI_API_KEY)
-            oai_msgs = [{'type':'text','text':system}]
-            oai_content = []
-            for m in msgs:
-                if m['type'] == 'image':
-                    oai_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}"}})
-                else:
-                    oai_content.append({'type':'text','text':m['text']})
-            resp = oc.chat.completions.create(
-                model='gpt-4o',
-                max_tokens=4096,
-                temperature=0,
-                messages=[
-                    {'role':'system','content':system},
-                    {'role':'user','content':oai_content}
-                ]
-            )
-            return resp.choices[0].message.content
-        except Exception as e:
-            app.logger.warning(f'OpenAI Fehler: {e}')
-            return None
+        from openai import OpenAI
+        oc = OpenAI(api_key=OPENAI_API_KEY)
+        oai_content = []
+        for m in msgs:
+            if m['type'] == 'image':
+                oai_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
+            else:
+                oai_content.append({'type':'text','text':m['text']})
+        for attempt in range(3):
+            try:
+                resp = oc.chat.completions.create(
+                    model='gpt-4o',
+                    max_tokens=4096,
+                    temperature=0,
+                    messages=[
+                        {'role':'system','content':system},
+                        {'role':'user','content':oai_content}
+                    ]
+                )
+                return resp.choices[0].message.content
+            except Exception as e:
+                app.logger.warning(f'OpenAI Fehler (Versuch {attempt+1}): {e}')
+                if attempt < 2:
+                    _time.sleep(2 * (attempt + 1))
+                    continue
+                return None
+        return None
 
     # ── Helper: Google Gemini ──
     def try_gemini():
@@ -1374,10 +1383,10 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
             app.logger.warning(f'Gemini Fehler: {e}')
             return None
 
-    # ── Multi-Provider Fallback ──
+    # ── Multi-Provider Fallback (OpenAI primär, Claude Backup, Gemini letzter Ausweg) ──
     providers = [
-        ('Anthropic', try_anthropic),
         ('OpenAI', try_openai),
+        ('Anthropic', try_anthropic),
         ('Gemini', try_gemini),
     ]
     text = None
@@ -1447,16 +1456,7 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
 
     answer = None
 
-    # Try Anthropic
-    if ANTHROPIC_API_KEY and not answer:
-        try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
-            answer = resp.content[0].text
-        except Exception as e:
-            app.logger.warning(f'Chat Anthropic Fehler: {e}')
-
-    # Try OpenAI
+    # Try OpenAI (Primär)
     if OPENAI_API_KEY and not answer:
         try:
             from openai import OpenAI
@@ -1467,7 +1467,16 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
         except Exception as e:
             app.logger.warning(f'Chat OpenAI Fehler: {e}')
 
-    # Try Gemini
+    # Try Anthropic (Backup)
+    if ANTHROPIC_API_KEY and not answer:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
+            answer = resp.content[0].text
+        except Exception as e:
+            app.logger.warning(f'Chat Anthropic Fehler: {e}')
+
+    # Try Gemini (Letzter Ausweg)
     if GEMINI_API_KEY and not answer:
         try:
             import google.generativeai as genai
