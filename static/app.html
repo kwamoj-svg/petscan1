@@ -640,6 +640,14 @@ function showApp() {
   var eh = document.getElementById('verify-email-hint');
   if (eh && ME.email) eh.textContent = ME.email;
   renderAnalyse();
+  // Befund-Anzahl sofort im Hintergrund laden und Badge aktualisieren
+  api('/api/reports').then(function(data){
+    ALL_REPORTS = (data.reports||[]).map(function(r){
+      var cached = CACHED.find(function(c){ return c.id===r.id; });
+      return cached ? Object.assign({},r,{img_a:cached.img_a,img_b:cached.img_b}) : r;
+    });
+    updateBadge(ALL_REPORTS.length);
+  }).catch(function(){});
   // Onboarding tour for new users
   if ((ME.analyses_used||0) === 0 && !localStorage.getItem('animioo_onboarding_done')) {
     showOnboarding();
