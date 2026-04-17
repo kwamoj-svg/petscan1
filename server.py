@@ -700,8 +700,8 @@ def me():
 @require_auth
 @limiter.limit("10 per minute")
 def analyse():
-    if not ANTHROPIC_API_KEY:
-        return jsonify({'error':'KI nicht konfiguriert. Admin muss ANTHROPIC_API_KEY setzen.'}), 503
+    if not OPENAI_API_KEY and not ANTHROPIC_API_KEY and not GEMINI_API_KEY:
+        return jsonify({'error':'KI nicht konfiguriert. Admin muss OPENAI_API_KEY setzen.'}), 503
 
     user = request.user
     # E-Mail muss bestätigt sein (Admins ausgenommen)
@@ -2420,16 +2420,17 @@ if __name__ == '__main__':
     debug = os.environ.get('DEBUG','false').lower() == 'true'
 
     missing = []
-    if not ANTHROPIC_API_KEY:  missing.append('ANTHROPIC_API_KEY')
+    if not OPENAI_API_KEY and not ANTHROPIC_API_KEY:  missing.append('OPENAI_API_KEY')
     if not STRIPE_SECRET_KEY:  missing.append('STRIPE_SECRET_KEY')
 
+    ki_status = 'OpenAI (primaer)' if OPENAI_API_KEY else ('Anthropic (backup)' if ANTHROPIC_API_KEY else ('Gemini' if GEMINI_API_KEY else 'KEINE KI konfiguriert!'))
     db_type = 'PostgreSQL' if USE_POSTGRES else 'SQLite'
     print(f"""
 ╔══════════════════════════════════════════════╗
 ║   Animioo – Server v2 gestartet             ║
 ║   URL: http://localhost:{port}                  ║
 ║   DB:     {db_type}
-║   KI:     {'Bereit' if ANTHROPIC_API_KEY else 'ANTHROPIC_API_KEY fehlt'}
+║   KI:     {ki_status}
 ║   Stripe: {'Bereit' if STRIPE_SECRET_KEY else 'STRIPE_SECRET_KEY fehlt'}
 ║   E-Mail: {'Bereit' if SMTP_HOST else 'SMTP nicht konfiguriert'}
 ║   Sentry: {'Bereit' if SENTRY_DSN else 'Nicht konfiguriert'}
