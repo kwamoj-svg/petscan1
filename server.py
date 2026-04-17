@@ -738,17 +738,35 @@ def analyse():
 
     # ── Image hash deduplication / caching (sicher falls Spalte noch nicht migriert) ──
     img_h = image_hash(img_a)
+    # Verweigerungsphrasen die auf einen schlechten Cache-Eintrag hinweisen
+    _bad_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen',
+                    'unable to', 'i cannot', "i'm sorry", 'i am sorry', 'nicht in der lage']
     try:
         conn = get_db()
         cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
         conn.close()
         if cached:
-            result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
-            result['cached'] = True
-            if cached.get('quality_score') is not None:
-                result['quality_score'] = cached['quality_score']
-                result['quality_ok'] = cached['quality_score'] >= 1
-            return jsonify(result)
+            cached_text = cached.get('report_text', '') or ''
+            # Schlechten Cache-Eintrag ignorieren (KI-Verweigerung aus früherer Analyse)
+            is_bad_cache = (
+                len(cached_text) < 300 or
+                any(p in cached_text.lower() for p in _bad_phrases)
+            )
+            if is_bad_cache:
+                app.logger.info('Schlechter Cache-Eintrag gefunden, neue Analyse wird durchgeführt...')
+                # Alten fehlerhaften Eintrag löschen damit er nicht wieder zurückkommt
+                try:
+                    conn2 = get_db()
+                    db_execute(conn2, 'DELETE FROM reports WHERE id=?', (cached['id'],))
+                    conn2.commit(); conn2.close()
+                except: pass
+            else:
+                result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
+                result['cached'] = True
+                if cached.get('quality_score') is not None:
+                    result['quality_score'] = cached['quality_score']
+                    result['quality_ok'] = cached['quality_score'] >= 1
+                return jsonify(result)
     except Exception as e:
         app.logger.warning(f'Cache-Lookup fehlgeschlagen: {e}')
         try: conn.rollback(); conn.close()
