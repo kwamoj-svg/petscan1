@@ -365,9 +365,11 @@ def check_pw(pw, hashed):
 def nid():   return secrets.token_hex(8)
 def now():   return datetime.now().isoformat()
 
-def image_hash(base64_data):
-    """Create a SHA-256 hash of the first 10000 chars of base64 image data for deduplication."""
-    return hashlib.sha256(base64_data[:10000].encode()).hexdigest()
+def image_hash(base64_data, species='', region='', mode='', ctx='', focus_mode='', focus_text=''):
+    """SHA-256 hash über Bild + alle Analyse-Parameter.
+    Gleiche Bild + andere Einstellungen → neuer Hash → neue Analyse."""
+    key = f"{base64_data[:10000]}|{species}|{region}|{mode}|{ctx}|{focus_mode}|{focus_text}"
+    return hashlib.sha256(key.encode()).hexdigest()
 
 # ═══════════════════════════════════════════════════
 # E-MAIL
@@ -737,7 +739,8 @@ def analyse():
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
     # ── Image hash deduplication / caching (sicher falls Spalte noch nicht migriert) ──
-    img_h = image_hash(img_a)
+    # Hash über Bild + alle Parameter: gleiche Bild mit anderen Einstellungen → neue Analyse
+    img_h = image_hash(img_a, species, region, mode, ctx, focus_mode, focus_text)
     # Verweigerungsphrasen die auf einen schlechten Cache-Eintrag hinweisen
     _bad_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen',
                     'unable to', 'i cannot', "i'm sorry", 'i am sorry', 'nicht in der lage']
@@ -2384,7 +2387,7 @@ def v1_analyse():
     }
 
     # Check cache
-    img_h = image_hash(img_a)
+    img_h = image_hash(img_a, species, region, 'single')
     conn = get_db()
     cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
     conn.close()
