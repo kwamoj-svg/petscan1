@@ -135,6 +135,8 @@ def init_db():
                 reset_token TEXT DEFAULT '',
                 reset_expires TEXT DEFAULT '',
                 trial_ends_at TEXT DEFAULT '',
+                pet_name TEXT DEFAULT '',
+                api_key TEXT DEFAULT '',
                 created_at TEXT,
                 last_login TEXT
             )''',
@@ -154,6 +156,8 @@ def init_db():
                 severity TEXT,
                 report_text TEXT,
                 image_data TEXT DEFAULT '',
+                image_hash TEXT DEFAULT '',
+                quality_score INTEGER,
                 created_at TEXT
             )''',
             '''CREATE TABLE IF NOT EXISTS leads (
@@ -234,6 +238,8 @@ def init_db():
                 severity TEXT,
                 report_text TEXT,
                 image_data TEXT DEFAULT "",
+                image_hash TEXT DEFAULT "",
+                quality_score INTEGER,
                 created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS leads (
