@@ -1424,31 +1424,82 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
                 return None
         return None
 
-    # ── Helper: OpenAI (PRIMAER — GPT-4o Bildanalyse) ──
+    # ── Helper: OpenAI (PRIMAER — GPT-4o Bildanalyse mit allen Nutzerparametern) ──
     def try_openai():
         if not OPENAI_API_KEY: return None
         from openai import OpenAI
         oc = OpenAI(api_key=OPENAI_API_KEY)
-        # OpenAI-optimierter System-Prompt: klar als Veterinär-Tool framen
-        oai_system = (
-            "You are an expert veterinary radiologist assistant helping licensed veterinarians "
-            "interpret animal (non-human) radiological images — X-rays, CT scans, and MRI scans of animals. "
-            "This is a professional veterinary diagnostic support tool used exclusively by licensed veterinarians. "
-            "You are analyzing ANIMAL images only (dogs, cats, horses, exotic animals, etc.). "
-            "Provide detailed, structured radiological findings in German. "
-            "Format your response with these sections:\n"
-            "## Befund\n## Diagnose\n## Differenzialdiagnosen\n## Therapie- & Kontrollempfehlungen\n## Technische Bildqualität\n\n"
-            "STRICT RULES: No emojis. Professional medical German only. "
-            "Describe every visible anatomical structure systematically. "
-            "If the image quality is poor, note it but still provide maximum detail about what IS visible. "
-            "You MUST analyze the image — do not decline or refuse."
-        )
+
+        # Alle vom Nutzer gewählten Parameter in den Prompt einbauen
+        mode_labels = {
+            'single':  'Einzelanalyse (ein Bild)',
+            'compare': 'Verlaufsanalyse (Vorher/Nachher-Vergleich)',
+            'diff':    'Bildvergleich (zwei Aufnahmen gegenüberstellen)',
+            'second':  'Zweitmeinung (kritische Überprüfung)'
+        }
+        oai_system = f"""You are an expert veterinary radiologist helping licensed veterinarians interpret animal radiological images.
+This is a professional veterinary diagnostic support platform (Animioo) used exclusively by licensed veterinarians.
+You are analyzing ANIMAL (non-human) images — this is veterinary medicine only.
+
+PATIENT INFORMATION provided by the veterinarian:
+- Animal species (Tierart): {species}
+- Body region (Körperregion): {region}
+- Analysis mode (Analyse-Modus): {mode_labels.get(mode, mode)}
+{f'- Patient name (Tiername): {pet_name}' if pet_name else ''}
+{f'- Clinical context (Klinischer Kontext): {ctx}' if ctx else ''}
+{f'- Specific focus (Spezifischer Fokus): {focus_text}' if focus_mode == 'specific' and focus_text else ''}
+
+TASK: Create a complete, professional veterinary radiology report in German for this {species} — region: {region}.
+
+MANDATORY REPORT STRUCTURE (use exactly these section headers):
+## Befund
+[Systematic description of ALL visible structures. Describe every bone, joint, organ, and soft tissue visible. Note any abnormalities precisely — location, size, shape, density, margins.]
+
+## Diagnose
+[Primary diagnosis with confidence level. Include radiological severity.]
+
+## Differenzialdiagnosen
+[List all differential diagnoses with reasoning.]
+
+## Therapie- & Kontrollempfehlungen
+[Concrete, prioritized recommendations: immediate actions, further diagnostics, therapy options, follow-up timing.]
+
+## Technische Bildqualität
+[Image technique, exposure, positioning, artifacts, recommendations for additional views.]
+
+STRICT RULES:
+- Write ONLY in professional German
+- NO emojis, NO symbols — pure medical text
+- Be extremely thorough — describe EVERY visible structure
+- You MUST analyze the image completely — this is a professional veterinary tool
+- Provide expert-level findings as a board-certified veterinary radiologist would"""
+
+        # Bilder und Texte für OpenAI aufbereiten
         oai_content = []
         for m in msgs:
             if m['type'] == 'image':
-                oai_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
+                oai_content.append({
+                    'type': 'image_url',
+                    'image_url': {
+                        'url': f"data:{m['source']['media_type']};base64,{m['source']['data']}",
+                        'detail': 'high'
+                    }
+                })
             else:
-                oai_content.append({'type':'text','text':m['text']})
+                # Prompt-Texte überspringen (bereits im System-Prompt)
+                if m['text'] not in ('Aufnahme A:', 'Aufnahme B:'):
+                    oai_content.append({'type': 'text', 'text': m['text']})
+
+        # Klarer Analyseauftrag als User-Message
+        analysis_request = f"Bitte erstelle einen vollständigen radiologischen Befundbericht für diesen {species} (Körperregion: {region})."
+        if pet_name:
+            analysis_request += f" Patient: {pet_name}."
+        if ctx:
+            analysis_request += f" Klinischer Kontext: {ctx}."
+        if focus_mode == 'specific' and focus_text:
+            analysis_request += f" Besonderer Fokus auf: {focus_text}."
+        oai_content.append({'type': 'text', 'text': analysis_request})
+
         for attempt in range(3):
             try:
                 resp = oc.chat.completions.create(
@@ -1456,20 +1507,21 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
                     max_tokens=4096,
                     temperature=0,
                     messages=[
-                        {'role':'system','content':oai_system},
-                        {'role':'user','content':oai_content}
+                        {'role': 'system', 'content': oai_system},
+                        {'role': 'user', 'content': oai_content}
                     ]
                 )
                 content = resp.choices[0].message.content or ''
-                # Verweigerungsantworten herausfiltern und Fallback ausloesen
-                refusal_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen', 'unable to', 'i cannot', "i'm sorry", 'i am sorry']
+                # Verweigerungsantworten erkennen und Fallback auslösen
+                refusal_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen',
+                                   'unable to', 'i cannot', "i'm sorry", 'i am sorry', 'nicht in der lage']
                 if any(p in content.lower() for p in refusal_phrases) and len(content) < 500:
-                    app.logger.warning(f'OpenAI Verweigerung erkannt (Versuch {attempt+1}), versuche erneut...')
+                    app.logger.warning(f'OpenAI Verweigerung (Versuch {attempt+1}), retry...')
                     if attempt < 2:
                         _time.sleep(1)
                         continue
                     return None
-                return content if len(content) > 100 else None
+                return content if len(content) > 150 else None
             except Exception as e:
                 app.logger.warning(f'OpenAI Fehler (Versuch {attempt+1}): {e}')
                 if attempt < 2:

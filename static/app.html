@@ -780,8 +780,9 @@ function renderAnalyse() {
     + '<div><div class="an-lbl">2 · Körperregion</div>'
     + '<input id="rg-inp" type="text" placeholder="Region suchen..." oninput="filterRg(this.value)"'
     + ' style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);margin-bottom:4px;">'
-    + '<div id="rg-list" style="max-height:150px;overflow-y:auto;">'
-    + ALL_REGIONS.map(function(rv){ return '<button class="rg-btn'+(AN.region===rv[1]?' on':'')+'" data-v="'+rv[1]+'" data-l="'+rv[0]+'" onclick="setRg(this,\''+rv[1]+'\')">'+rv[0]+'</button>'; }).join('')
+    + '<div style="font-size:10px;color:var(--text3);margin-bottom:4px;">Ausgewählt: <strong id="rg-chosen">'+( ALL_REGIONS.find(function(r){return r[1]===AN.region;})||[AN.region])[0]+'</strong></div>'
+    + '<div id="rg-list" style="max-height:130px;overflow-y:auto;">'
+    + ALL_REGIONS.map(function(rv){ return '<button class="rg-btn'+(AN.region===rv[1]?' on':'')+'" data-v="'+rv[1]+'" data-l="'+rv[0]+'" onclick="setRg(this,\''+rv[1]+'\',\''+rv[0]+'\')">'+rv[0]+'</button>'; }).join('')
     + '</div></div>'
     // Analysis Focus
     + '<div><div class="an-lbl">3 · Analyse-Fokus</div>'
@@ -860,9 +861,15 @@ function filterRg(q) {
     btn.style.display = !q||label.toLowerCase().indexOf(q.toLowerCase())>=0 ? '' : 'none';
   });
 }
-function setRg(btn, val) {
+function setRg(btn, val, label) {
   document.querySelectorAll('#rg-list .rg-btn').forEach(function(b){ b.classList.remove('on'); });
-  btn.classList.add('on'); AN.region=val;
+  btn.classList.add('on');
+  AN.region = val;
+  // Input-Feld und "Ausgewählt"-Label aktualisieren
+  var inp = document.getElementById('rg-inp');
+  if(inp) inp.value = label || val;
+  var ch = document.getElementById('rg-chosen');
+  if(ch) ch.textContent = label || val;
 }
 function setMode(btn, val) {
   document.querySelectorAll('.mode-btn').forEach(function(b){ b.classList.remove('on'); });
