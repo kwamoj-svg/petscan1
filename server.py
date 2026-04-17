@@ -1424,11 +1424,25 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
                 return None
         return None
 
-    # ── Helper: OpenAI (BACKUP — Fallback falls Anthropic nicht verfuegbar) ──
+    # ── Helper: OpenAI (PRIMAER — GPT-4o Bildanalyse) ──
     def try_openai():
         if not OPENAI_API_KEY: return None
         from openai import OpenAI
         oc = OpenAI(api_key=OPENAI_API_KEY)
+        # OpenAI-optimierter System-Prompt: klar als Veterinär-Tool framen
+        oai_system = (
+            "You are an expert veterinary radiologist assistant helping licensed veterinarians "
+            "interpret animal (non-human) radiological images — X-rays, CT scans, and MRI scans of animals. "
+            "This is a professional veterinary diagnostic support tool used exclusively by licensed veterinarians. "
+            "You are analyzing ANIMAL images only (dogs, cats, horses, exotic animals, etc.). "
+            "Provide detailed, structured radiological findings in German. "
+            "Format your response with these sections:\n"
+            "## Befund\n## Diagnose\n## Differenzialdiagnosen\n## Therapie- & Kontrollempfehlungen\n## Technische Bildqualität\n\n"
+            "STRICT RULES: No emojis. Professional medical German only. "
+            "Describe every visible anatomical structure systematically. "
+            "If the image quality is poor, note it but still provide maximum detail about what IS visible. "
+            "You MUST analyze the image — do not decline or refuse."
+        )
         oai_content = []
         for m in msgs:
             if m['type'] == 'image':
@@ -1442,17 +1456,20 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
                     max_tokens=4096,
                     temperature=0,
                     messages=[
-                        {'role':'system','content':system},
+                        {'role':'system','content':oai_system},
                         {'role':'user','content':oai_content}
                     ]
                 )
                 content = resp.choices[0].message.content or ''
-                # Verweigerungsantworten herausfiltern
-                refusal_phrases = ['tut mir leid', 'sorry', 'cannot provide', 'kann keine', 'unable to', 'nicht in der lage', 'i cannot', 'i\'m sorry']
-                if any(p in content.lower() for p in refusal_phrases) and len(content) < 600:
-                    app.logger.warning('OpenAI hat Analyse verweigert, versuche nächsten Provider...')
+                # Verweigerungsantworten herausfiltern und Fallback ausloesen
+                refusal_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen', 'unable to', 'i cannot', "i'm sorry", 'i am sorry']
+                if any(p in content.lower() for p in refusal_phrases) and len(content) < 500:
+                    app.logger.warning(f'OpenAI Verweigerung erkannt (Versuch {attempt+1}), versuche erneut...')
+                    if attempt < 2:
+                        _time.sleep(1)
+                        continue
                     return None
-                return content
+                return content if len(content) > 100 else None
             except Exception as e:
                 app.logger.warning(f'OpenAI Fehler (Versuch {attempt+1}): {e}')
                 if attempt < 2:
@@ -1481,10 +1498,10 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
             app.logger.warning(f'Gemini Fehler: {e}')
             return None
 
-    # ── Multi-Provider Fallback (Anthropic primär, OpenAI Backup, Gemini letzter Ausweg) ──
+    # ── Multi-Provider Fallback (OpenAI primär, Claude Backup, Gemini letzter Ausweg) ──
     providers = [
-        ('Anthropic', try_anthropic),
         ('OpenAI', try_openai),
+        ('Anthropic', try_anthropic),
         ('Gemini', try_gemini),
     ]
     text = None
@@ -1590,16 +1607,7 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
 
     answer = None
 
-    # Try Anthropic (Primär)
-    if ANTHROPIC_API_KEY and not answer:
-        try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
-            answer = resp.content[0].text
-        except Exception as e:
-            app.logger.warning(f'Chat Anthropic Fehler: {e}')
-
-    # Try OpenAI (Backup)
+    # Try OpenAI (Primär)
     if OPENAI_API_KEY and not answer:
         try:
             from openai import OpenAI
@@ -1609,6 +1617,15 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
             answer = resp.choices[0].message.content
         except Exception as e:
             app.logger.warning(f'Chat OpenAI Fehler: {e}')
+
+    # Try Anthropic (Backup)
+    if ANTHROPIC_API_KEY and not answer:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
+            answer = resp.content[0].text
+        except Exception as e:
+            app.logger.warning(f'Chat Anthropic Fehler: {e}')
 
     # Try Gemini (Letzter Ausweg)
     if GEMINI_API_KEY and not answer:
