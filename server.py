@@ -750,8 +750,10 @@ def analyse():
                 result['quality_ok'] = cached['quality_score'] >= 1
             return jsonify(result)
     except Exception as e:
-        app.logger.warning(f'Cache-Lookup fehlgeschlagen (Spalte fehlt?): {e}')
-        img_h = ''  # Cache deaktivieren, aber Analyse fortsetzen
+        app.logger.warning(f'Cache-Lookup fehlgeschlagen: {e}')
+        try: conn.rollback(); conn.close()
+        except: pass
+        img_h = ''  # Cache deaktivieren, Analyse trotzdem fortsetzen
 
     prompts = {
         'single':  f'Erstelle einen vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}. WICHTIG: Erkenne zuerst die Bildmodalität (Röntgen, CT oder MRT) und passe deine Analyse entsprechend an. Bei Röntgen: Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Bei CT: Analysiere Schnittebene, Fensterung, Dichteunterschiede. Bei MRT: Bestimme die Sequenz (T1, T2, FLAIR, etc.), analysiere Signalintensitäten, Gewebskontraste, Atrophien, Raumforderungen, Ödeme. Analysiere das Bild EXTREM GRÜNDLICH. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
@@ -1504,19 +1506,36 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
 
     rid = 'r_'+nid()
     conn = get_db()
-    # Erst versuchen mit neuen Spalten, dann Fallback ohne (für alte DB-Schemas)
+    # Fehlende Spalten zuerst per Migration hinzufügen (PostgreSQL-sicher)
+    for migration in [
+        "ALTER TABLE reports ADD COLUMN IF NOT EXISTS image_hash TEXT DEFAULT ''",
+        "ALTER TABLE reports ADD COLUMN IF NOT EXISTS quality_score INTEGER",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS api_key TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pet_name TEXT DEFAULT ''",
+    ]:
+        try:
+            db_execute(conn, migration)
+            conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except: pass
+    # INSERT mit allen Spalten
     try:
         db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
                      (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,now()))
     except Exception as e:
-        app.logger.warning(f'INSERT mit neuen Spalten fehlgeschlagen ({e}), versuche Fallback...')
+        app.logger.warning(f'INSERT fehlgeschlagen ({e}), Rollback + Fallback...')
+        try: conn.rollback()
+        except: pass
         try:
             db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
                          (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,now()))
         except Exception as e2:
             app.logger.error(f'INSERT Fallback fehlgeschlagen: {e2}')
+            try: conn.rollback()
+            except: pass
             conn.close()
-            return jsonify({'error': f'Datenbankfehler beim Speichern: {str(e2)}'}), 500
+            return jsonify({'error': f'Datenbankfehler: {str(e2)}'}), 500
     db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
     conn.commit(); conn.close()
 
