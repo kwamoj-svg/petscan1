@@ -736,19 +736,22 @@ def analyse():
 
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
-    # ── Image hash deduplication / caching ──
+    # ── Image hash deduplication / caching (sicher falls Spalte noch nicht migriert) ──
     img_h = image_hash(img_a)
-    conn = get_db()
-    cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
-    conn.close()
-    if cached:
-        # Return cached report instead of calling AI again
-        result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
-        result['cached'] = True
-        if cached.get('quality_score') is not None:
-            result['quality_score'] = cached['quality_score']
-            result['quality_ok'] = cached['quality_score'] >= 1
-        return jsonify(result)
+    try:
+        conn = get_db()
+        cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
+        conn.close()
+        if cached:
+            result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
+            result['cached'] = True
+            if cached.get('quality_score') is not None:
+                result['quality_score'] = cached['quality_score']
+                result['quality_ok'] = cached['quality_score'] >= 1
+            return jsonify(result)
+    except Exception as e:
+        app.logger.warning(f'Cache-Lookup fehlgeschlagen (Spalte fehlt?): {e}')
+        img_h = ''  # Cache deaktivieren, aber Analyse fortsetzen
 
     prompts = {
         'single':  f'Erstelle einen vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}. WICHTIG: Erkenne zuerst die Bildmodalität (Röntgen, CT oder MRT) und passe deine Analyse entsprechend an. Bei Röntgen: Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Bei CT: Analysiere Schnittebene, Fensterung, Dichteunterschiede. Bei MRT: Bestimme die Sequenz (T1, T2, FLAIR, etc.), analysiere Signalintensitäten, Gewebskontraste, Atrophien, Raumforderungen, Ödeme. Analysiere das Bild EXTREM GRÜNDLICH. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
@@ -1501,8 +1504,19 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
 
     rid = 'r_'+nid()
     conn = get_db()
-    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-                 (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,now()))
+    # Erst versuchen mit neuen Spalten, dann Fallback ohne (für alte DB-Schemas)
+    try:
+        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                     (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,now()))
+    except Exception as e:
+        app.logger.warning(f'INSERT mit neuen Spalten fehlgeschlagen ({e}), versuche Fallback...')
+        try:
+            db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                         (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,now()))
+        except Exception as e2:
+            app.logger.error(f'INSERT Fallback fehlgeschlagen: {e2}')
+            conn.close()
+            return jsonify({'error': f'Datenbankfehler beim Speichern: {str(e2)}'}), 500
     db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
     conn.commit(); conn.close()
 
@@ -2373,6 +2387,34 @@ def internal_error(e):
 # ═══════════════════════════════════════════════════
 # DEBUG: DB Health Check (temporär)
 # ═══════════════════════════════════════════════════
+@app.route('/api/db-check')
+def db_check():
+    """Debug: Prüft welche Spalten in reports/users existieren"""
+    try:
+        conn = get_db()
+        if USE_POSTGRES:
+            cur = conn.cursor()
+            cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='reports' ORDER BY ordinal_position")
+            report_cols = [r[0] for r in cur.fetchall()]
+            cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' ORDER BY ordinal_position")
+            user_cols = [r[0] for r in cur.fetchall()]
+        else:
+            cur = conn.execute("PRAGMA table_info(reports)")
+            report_cols = [r[1] for r in cur.fetchall()]
+            cur = conn.execute("PRAGMA table_info(users)")
+            user_cols = [r[1] for r in cur.fetchall()]
+        conn.close()
+        return jsonify({
+            'reports_columns': report_cols,
+            'users_columns': user_cols,
+            'has_image_hash': 'image_hash' in report_cols,
+            'has_quality_score': 'quality_score' in report_cols,
+            'has_api_key': 'api_key' in user_cols,
+            'db': 'PostgreSQL' if USE_POSTGRES else 'SQLite'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/health')
 def health_check():
     # Bei jedem Health-Check: Admin-Passwort sicherstellen
