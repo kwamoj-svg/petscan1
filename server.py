@@ -907,16 +907,21 @@ def me():
 @app.route('/api/patients', methods=['GET'])
 @require_auth
 def list_patients():
+    uid = request.user['id']
     conn = get_db()
-    rows = db_fetchall(conn, 'SELECT * FROM patients WHERE user_id=? ORDER BY name ASC', (request.user['id'],))
+    # Einzige Query mit Report-Count via Subquery (kein N+1)
+    rows = db_fetchall(conn, '''
+        SELECT p.*,
+               (SELECT COUNT(*) FROM reports r WHERE r.patient_id=p.id AND r.user_id=p.user_id) AS report_count
+        FROM patients p
+        WHERE p.user_id=?
+        ORDER BY p.name ASC
+    ''', (uid,))
     conn.close()
-    patients = [db_dict(r) for r in rows] if rows and not isinstance(rows[0], dict) else (rows or [])
-    # Befund-Anzahl pro Patient
+    patients = rows or []
+    # report_count sicherstellen (PostgreSQL gibt int, SQLite auch)
     for p in patients:
-        conn2 = get_db()
-        cnt = db_fetchone(conn2, 'SELECT COUNT(*) as c FROM reports WHERE patient_id=? AND user_id=?', (p['id'], request.user['id']))
-        conn2.close()
-        p['report_count'] = cnt[0] if cnt else 0
+        p['report_count'] = int(p.get('report_count') or 0)
     return jsonify({'patients': patients})
 
 @app.route('/api/patients', methods=['POST'])
@@ -962,27 +967,42 @@ def get_patient(pid):
 def update_patient(pid):
     d = request.json or {}
     conn = get_db()
-    rows = db_fetchall(conn, 'SELECT id FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
-    if not rows:
+    existing = db_fetchone(conn, 'SELECT id FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
+    if not existing:
         conn.close()
         return jsonify({'error': 'Patient nicht gefunden'}), 404
-    fields = ['name','species','breed','birth_date','weight','owner_name','owner_phone','owner_email','notes']
-    updates = {k: d[k] for k in fields if k in d}
+    # Whitelist — verhindert SQL Injection über Feldnamen
+    allowed = {'name','species','breed','birth_date','weight','owner_name','owner_phone','owner_email','notes'}
+    updates = {k: d[k] for k in allowed if k in d}
     if not updates:
         conn.close()
         return jsonify({'ok': True})
     set_clause = ', '.join(f'{k}=?' for k in updates)
-    db_execute(conn, f'UPDATE patients SET {set_clause} WHERE id=? AND user_id=?',
-               list(updates.values()) + [pid, request.user['id']])
-    conn.commit(); conn.close()
+    try:
+        db_execute(conn, f'UPDATE patients SET {set_clause} WHERE id=? AND user_id=?',
+                   list(updates.values()) + [pid, request.user['id']])
+        conn.commit()
+    except Exception as e:
+        try: conn.rollback()
+        except: pass
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+    conn.close()
     return jsonify({'ok': True})
 
 @app.route('/api/patients/<pid>', methods=['DELETE'])
 @require_auth
 def delete_patient(pid):
     conn = get_db()
-    db_execute(conn, 'DELETE FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
-    conn.commit(); conn.close()
+    try:
+        db_execute(conn, 'DELETE FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
+        conn.commit()
+    except Exception as e:
+        try: conn.rollback()
+        except: pass
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+    conn.close()
     return jsonify({'ok': True})
 
 # ═══════════════════════════════════════════════════
@@ -1222,6 +1242,13 @@ def analyse():
     img_a      = d.get('img_a','')
     img_b      = d.get('img_b','')
     patient_id = d.get('patient_id','').strip()
+    # patient_id validieren — muss dem User gehören
+    if patient_id:
+        conn_v = get_db()
+        _p = db_fetchone(conn_v, 'SELECT id FROM patients WHERE id=? AND user_id=?', (patient_id, user['id']))
+        conn_v.close()
+        if not _p:
+            patient_id = ''  # Unbekannter Patient → ignorieren, auto-create läuft später
 
     # DICOM-Erkennung: Falls Base64-Daten ein DICOM-File sind, konvertieren
     dicom_metadata = {}
@@ -2132,11 +2159,37 @@ STRICT RULES:
             conn.close()
             return jsonify({'error': f'Datenbankfehler: {str(e2)}'}), 500
     db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
+
+    # Auto-Patientenakte: falls pet_name angegeben und noch kein patient_id verknüpft,
+    # automatisch Patient suchen oder neu anlegen und Befund verknüpfen
+    auto_patient_id = patient_id
+    if pet_name and not patient_id:
+        try:
+            existing_patient = db_fetchone(conn,
+                'SELECT id FROM patients WHERE user_id=? AND name=? AND species=?',
+                (user['id'], pet_name, species))
+            if existing_patient:
+                auto_patient_id = db_dict(existing_patient)['id']
+            else:
+                auto_patient_id = 'p_' + nid()
+                db_execute(conn,
+                    '''INSERT INTO patients (id,user_id,name,species,breed,birth_date,weight,
+                       owner_name,owner_phone,owner_email,notes,created_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+                    (auto_patient_id, user['id'], pet_name, species,
+                     '','','','','','','', now()))
+            # Befund mit Patient verknüpfen
+            db_execute(conn, 'UPDATE reports SET patient_id=? WHERE id=?', (auto_patient_id, rid))
+        except Exception as e:
+            app.logger.warning(f'Auto-Patient Fehler: {e}')
+            auto_patient_id = None
+
     conn.commit(); conn.close()
 
     audit('Analyse',user['id'],f'{species}/{region}/{mode} via {used_provider}')
     result = {'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now(),
-              'quality_ok':quality_ok,'quality_score':quality_score,'dicom_metadata':dicom_metadata}
+              'quality_ok':quality_ok,'quality_score':quality_score,'dicom_metadata':dicom_metadata,
+              'patient_id': auto_patient_id or patient_id or ''}
     return jsonify(result)
 
 # ═══════════════════════════════════════════════════
@@ -3301,13 +3354,13 @@ def get_apikey():
         return jsonify({'api_key': None, 'has_key': False})
     reveal = request.args.get('reveal', '0') == '1'
     if reveal:
-        return jsonify({'api_key': api_key, 'has_key': True})
+        return jsonify({'api_key': api_key, 'api_key_masked': api_key, 'has_key': True})
     # Maskieren: erste 8 + "..." + letzte 4
     if len(api_key) > 12:
         masked = api_key[:8] + '...' + api_key[-4:]
     else:
         masked = api_key[:4] + '...'
-    return jsonify({'api_key': masked, 'has_key': True})
+    return jsonify({'api_key': masked, 'api_key_masked': masked, 'has_key': True})
 
 
 @app.route('/api/apikey/regenerate', methods=['POST'])
