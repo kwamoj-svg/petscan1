@@ -623,7 +623,7 @@ def send_reset_email(email, token):
 
 def send_admin_notification(subject, body):
     """Send notification to admin."""
-    send_email('admin@animioo.de', f'Animioo Admin: {subject}', f'''
+    send_email('support@animioo.de', f'Animioo Admin: {subject}', f'''
         <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
             <h3 style="color:#0f172a;">{subject}</h3>
             <p style="color:#475569;">{body}</p>
@@ -2468,13 +2468,34 @@ def get_report_image(rid):
         return jsonify({'error':'Kein Bild vorhanden'}), 404
     return jsonify({'image_data':r['image_data']})
 
-_thumb_cache = {}  # rid -> thumbnail_b64  (in-memory, max 200 entries)
-_THUMB_CACHE_MAX = 200
+# Disk-based thumbnail cache
+_THUMB_CACHE_DIR = os.path.join(os.path.dirname(__file__), '.thumb_cache')
+os.makedirs(_THUMB_CACHE_DIR, exist_ok=True)
+
+def _thumb_cache_path(rid):
+    return os.path.join(_THUMB_CACHE_DIR, f'{rid}.jpg.b64')
+
+def _thumb_cache_get(rid):
+    p = _thumb_cache_path(rid)
+    try:
+        if os.path.exists(p):
+            with open(p, 'r') as f:
+                return f.read()
+    except Exception:
+        pass
+    return None
+
+def _thumb_cache_set(rid, thumb_b64):
+    try:
+        with open(_thumb_cache_path(rid), 'w') as f:
+            f.write(thumb_b64)
+    except Exception:
+        pass
 
 @app.route('/api/reports/<rid>/thumbnail')
 @require_auth
 def get_report_thumbnail(rid):
-    """Generate a small thumbnail (120px) from the report image. Cached in memory."""
+    """Generate a small thumbnail (120px) from the report image. Cached on disk."""
     # Auth check first (lightweight)
     conn = get_db()
     auth_row = db_dict(db_fetchone(conn, 'SELECT user_id, image_data FROM reports WHERE id=?', (rid,)))
@@ -2486,9 +2507,10 @@ def get_report_thumbnail(rid):
     if not auth_row.get('image_data'):
         return jsonify({'error': 'Kein Bild vorhanden'}), 404
 
-    # Return cached thumbnail if available
-    if rid in _thumb_cache:
-        return jsonify({'thumbnail': _thumb_cache[rid]})
+    # Return cached thumbnail if available on disk
+    cached = _thumb_cache_get(rid)
+    if cached:
+        return jsonify({'thumbnail': cached})
 
     try:
         import base64, io
@@ -2499,11 +2521,7 @@ def get_report_thumbnail(rid):
         buf = io.BytesIO()
         img.save(buf, format='JPEG', quality=60)
         thumb_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-        # Store in cache (evict oldest if full)
-        if len(_thumb_cache) >= _THUMB_CACHE_MAX:
-            oldest = next(iter(_thumb_cache))
-            del _thumb_cache[oldest]
-        _thumb_cache[rid] = thumb_b64
+        _thumb_cache_set(rid, thumb_b64)
         return jsonify({'thumbnail': thumb_b64})
     except ImportError:
         return jsonify({'thumbnail': auth_row['image_data']})
@@ -2850,7 +2868,7 @@ def export_data():
             conn.close()
             return jsonify({'error': 'Benutzer nicht gefunden'}), 404
 
-        reports_raw = db_fetchall(conn, 'SELECT id,pet_name,species,created_at,status,summary FROM reports WHERE user_id=?', (uid,))
+        reports_raw = db_fetchall(conn, 'SELECT id,pet_name,species,region,mode,severity,quality_score,created_at FROM reports WHERE user_id=?', (uid,))
         reports = [db_dict(r) for r in reports_raw] if reports_raw else []
 
         session_count_row = db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM sessions WHERE user_id=?', (uid,))
@@ -3121,7 +3139,8 @@ def get_report_feedback(rid):
 
     rows = db_fetchall(conn, 'SELECT * FROM report_feedback WHERE report_id=? ORDER BY created_at DESC', (rid,))
     conn.close()
-    return jsonify({'feedback': rows})
+    # Return latest feedback as single object (frontend expects object, not list)
+    return jsonify({'feedback': rows[0] if rows else None})
 
 # ═══════════════════════════════════════════════════
 # PRAXIS-TEAMS
@@ -3504,6 +3523,7 @@ def internal_error(e):
 # DEBUG: DB Health Check (temporär)
 # ═══════════════════════════════════════════════════
 @app.route('/api/db-check')
+@require_admin
 def db_check():
     """Debug: Prüft welche Spalten in reports/users existieren"""
     try:
