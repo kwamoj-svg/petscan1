@@ -695,6 +695,37 @@ def agb(): return send_from_directory('static','agb.html')
 @app.route('/wissen')
 def wissen(): return send_from_directory('static','wissen.html')
 
+@app.route('/robots.txt')
+def robots_txt():
+    resp = make_response(
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "Disallow: /admin\n"
+        "Disallow: /app\n"
+        "Sitemap: https://animioo.de/sitemap.xml\n"
+    )
+    resp.headers['Content-Type'] = 'text/plain'
+    return resp
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    pages = [
+        ('https://animioo.de/', '2025-01-01', 'weekly', '1.0'),
+        ('https://animioo.de/datenschutz', '2025-01-01', 'monthly', '0.4'),
+        ('https://animioo.de/impressum',   '2025-01-01', 'monthly', '0.4'),
+        ('https://animioo.de/agb',         '2025-01-01', 'monthly', '0.4'),
+    ]
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for loc, lastmod, changefreq, priority in pages:
+        xml += f'  <url><loc>{loc}</loc><lastmod>{lastmod}</lastmod>'
+        xml += f'<changefreq>{changefreq}</changefreq><priority>{priority}</priority></url>\n'
+    xml += '</urlset>'
+    resp = make_response(xml)
+    resp.headers['Content-Type'] = 'application/xml'
+    return resp
+
 
 # ═══════════════════════════════════════════════════
 # AUTH API
