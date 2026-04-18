@@ -640,59 +640,6 @@ def agb(): return send_from_directory('static','agb.html')
 @app.route('/wissen')
 def wissen(): return send_from_directory('static','wissen.html')
 
-@app.route('/api/demo/report')
-def demo_report():
-    """Gibt einen vordefinierten Demo-Befund zurück — ohne Login."""
-    demo = {
-        'id': 'demo_report_001',
-        'species': 'Hund',
-        'region': 'Thorax',
-        'mode': 'single',
-        'pet_name': 'Max (Demo)',
-        'severity': 'mid',
-        'created_at': datetime.now().isoformat(),
-        'is_demo': True,
-        'report_text': """## Befund
-
-**Modalität:** Röntgenaufnahme, laterolateraler Strahlengang (rechts)
-**Patient:** Hund, ca. 5 Jahre, Labrador Retriever
-
-**Thorax:**
-Die Herzsilhouette erscheint geringgradig vergrößert mit einem vertebralen Herzmaß (VHS) von ca. 11,2 Wirbelkörperlängen (Normwert Labrador: 9,7–10,5). Die Herzkonturen sind glatt und regelmäßig begrenzt. Das Tracheal-Bronchialwinkel ist physiologisch. Keine Pleuraergüsse erkennbar.
-
-**Lunge:**
-Beidseits diffus verstärktes interstitielles Muster, besonders in den kaudoventralen Lungenfeldern. Kein Hinweis auf Konsolidierungen oder Atelektasen. Die Lungenränder sind scharf abgegrenzt. Die Lungengefäße sind mäßig prominent.
-
-**Knochen / Weichteile:**
-Rippen und Wirbelkörper ohne nachweisbare Frakturen oder osteolytische Läsionen. Weichteile unauffällig.
-
-## Diagnose
-
-**Kardiale Vergrößerung (VHS 11,2) mit interstitiellem Lungenmuster** — vereinbar mit beginnender dilatativer Kardiomyopathie oder Mitralklappeninsuffizienz Grad II-III.
-
-Dringlichkeit: **MITTEL — Zeitnahe Kontrolle empfohlen**
-
-## Differenzialdiagnosen
-
-1. **Dilatative Kardiomyopathie (DCM)** — typisch für Labrador, VHS-Erhöhung + interstitielles Muster
-2. **Mitralklappenendokardiose** — häufigste kardiale Erkrankung beim Hund, echokardiographisch zu differenzieren
-3. **Frühes kardiogenes Lungenödem** — interstitielles Muster als Frühzeichen
-4. Physiologische Variation (weniger wahrscheinlich bei diesem VHS-Wert)
-
-## Therapie- & Kontrollempfehlungen
-
-1. **Echokardiographie** dringend empfohlen zur Differenzierung und Schweregradeinteilung
-2. **EKG** zum Ausschluss von Arrhythmien (bei DCM häufig ventrikuläre Extrasystolen)
-3. **Blutdruck-Messung** — Hypertension als Kofaktor ausschließen
-4. Medikamentöse Therapie erst nach Echo-Bestätigung (ACE-Hemmer, Pimobendan je nach Stadium)
-5. **Kontroll-Röntgen** in 4-6 Wochen empfohlen
-6. **Prognose:** Bei frühzeitiger Therapie gut; ohne Behandlung Progress zu kongestiver Herzinsuffizienz
-
-## Technische Bildqualität
-
-Aufnahme in Inspiration, gute Lagerung, regelrechte Belichtung. Ausreichende diagnostische Qualität. Keine Bewegungsartefakte. Zusätzliche dorsoventrale Projektion zur Herzbeurteilung empfohlen."""
-    }
-    return jsonify(demo)
 
 # ═══════════════════════════════════════════════════
 # AUTH API

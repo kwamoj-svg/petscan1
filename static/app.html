@@ -350,8 +350,6 @@ a{color:inherit;text-decoration:none;}
           <div class="fg"><label class="fl">E-Mail</label><input class="fi" type="email" id="l-em" placeholder="ihre@email.de"></div>
           <div class="fg"><label class="fl">Passwort</label><input class="fi" type="password" id="l-pw" placeholder="••••••••"></div>
           <button class="l-btn" id="l-btn" onclick="doLogin()">Anmelden</button>
-          <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text3);">— oder —</div>
-          <button class="l-btn" style="background:var(--s2);color:var(--text);border:1px solid var(--border);margin-top:8px;" onclick="startDemo()">Demo testen (kein Login)</button>
           <div class="l-link">Noch kein Konto? <a href="#" onclick="switchTab('register')">Kostenlos registrieren</a></div>
           <div class="l-link"><a href="#" onclick="switchTab('forgot')">Passwort vergessen?</a></div>
         </div>
@@ -627,40 +625,6 @@ function doLogout() {
   document.getElementById('ls').classList.add('active');
 }
 
-function startDemo() {
-  var btn = event.target;
-  btn.disabled = true; btn.textContent = 'Demo wird geladen...';
-  fetch('/api/demo/report').then(function(r){ return r.json(); }).then(function(data){
-    // Demo-User simulieren
-    ME = {id:'demo', email:'demo@animioo.de', name:'Demo-Nutzer', plan:'professional', role:'demo',
-           analyses_used:1, analyses_limit:999, email_verified:1};
-    document.getElementById('ls').classList.remove('active');
-    document.getElementById('as').classList.add('active');
-    document.getElementById('tb-name').textContent = 'Demo-Modus';
-    document.getElementById('sb-un').textContent = 'Demo-Modus';
-    document.getElementById('sb-up').textContent = 'Animioo';
-    var planEl = document.getElementById('tb-plan');
-    planEl.textContent = 'Demo';
-    planEl.className = 'tb-plan-badge plan-professional';
-    document.getElementById('nb-upgrade').style.display='none';
-    var vb = document.getElementById('verify-banner');
-    if(vb) vb.style.display='none';
-    // Demo-Befund anzeigen
-    navTo('analyse', document.querySelector('.nb'));
-    setTimeout(function(){
-      var report = Object.assign({}, data, {img_a:''});
-      CACHED.unshift(report);
-      updateBadge(1);
-      renderResult(report);
-      var ts = document.getElementById('result-ts');
-      if(ts) ts.textContent = 'Demo-Befund';
-      toast('Demo geladen — kein echter Befund, nur zur Demonstration');
-    }, 300);
-  }).catch(function(){
-    btn.disabled=false; btn.textContent='Demo testen (kein Login)';
-    toast('Demo konnte nicht geladen werden','red');
-  });
-}
 
 function show2FALogin(tempToken) {
   var loginCard = document.querySelector('.l-card');
