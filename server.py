@@ -2048,7 +2048,35 @@ STRICT RULES:
                 if m['text'] not in ('Aufnahme A:', 'Aufnahme B:'):
                     oai_content.append({'type': 'text', 'text': m['text']})
 
-        # Klarer Analyseauftrag als User-Message
+        # ── PHASE 1: Freie Bildbeobachtung (kein Format-Zwang) ──
+        # Die KI beschreibt zuerst unstrukturiert was sie WIRKLICH sieht.
+        # Das verankert die spätere strukturierte Analyse in echten Bildbefunden.
+        free_obs = ''
+        try:
+            phase1_content = list(oai_content)  # Kopie mit Bildern
+            phase1_content.append({'type': 'text', 'text':
+                f"You are a veterinary radiologist looking at this {species} radiograph ({region}). "
+                f"In 3-5 sentences, describe EXACTLY what you see — no format, no structure, just honest raw observations. "
+                f"Focus on what is abnormal, unusual, or clinically relevant. "
+                f"Pretend you're describing it to a colleague on the phone."
+            })
+            phase1_resp = oc.chat.completions.create(
+                model='gpt-4o',
+                max_tokens=400,
+                temperature=0.2,  # leicht erhöht für natürlichere Beschreibung
+                messages=[
+                    {'role': 'system', 'content':
+                        f"You are an expert veterinary radiologist. You are analyzing a {species} image of region: {region}. "
+                        f"Speak directly and honestly about what you observe. No disclaimers, no formatting."},
+                    {'role': 'user', 'content': phase1_content}
+                ]
+            )
+            free_obs = phase1_resp.choices[0].message.content or ''
+            app.logger.info(f'Phase 1 Freie Beobachtung ({len(free_obs)} Zeichen): {free_obs[:200]}')
+        except Exception as e:
+            app.logger.warning(f'Phase 1 fehlgeschlagen (ignoriert): {e}')
+
+        # ── PHASE 2: Strukturierter Befund (verankert in Phase-1-Beobachtungen) ──
         analysis_request = f"Bitte erstelle einen vollständigen radiologischen Befundbericht für diesen {species} (Körperregion: {region})."
         if pet_name:
             analysis_request += f" Patient: {pet_name}."
@@ -2056,6 +2084,8 @@ STRICT RULES:
             analysis_request += f" Klinischer Kontext: {ctx}."
         if focus_mode == 'specific' and focus_text:
             analysis_request += f" Besonderer Fokus auf: {focus_text}."
+        if free_obs:
+            analysis_request += f"\n\nMeine initialen Bildbeobachtungen (bitte in den strukturierten Befund einarbeiten und vertiefen):\n{free_obs}"
         oai_content.append({'type': 'text', 'text': analysis_request})
 
         for attempt in range(3):
