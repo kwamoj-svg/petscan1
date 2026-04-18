@@ -167,8 +167,11 @@ def init_db():
             '''CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
+                email TEXT DEFAULT '',
                 expires_at TEXT NOT NULL,
-                created_at TEXT
+                created_at TEXT,
+                ip_address TEXT DEFAULT '',
+                user_agent TEXT DEFAULT ''
             )''',
             '''CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
@@ -251,8 +254,11 @@ def init_db():
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
+                email TEXT DEFAULT "",
                 expires_at TEXT NOT NULL,
-                created_at TEXT
+                created_at TEXT,
+                ip_address TEXT DEFAULT "",
+                user_agent TEXT DEFAULT ""
             );
             CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
@@ -332,6 +338,9 @@ def init_db():
     for col in [
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT ''",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER DEFAULT 0",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip_address TEXT DEFAULT ''",
+        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT DEFAULT ''",
     ]:
         try:
             db_execute(conn, col); conn.commit()
@@ -579,8 +588,10 @@ def register():
         (uid,email,hash_pw(password),name or email.split('@')[0],praxis or 'Meine Praxis','trial','customer',verify_token,trial_end,now()))
 
     token = secrets.token_hex(32)
-    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
-                 (token,uid,(datetime.now()+timedelta(days=30)).isoformat(),now()))
+    _ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+    _ua = request.headers.get('User-Agent', '')[:200]
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,email,expires_at,created_at,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)',
+                 (token,uid,email,(datetime.now()+timedelta(days=30)).isoformat(),now(),_ip,_ua))
     conn.commit(); conn.close()
 
     # E-Mail-Verifizierung senden
@@ -721,8 +732,10 @@ def login():
         return jsonify({'requires_2fa': True, 'temp_token': temp_token})
 
     token = secrets.token_hex(32)
-    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
-                 (token,user['id'],(datetime.now()+timedelta(days=30)).isoformat(),now()))
+    _ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+    _ua = request.headers.get('User-Agent', '')[:200]
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,email,expires_at,created_at,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)',
+                 (token,user['id'],em,(datetime.now()+timedelta(days=30)).isoformat(),now(),_ip,_ua))
     db_execute(conn, 'UPDATE users SET last_login=? WHERE id=?',(now(),user['id']))
     conn.commit(); conn.close()
 
@@ -880,8 +893,10 @@ def verify_2fa():
     # Temp-Session löschen, vollständige Session erstellen
     db_execute(conn, 'DELETE FROM sessions WHERE token=?', (temp_token,))
     new_token = secrets.token_hex(32)
-    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
-               (new_token, user['id'], (datetime.now()+timedelta(days=30)).isoformat(), now()))
+    _ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+    _ua = request.headers.get('User-Agent', '')[:200]
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,email,expires_at,created_at,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)',
+               (new_token, user['id'], user.get('email',''), (datetime.now()+timedelta(days=30)).isoformat(), now(), _ip, _ua))
     conn.commit(); conn.close()
 
     audit('2FA Login', user['id'], user['email'])
