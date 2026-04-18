@@ -995,16 +995,23 @@ def user_stats():
     uid = request.user['id']
     conn = get_db()
 
+    def scalar(row):
+        """COUNT(*)-Zeile → int, egal ob PostgreSQL-Dict oder SQLite-Tuple."""
+        if row is None: return 0
+        if isinstance(row, dict):
+            return list(row.values())[0]
+        return row[0]
+
     # Gesamt-Befunde
-    total = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=?', (uid,)) or [0])[0]
+    total = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=?', (uid,)))
 
     # Diese Woche
     week_ago = (datetime.now() - timedelta(days=7)).isoformat()
-    week = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=? AND created_at>?', (uid, week_ago)) or [0])[0]
+    week = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=? AND created_at>?', (uid, week_ago)))
 
     # Dieser Monat
     month_ago = (datetime.now() - timedelta(days=30)).isoformat()
-    month = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=? AND created_at>?', (uid, month_ago)) or [0])[0]
+    month = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=? AND created_at>?', (uid, month_ago)))
 
     # Nach Tierart (Top 5)
     by_species_rows = db_fetchall(conn, 'SELECT species, COUNT(*) as cnt FROM reports WHERE user_id=? GROUP BY species ORDER BY cnt DESC LIMIT 5', (uid,))
@@ -1023,12 +1030,12 @@ def user_stats():
     for i in range(6, -1, -1):
         day_start = (datetime.now() - timedelta(days=i)).replace(hour=0,minute=0,second=0).isoformat()
         day_end = (datetime.now() - timedelta(days=i)).replace(hour=23,minute=59,second=59).isoformat()
-        cnt = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=? AND created_at>=? AND created_at<=?', (uid, day_start, day_end)) or [0])[0]
+        cnt = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=? AND created_at>=? AND created_at<=?', (uid, day_start, day_end)))
         day_label = (datetime.now() - timedelta(days=i)).strftime('%a')
         daily.append({'day': day_label, 'count': cnt})
 
     # Patienten-Anzahl
-    patient_count = (db_fetchone(conn, 'SELECT COUNT(*) FROM patients WHERE user_id=?', (uid,)) or [0])[0]
+    patient_count = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM patients WHERE user_id=?', (uid,)))
 
     conn.close()
     return jsonify({
