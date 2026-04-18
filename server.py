@@ -1938,7 +1938,17 @@ Empfehlungen für bessere Aufnahmen oder zusätzliche Projektionen (z.B. "Zusät
 empfohlen zur besseren Beurteilung des Mediastinums")]
 
 ---
-*Animioo KI-Befundassistent -- Expertenniveau. Kein Ersatz fuer tieraerztliche Diagnose.*"""
+*Animioo KI-Befundassistent -- Expertenniveau. Kein Ersatz fuer tieraerztliche Diagnose.*
+
+PFLICHT — LETZTE ZEILE DES BEFUNDES:
+Schreibe als allerletzte Zeile exakt diesen Tag (ersetze LEVEL mit deiner Bewertung):
+##SEV:NIEDRIG## oder ##SEV:MITTEL## oder ##SEV:HOCH## oder ##SEV:NOTFALL##
+
+Wähle die Schwere anhand dieser Kriterien:
+- ##SEV:NIEDRIG## → Normalbefund, leichte degenerative Veränderungen, Zufallsbefunde
+- ##SEV:MITTEL## → Moderate Pathologien, zeitnahe Kontrolle erforderlich (Tage)
+- ##SEV:HOCH## → Frakturen, Luxationen, Tumorverdacht, signifikante Organveränderungen
+- ##SEV:NOTFALL## → GDV, Spannungspneumothorax, Harnblasenruptur, Wirbelkanaleinengung"""
 
     msgs = [
         {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_a}},
@@ -2030,7 +2040,16 @@ STRICT RULES:
 - NO emojis, NO symbols — pure medical text
 - Be extremely thorough — describe EVERY visible structure
 - You MUST analyze the image completely — this is a professional veterinary tool
-- Provide expert-level findings as a board-certified veterinary radiologist would"""
+- Provide expert-level findings as a board-certified veterinary radiologist would
+
+MANDATORY LAST LINE — write exactly one of these severity tags as the very last line:
+##SEV:NIEDRIG## or ##SEV:MITTEL## or ##SEV:HOCH## or ##SEV:NOTFALL##
+
+Criteria:
+- ##SEV:NIEDRIG## → Normal finding, mild degenerative changes, incidental findings
+- ##SEV:MITTEL## → Moderate pathology, timely follow-up needed (days)
+- ##SEV:HOCH## → Fractures, luxations, tumor suspicion, significant organ changes
+- ##SEV:NOTFALL## → GDV, tension pneumothorax, bladder rupture, spinal cord compression"""
 
         # Bilder und Texte für OpenAI aufbereiten
         oai_content = []
@@ -2158,18 +2177,25 @@ STRICT RULES:
     if not text:
         return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
 
-    tl   = text.lower()
     import re as _re
-    # Robuste Severity-Erkennung — fängt alle Formate: **HOCH**, [HOCH], Dringlichkeit: HOCH etc.
-    _high = bool(_re.search(r'(notfall|emergency|\burgent\b)', tl) or
-                 _re.search(r'dringlichkeit[^a-z]{0,20}(hoch|high|notfall)', tl) or
-                 _re.search(r'\*{1,2}\s*(hoch|high|notfall)\s*\*{1,2}', tl) or
-                 _re.search(r'\[\s*(hoch|high|notfall)\s*\]', tl))
-    _low  = bool(not _high and (
-                 _re.search(r'dringlichkeit[^a-z]{0,20}(niedrig|low|gering)', tl) or
-                 _re.search(r'\*{1,2}\s*(niedrig|low)\s*\*{1,2}', tl) or
-                 _re.search(r'\[\s*(niedrig|low)\s*\]', tl)))
-    sev   = 'high' if _high else ('low' if _low else 'mid')
+    # Severity aus maschinenlesbarem Tag extrahieren (zuverlässigste Methode)
+    _sev_tag = _re.search(r'##SEV:(NIEDRIG|MITTEL|HOCH|NOTFALL)##', text, _re.IGNORECASE)
+    if _sev_tag:
+        _sev_map = {'niedrig': 'low', 'mittel': 'mid', 'hoch': 'high', 'notfall': 'high'}
+        sev = _sev_map.get(_sev_tag.group(1).lower(), 'mid')
+        # Tag aus dem angezeigten Befundtext entfernen
+        text = _re.sub(r'\n?##SEV:(NIEDRIG|MITTEL|HOCH|NOTFALL)##\n?', '', text, flags=_re.IGNORECASE).strip()
+    else:
+        # Fallback: Regex-Suche im Text
+        tl = text.lower()
+        _high = bool(_re.search(r'(notfall|emergency|\burgent\b)', tl) or
+                     _re.search(r'dringlichkeit[^a-z]{0,20}(hoch|high|notfall)', tl) or
+                     _re.search(r'\*{1,2}\s*(hoch|high|notfall)\s*\*{1,2}', tl))
+        _low  = bool(not _high and (
+                     _re.search(r'dringlichkeit[^a-z]{0,20}(niedrig|low|gering)', tl) or
+                     _re.search(r'\*{1,2}\s*(niedrig|low)\s*\*{1,2}', tl)))
+        sev   = 'high' if _high else ('low' if _low else 'mid')
+        app.logger.info(f'Severity Fallback-Regex verwendet: {sev}')
 
     # ── Qualitätskontrolle ──
     required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
