@@ -2144,62 +2144,99 @@ def chat_about_report():
     report_text = d.get('report_text','')
     context = d.get('context',{})
     history = d.get('history',[])
+    image_data = d.get('image_data','') or context.get('image_data','')
 
     if not question: return jsonify({'error':'Keine Frage gestellt'}), 400
     if not report_text: return jsonify({'error':'Kein Befund vorhanden'}), 400
 
+    has_image = bool(image_data and len(image_data) > 100)
+
     system = f"""Du bist ein erfahrener ECVDI-Diplomate für Veterinärradiologie.
-Ein Tierarzt hat einen KI-generierten Befundbericht erhalten und stellt nun Rückfragen.
+Ein Tierarzt stellt Rückfragen zu einem Röntgenbild und dem dazugehörigen KI-Befund.
+{"Das originale Röntgenbild wurde dir zur direkten Begutachtung mitgeschickt. Analysiere es bei jeder Antwort erneut und beziehe dich auf das, was du konkret im Bild siehst." if has_image else ""}
 
 Befund-Kontext: {context.get('species','Hund')}, {context.get('region','Thorax')}, Modus: {context.get('mode','single')}
 {('Patient: '+context['pet_name']) if context.get('pet_name') else ''}
 
-Der ursprüngliche Befundbericht:
+Der ursprüngliche KI-Befundbericht:
 ---
 {report_text}
 ---
 
 Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
-- Beziehe dich immer auf den konkreten Befund oben.
+- Schaue dir das Röntgenbild direkt an und beschreibe was du siehst — verlasse dich nicht nur auf den Textbefund.
 - Erkläre Fachbegriffe wenn nötig.
 - Gib konkrete, praxisrelevante Antworten.
 - Halte die Antworten kurz und fokussiert (max 200 Wörter).
 - Wenn du dir bei etwas unsicher bist, sage es ehrlich."""
 
-    messages = []
-    for h in history[-10:]:
-        messages.append({'role':h['role'] if h['role'] in ('user','assistant') else 'user', 'content':h['text']})
+    # Bisherige Chat-History (ohne Bild — Bild kommt bei jeder Frage neu)
+    text_history = []
+    for h in history[-8:]:
+        text_history.append({'role':h['role'] if h['role'] in ('user','assistant') else 'user', 'content':h['text']})
 
     answer = None
 
-    # Try OpenAI (Primär)
+    # Try OpenAI GPT-4o Vision (Primär)
     if OPENAI_API_KEY and not answer:
         try:
             from openai import OpenAI
             oc = OpenAI(api_key=OPENAI_API_KEY)
-            oai_msgs = [{'role':'system','content':system}] + [{'role':m['role'],'content':m['content']} for m in messages]
+            oai_msgs = [{'role':'system','content':system}]
+            # History ohne Bild
+            for m in text_history[:-1] if text_history else []:
+                oai_msgs.append({'role':m['role'],'content':m['content']})
+            # Aktuelle Frage MIT Bild (falls vorhanden)
+            if has_image:
+                user_content = [
+                    {'type':'image_url','image_url':{'url':f'data:image/jpeg;base64,{image_data}','detail':'high'}},
+                    {'type':'text','text':question}
+                ]
+            else:
+                user_content = question
+            oai_msgs.append({'role':'user','content':user_content})
             resp = oc.chat.completions.create(model='gpt-4o', max_tokens=800, messages=oai_msgs)
             answer = resp.choices[0].message.content
         except Exception as e:
             app.logger.warning(f'Chat OpenAI Fehler: {e}')
 
-    # Try Anthropic (Backup)
+    # Try Anthropic Claude Vision (Backup)
     if ANTHROPIC_API_KEY and not answer:
         try:
             client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
+            anth_msgs = []
+            for m in text_history[:-1] if text_history else []:
+                anth_msgs.append({'role':m['role'],'content':m['content']})
+            if has_image:
+                anth_msgs.append({'role':'user','content':[
+                    {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':image_data}},
+                    {'type':'text','text':question}
+                ]})
+            else:
+                anth_msgs.append({'role':'user','content':question})
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=anth_msgs)
             answer = resp.content[0].text
         except Exception as e:
             app.logger.warning(f'Chat Anthropic Fehler: {e}')
 
-    # Try Gemini (Letzter Ausweg)
+    # Try Gemini Vision (Letzter Ausweg)
     if GEMINI_API_KEY and not answer:
         try:
             import google.generativeai as genai
+            from PIL import Image as PILImage
             genai.configure(api_key=GEMINI_API_KEY)
             model = genai.GenerativeModel('gemini-2.0-flash')
-            chat_text = system + '\n\n' + '\n'.join([f"{m['role']}: {m['content']}" for m in messages])
-            resp = model.generate_content(chat_text)
+            parts = []
+            if has_image:
+                img_bytes = __import__('base64').b64decode(image_data)
+                img = PILImage.open(io.BytesIO(img_bytes))
+                parts.append(img)
+            chat_text = system + '\n\n'
+            for m in text_history:
+                chat_text += f"{m['role']}: {m['content']}\n"
+            chat_text += f"user: {question}"
+            parts.append(chat_text)
+            resp = model.generate_content(parts)
             answer = resp.text
         except Exception as e:
             app.logger.warning(f'Chat Gemini Fehler: {e}')

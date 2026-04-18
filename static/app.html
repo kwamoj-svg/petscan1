@@ -1320,7 +1320,7 @@ function renderResult(r) {
     +'</div>';
   CHAT_HISTORY=[];
   CHAT_REPORT=r.report_text;
-  CHAT_CONTEXT={species:r.species,region:r.region,mode:r.mode,pet_name:r.pet_name||''};
+  CHAT_CONTEXT={species:r.species,region:r.region,mode:r.mode,pet_name:r.pet_name||'',image_data:r.image_data||''};
 }
 
 // Feature 3: E-Mail-Befundversand
@@ -1353,7 +1353,8 @@ function sendChat(){
     question:q,
     report_text:CHAT_REPORT,
     context:CHAT_CONTEXT,
-    history:CHAT_HISTORY.slice(-10)
+    history:CHAT_HISTORY.slice(-10),
+    image_data:CHAT_CONTEXT.image_data||''
   })
   .then(function(d){
     var typing=document.getElementById('chat-typing');
