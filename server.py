@@ -439,6 +439,14 @@ def init_db():
             try: conn.rollback()
             except: pass
 
+    # Migrate: update existing trial users from old default 20 → new default 5
+    try:
+        db_execute(conn, "UPDATE users SET analyses_limit=5 WHERE plan='trial' AND analyses_limit=20")
+        conn.commit()
+    except Exception:
+        try: conn.rollback()
+        except: pass
+
     # ── DB-INDIZES ──
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id)",
