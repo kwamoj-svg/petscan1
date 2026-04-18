@@ -68,6 +68,7 @@ STRIPE_SECRET_KEY    = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PUB_KEY       = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SEC   = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_PRICE_STARTER = os.environ.get('STRIPE_PRICE_STARTER', '')
+STRIPE_PRICE_PRAXIS  = os.environ.get('STRIPE_PRICE_PRAXIS', '')
 STRIPE_PRICE_PRO     = os.environ.get('STRIPE_PRICE_PRO', '')
 APP_URL              = os.environ.get('APP_URL', 'http://localhost:5000')
 DATABASE_URL         = os.environ.get('DATABASE_URL', '')
@@ -149,7 +150,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT 'customer',
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 20,
+                analyses_limit INTEGER DEFAULT 5,
                 stripe_customer_id TEXT DEFAULT '',
                 stripe_subscription_id TEXT DEFAULT '',
                 email_verified INTEGER DEFAULT 0,
@@ -278,7 +279,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT "customer",
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 20,
+                analyses_limit INTEGER DEFAULT 5,
                 stripe_customer_id TEXT DEFAULT "",
                 stripe_subscription_id TEXT DEFAULT "",
                 email_verified INTEGER DEFAULT 0,
@@ -735,7 +736,7 @@ def register():
     resp = make_response(jsonify({
         'token': token,
         'user': {'id':uid,'email':email,'name':name or email,'praxis':praxis,'plan':'trial','role':'customer',
-                 'analyses_used':0,'analyses_limit':20,'email_verified':0}
+                 'analyses_used':0,'analyses_limit':5,'email_verified':0}
     }), 201)
     is_https = APP_URL.startswith('https')
     resp.set_cookie('ps_session', token, httponly=True, secure=is_https, samesite='Lax', max_age=30*24*3600, path='/')
@@ -1230,6 +1231,8 @@ def analyse():
             }), 402
         if user['plan'] == 'starter' and user['analyses_used'] >= 50:
             return jsonify({'error':'Monatliches Starter-Kontingent (50 Analysen) erreicht.','upgrade_required':True}), 402
+        if user['plan'] == 'praxis' and user['analyses_used'] >= 300:
+            return jsonify({'error':'Monatliches Praxis-Kontingent (300 Analysen) erreicht.','upgrade_required':True}), 402
 
     d          = request.json or {}
     pet_name   = d.get('pet_name','').strip()
@@ -2527,7 +2530,8 @@ def create_checkout():
     d    = request.json or {}
     plan = d.get('plan','starter')
 
-    price_id = STRIPE_PRICE_PRO if plan == 'professional' else STRIPE_PRICE_STARTER
+    price_map = {'starter': STRIPE_PRICE_STARTER, 'praxis': STRIPE_PRICE_PRAXIS, 'professional': STRIPE_PRICE_PRO}
+    price_id = price_map.get(plan, '')
     if not price_id:
         return jsonify({'error':f'Stripe Preis-ID für {plan} fehlt.'}), 503
 
@@ -2544,7 +2548,7 @@ def create_checkout():
         conn = get_db()
         db_execute(conn, 'INSERT INTO payments (id,user_id,stripe_session_id,plan,amount,status,created_at) VALUES (?,?,?,?,?,?,?)',
                      ('pay_'+nid(), request.user['id'], session.id, plan,
-                      4900 if plan=='starter' else 17900, 'pending', now()))
+                      {'starter':4900,'praxis':12900,'professional':49900}.get(plan,4900), 'pending', now()))
         conn.commit(); conn.close()
 
         return jsonify({'checkout_url': session.url})
@@ -2574,7 +2578,7 @@ def stripe_webhook():
         cust_id  = sess.get('customer','')
 
         if uid:
-            limit = 50 if plan == 'starter' else 999999
+            limit = {'starter':50,'praxis':300,'professional':999999}.get(plan,5)
             conn = get_db()
             db_execute(conn, 'UPDATE users SET plan=?,analyses_limit=?,stripe_customer_id=?,stripe_subscription_id=? WHERE id=?',
                          (plan,limit,cust_id,sub_id,uid))

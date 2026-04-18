@@ -2239,7 +2239,7 @@ function buildAccount() {
     +'<div id="tfa-status" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>'
     +'<div id="tfa-setup-area"></div>'
     +'</div>'
-    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);margin-top:14px;"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 99 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
+    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);margin-top:14px;"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">300+ Analysen, alle Exportformate — ab 99 €/Monat (Praxis) oder unbegrenzt ab 399 €/Monat (Professional).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
     +'<div class="ac-card"><div class="ac-h">Datenschutz (DSGVO)</div>'
     +'<p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Gem&auml;&szlig; DSGVO haben Sie das Recht, Ihre Daten einzusehen, zu exportieren und Ihr Konto zu l&ouml;schen.</p>'
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
@@ -2369,11 +2369,25 @@ function toggleUpPricing(){
 function renderUpgrade() {
   var c=document.getElementById('main-content');
   c.style.overflow='';
-  var sPrice=UP_YEARLY?'39':'49', pPrice=UP_YEARLY?'99':'129';
+  var sPrice=UP_YEARLY?'39':'49';
+  var xPrice=UP_YEARLY?'99':'129';
+  var pPrice=UP_YEARLY?'399':'499';
   var sPeriod=UP_YEARLY?'pro Monat · jährlich (468 €/Jahr)':'pro Monat · zzgl. MwSt.';
-  var pPeriod=UP_YEARLY?'pro Monat · jährlich (1.188 €/Jahr)':'pro Monat · zzgl. MwSt.';
-  var sBilling=UP_YEARLY?'yearly':'monthly', pBilling=UP_YEARLY?'yearly':'monthly';
-  c.innerHTML='<div style="overflow-y:auto;padding:22px;flex:1;"><div style="max-width:720px;margin:0 auto;">'
+  var xPeriod=UP_YEARLY?'pro Monat · jährlich (1.188 €/Jahr)':'pro Monat · zzgl. MwSt.';
+  var pPeriod=UP_YEARLY?'pro Monat · jährlich (4.788 €/Jahr)':'pro Monat · zzgl. MwSt.';
+  var billing=UP_YEARLY?'yearly':'monthly';
+  function card(plan,title,price,period,feats,highlight){
+    var hl=highlight?'border:2px solid var(--blue);background:var(--blue-dim);':'border:1px solid var(--border);';
+    var badge=highlight?'<div style="position:absolute;top:-10px;right:12px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:10px;">BELIEBT</div>':'';
+    return '<div style="'+hl+'border-radius:10px;padding:20px;position:relative;cursor:pointer;" onclick="startCheckout(\''+plan+'\',\''+billing+'\')">'
+      +badge
+      +'<div style="font-size:15px;font-weight:800;margin-bottom:4px;color:var(--text)">'+title+'</div>'
+      +'<div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">'+price+' €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+period+'</div>'
+      +'<div style="font-size:12px;color:var(--text2);line-height:1.9;margin-bottom:14px">'+feats+'</div>'
+      +'<button class="abt ab-p" style="width:100%;justify-content:center">Jetzt kaufen</button></div>';
+  }
+  c.innerHTML='<div style="overflow-y:auto;padding:22px;flex:1;"><div style="max-width:900px;margin:0 auto;">'
     +'<h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Plan wählen</h2>'
     +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">'
     +'<span style="font-size:13px;font-weight:600;color:'+(UP_YEARLY?'var(--text3)':'var(--text)')+'">Monatlich</span>'
@@ -2382,20 +2396,22 @@ function renderUpgrade() {
     +'<span style="font-size:13px;font-weight:600;color:'+(UP_YEARLY?'var(--text)':'var(--text3)')+'">Jährlich</span>'
     +'<span style="font-size:10px;font-weight:700;background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:6px;">20% sparen</span>'
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">'
-    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;"><div style="font-size:15px;font-weight:800;margin-bottom:4px">Gratis</div><div style="font-size:26px;font-weight:800;margin-bottom:4px">0 €</div><div style="font-size:11px;color:var(--text3);margin-bottom:12px">20 Analysen gratis</div><div style="font-size:12px;color:var(--text2);line-height:1.8">20 KI-Analysen<br>Alle Tierarten<br>PDF Export</div></div>'
-    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;cursor:pointer;" onclick="startCheckout(\'starter\',\''+sBilling+'\')">'
-    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Starter</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">'+sPrice+' €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+sPeriod+'</div>'
-    +'<div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">50 Analysen/Monat<br>PDF + Word + TXT<br>Befundarchiv 90 Tage</div>'
-    +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'starter\',\''+sBilling+'\')">Jetzt kaufen</button></div>'
-    +'<div style="border:2px solid var(--blue);border-radius:10px;padding:20px;cursor:pointer;background:var(--blue-dim);position:relative;" onclick="startCheckout(\'professional\',\''+pBilling+'\')">'
-    +'<div style="position:absolute;top:-10px;right:12px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:10px;">BELIEBT</div>'
-    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Professional</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">'+pPrice+' €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+pPeriod+'</div>'
-    +'<div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">∞ Unbegrenzte Analysen<br>Verlaufsvergleich<br>Prioritäts-Support</div>'
-    +'<button class="abt ab-p" style="width:100%;justify-content:center" onclick="startCheckout(\'professional\',\''+pBilling+'\')">Jetzt kaufen</button></div>'
-    +'</div><p style="margin-top:16px;font-size:12px;color:var(--text3);text-align:center;">Sichere Zahlung via Stripe · Jederzeit kündbar</p>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">'
+    // Trial
+    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;opacity:.85">'
+    +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Gratis</div>'
+    +'<div style="font-size:26px;font-weight:800;margin-bottom:4px">0 €</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Kein Abo, kein Risiko</div>'
+    +'<div style="font-size:12px;color:var(--text2);line-height:1.9;margin-bottom:14px">5 KI-Analysen<br>Alle Tierarten<br>PDF Export</div>'
+    +'<div style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0">Bereits aktiv</div></div>'
+    // Starter
+    +card('starter','Starter',sPrice,sPeriod,'50 Analysen / Monat<br>PDF + Word + TXT<br>Befundarchiv 90 Tage<br>E-Mail Support',false)
+    // Praxis
+    +card('praxis','Praxis',xPrice,xPeriod,'300 Analysen / Monat<br>PDF + Word + TXT<br>Befundarchiv unbegrenzt<br>Verlaufsvergleich',true)
+    // Professional
+    +card('professional','Professional',pPrice,pPeriod,'∞ Unbegrenzte Analysen<br>PDF + Word + TXT<br>Befundarchiv unbegrenzt<br>Verlaufsvergleich<br>Prioritäts-Support',false)
+    +'</div>'
+    +'<p style="margin-top:16px;font-size:12px;color:var(--text3);text-align:center;">Sichere Zahlung via Stripe · Jederzeit kündbar · Gem. § 19 UStG keine MwSt.</p>'
     +'</div></div>';
 }
 
