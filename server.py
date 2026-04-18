@@ -217,6 +217,20 @@ def init_db():
                 correct INTEGER,
                 comment TEXT DEFAULT '',
                 created_at TEXT
+            )''',
+            '''CREATE TABLE IF NOT EXISTS patients (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                species TEXT DEFAULT '',
+                breed TEXT DEFAULT '',
+                birth_date TEXT DEFAULT '',
+                weight TEXT DEFAULT '',
+                owner_name TEXT DEFAULT '',
+                owner_phone TEXT DEFAULT '',
+                owner_email TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                created_at TEXT
             )'''
         ]
         for t in tables:
@@ -305,6 +319,20 @@ def init_db():
                 comment TEXT DEFAULT "",
                 created_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS patients (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                species TEXT DEFAULT "",
+                breed TEXT DEFAULT "",
+                birth_date TEXT DEFAULT "",
+                weight TEXT DEFAULT "",
+                owner_name TEXT DEFAULT "",
+                owner_phone TEXT DEFAULT "",
+                owner_email TEXT DEFAULT "",
+                notes TEXT DEFAULT "",
+                created_at TEXT
+            );
         ''')
 
     # Migrate: add new columns if missing (for existing DBs)
@@ -341,6 +369,8 @@ def init_db():
         "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''",
         "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip_address TEXT DEFAULT ''",
         "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT DEFAULT ''",
+        "ALTER TABLE reports ADD COLUMN IF NOT EXISTS patient_id TEXT DEFAULT ''",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT ''",
     ]:
         try:
             db_execute(conn, col); conn.commit()
@@ -414,6 +444,59 @@ def image_hash(base64_data, species='', region='', mode='', ctx='', focus_mode='
     Gleiche Bild + andere Einstellungen → neuer Hash → neue Analyse."""
     key = f"{base64_data[:10000]}|{species}|{region}|{mode}|{ctx}|{focus_mode}|{focus_text}"
     return hashlib.sha256(key.encode()).hexdigest()
+
+def convert_dicom_to_jpeg_base64(dicom_base64):
+    """Konvertiert DICOM-Datei (als base64) zu JPEG base64 für KI-Analyse."""
+    try:
+        import pydicom
+        import numpy as np
+        from PIL import Image
+        import base64, io
+
+        # Base64 dekodieren
+        dicom_bytes = base64.b64decode(dicom_base64)
+        dicom_file = io.BytesIO(dicom_bytes)
+
+        # DICOM parsen
+        ds = pydicom.dcmread(dicom_file)
+
+        # Pixel-Array extrahieren
+        pixel_array = ds.pixel_array.astype(float)
+
+        # Normalisierung auf 0-255
+        pixel_min = pixel_array.min()
+        pixel_max = pixel_array.max()
+        if pixel_max > pixel_min:
+            pixel_array = ((pixel_array - pixel_min) / (pixel_max - pixel_min) * 255).astype(np.uint8)
+        else:
+            pixel_array = pixel_array.astype(np.uint8)
+
+        # Graustufen zu RGB
+        if len(pixel_array.shape) == 2:
+            img = Image.fromarray(pixel_array, 'L').convert('RGB')
+        else:
+            img = Image.fromarray(pixel_array)
+
+        # Zu JPEG konvertieren
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=95)
+        jpeg_b64 = base64.b64encode(output.getvalue()).decode('utf-8')
+
+        # DICOM-Metadaten extrahieren
+        metadata = {}
+        for tag_name in ['PatientName', 'Modality', 'StudyDate', 'BodyPartExamined', 'InstitutionName']:
+            try:
+                val = getattr(ds, tag_name, None)
+                if val: metadata[tag_name] = str(val)
+            except: pass
+
+        return jpeg_b64, metadata
+    except ImportError:
+        app.logger.warning('pydicom nicht installiert')
+        return None, {}
+    except Exception as e:
+        app.logger.warning(f'DICOM-Konvertierung fehlgeschlagen: {e}')
+        return None, {}
 
 # ═══════════════════════════════════════════════════
 # E-MAIL
@@ -556,6 +639,60 @@ def agb(): return send_from_directory('static','agb.html')
 
 @app.route('/wissen')
 def wissen(): return send_from_directory('static','wissen.html')
+
+@app.route('/api/demo/report')
+def demo_report():
+    """Gibt einen vordefinierten Demo-Befund zurück — ohne Login."""
+    demo = {
+        'id': 'demo_report_001',
+        'species': 'Hund',
+        'region': 'Thorax',
+        'mode': 'single',
+        'pet_name': 'Max (Demo)',
+        'severity': 'mid',
+        'created_at': datetime.now().isoformat(),
+        'is_demo': True,
+        'report_text': """## Befund
+
+**Modalität:** Röntgenaufnahme, laterolateraler Strahlengang (rechts)
+**Patient:** Hund, ca. 5 Jahre, Labrador Retriever
+
+**Thorax:**
+Die Herzsilhouette erscheint geringgradig vergrößert mit einem vertebralen Herzmaß (VHS) von ca. 11,2 Wirbelkörperlängen (Normwert Labrador: 9,7–10,5). Die Herzkonturen sind glatt und regelmäßig begrenzt. Das Tracheal-Bronchialwinkel ist physiologisch. Keine Pleuraergüsse erkennbar.
+
+**Lunge:**
+Beidseits diffus verstärktes interstitielles Muster, besonders in den kaudoventralen Lungenfeldern. Kein Hinweis auf Konsolidierungen oder Atelektasen. Die Lungenränder sind scharf abgegrenzt. Die Lungengefäße sind mäßig prominent.
+
+**Knochen / Weichteile:**
+Rippen und Wirbelkörper ohne nachweisbare Frakturen oder osteolytische Läsionen. Weichteile unauffällig.
+
+## Diagnose
+
+**Kardiale Vergrößerung (VHS 11,2) mit interstitiellem Lungenmuster** — vereinbar mit beginnender dilatativer Kardiomyopathie oder Mitralklappeninsuffizienz Grad II-III.
+
+Dringlichkeit: **MITTEL — Zeitnahe Kontrolle empfohlen**
+
+## Differenzialdiagnosen
+
+1. **Dilatative Kardiomyopathie (DCM)** — typisch für Labrador, VHS-Erhöhung + interstitielles Muster
+2. **Mitralklappenendokardiose** — häufigste kardiale Erkrankung beim Hund, echokardiographisch zu differenzieren
+3. **Frühes kardiogenes Lungenödem** — interstitielles Muster als Frühzeichen
+4. Physiologische Variation (weniger wahrscheinlich bei diesem VHS-Wert)
+
+## Therapie- & Kontrollempfehlungen
+
+1. **Echokardiographie** dringend empfohlen zur Differenzierung und Schweregradeinteilung
+2. **EKG** zum Ausschluss von Arrhythmien (bei DCM häufig ventrikuläre Extrasystolen)
+3. **Blutdruck-Messung** — Hypertension als Kofaktor ausschließen
+4. Medikamentöse Therapie erst nach Echo-Bestätigung (ACE-Hemmer, Pimobendan je nach Stadium)
+5. **Kontroll-Röntgen** in 4-6 Wochen empfohlen
+6. **Prognose:** Bei frühzeitiger Therapie gut; ohne Behandlung Progress zu kongestiver Herzinsuffizienz
+
+## Technische Bildqualität
+
+Aufnahme in Inspiration, gute Lagerung, regelrechte Belichtung. Ausreichende diagnostische Qualität. Keine Bewegungsartefakte. Zusätzliche dorsoventrale Projektion zur Herzbeurteilung empfohlen."""
+    }
+    return jsonify(demo)
 
 # ═══════════════════════════════════════════════════
 # AUTH API
@@ -771,6 +908,148 @@ def me():
     return jsonify({'user': {k: user.get(k,'') for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','trial_ends_at','email_verified']}})
 
 # ═══════════════════════════════════════════════════
+# PATIENTENKARTEI
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/patients', methods=['GET'])
+@require_auth
+def list_patients():
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT * FROM patients WHERE user_id=? ORDER BY name ASC', (request.user['id'],))
+    conn.close()
+    patients = [db_dict(r) for r in rows] if rows and not isinstance(rows[0], dict) else (rows or [])
+    # Befund-Anzahl pro Patient
+    for p in patients:
+        conn2 = get_db()
+        cnt = db_fetchone(conn2, 'SELECT COUNT(*) as c FROM reports WHERE patient_id=? AND user_id=?', (p['id'], request.user['id']))
+        conn2.close()
+        p['report_count'] = cnt[0] if cnt else 0
+    return jsonify({'patients': patients})
+
+@app.route('/api/patients', methods=['POST'])
+@require_auth
+def create_patient():
+    d = request.json or {}
+    name = d.get('name','').strip()
+    if not name: return jsonify({'error': 'Tiername erforderlich'}), 400
+    pid = 'p_' + nid()
+    conn = get_db()
+    try:
+        db_execute(conn, '''INSERT INTO patients (id,user_id,name,species,breed,birth_date,weight,owner_name,owner_phone,owner_email,notes,created_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+                   (pid, request.user['id'], name, d.get('species',''), d.get('breed',''),
+                    d.get('birth_date',''), d.get('weight',''), d.get('owner_name',''),
+                    d.get('owner_phone',''), d.get('owner_email',''), d.get('notes',''), now()))
+        conn.commit()
+    except Exception as e:
+        try: conn.rollback()
+        except: pass
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+    conn.close()
+    return jsonify({'id': pid, 'ok': True})
+
+@app.route('/api/patients/<pid>', methods=['GET'])
+@require_auth
+def get_patient(pid):
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT * FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
+    if not rows:
+        conn.close()
+        return jsonify({'error': 'Patient nicht gefunden'}), 404
+    patient = db_dict(rows[0]) if rows and not isinstance(rows[0], dict) else rows[0]
+    # Befunde des Patienten
+    rep_rows = db_fetchall(conn, 'SELECT id,species,region,mode,severity,pet_name,created_at FROM reports WHERE patient_id=? AND user_id=? ORDER BY created_at DESC', (pid, request.user['id']))
+    conn.close()
+    patient['reports'] = [db_dict(r) if not isinstance(r, dict) else r for r in (rep_rows or [])]
+    return jsonify({'patient': patient})
+
+@app.route('/api/patients/<pid>', methods=['PUT'])
+@require_auth
+def update_patient(pid):
+    d = request.json or {}
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT id FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
+    if not rows:
+        conn.close()
+        return jsonify({'error': 'Patient nicht gefunden'}), 404
+    fields = ['name','species','breed','birth_date','weight','owner_name','owner_phone','owner_email','notes']
+    updates = {k: d[k] for k in fields if k in d}
+    if not updates:
+        conn.close()
+        return jsonify({'ok': True})
+    set_clause = ', '.join(f'{k}=?' for k in updates)
+    db_execute(conn, f'UPDATE patients SET {set_clause} WHERE id=? AND user_id=?',
+               list(updates.values()) + [pid, request.user['id']])
+    conn.commit(); conn.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/patients/<pid>', methods=['DELETE'])
+@require_auth
+def delete_patient(pid):
+    conn = get_db()
+    db_execute(conn, 'DELETE FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
+    conn.commit(); conn.close()
+    return jsonify({'ok': True})
+
+# ═══════════════════════════════════════════════════
+# STATISTIK-DASHBOARD
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/stats')
+@require_auth
+def user_stats():
+    uid = request.user['id']
+    conn = get_db()
+
+    # Gesamt-Befunde
+    total = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=?', (uid,)) or [0])[0]
+
+    # Diese Woche
+    week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+    week = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=? AND created_at>?', (uid, week_ago)) or [0])[0]
+
+    # Dieser Monat
+    month_ago = (datetime.now() - timedelta(days=30)).isoformat()
+    month = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=? AND created_at>?', (uid, month_ago)) or [0])[0]
+
+    # Nach Tierart (Top 5)
+    by_species_rows = db_fetchall(conn, 'SELECT species, COUNT(*) as cnt FROM reports WHERE user_id=? GROUP BY species ORDER BY cnt DESC LIMIT 5', (uid,))
+    by_species = [{'species': (r['species'] if isinstance(r, dict) else r[0]), 'count': (r['cnt'] if isinstance(r, dict) else r[1])} for r in (by_species_rows or [])]
+
+    # Nach Schweregrad
+    by_sev_rows = db_fetchall(conn, 'SELECT severity, COUNT(*) as cnt FROM reports WHERE user_id=? GROUP BY severity', (uid,))
+    by_severity = {(r['severity'] if isinstance(r, dict) else r[0]): (r['cnt'] if isinstance(r, dict) else r[1]) for r in (by_sev_rows or [])}
+
+    # Nach Region (Top 5)
+    by_reg_rows = db_fetchall(conn, 'SELECT region, COUNT(*) as cnt FROM reports WHERE user_id=? GROUP BY region ORDER BY cnt DESC LIMIT 5', (uid,))
+    by_region = [{'region': (r['region'] if isinstance(r, dict) else r[0]), 'count': (r['cnt'] if isinstance(r, dict) else r[1])} for r in (by_reg_rows or [])]
+
+    # Letzten 7 Tage täglich
+    daily = []
+    for i in range(6, -1, -1):
+        day_start = (datetime.now() - timedelta(days=i)).replace(hour=0,minute=0,second=0).isoformat()
+        day_end = (datetime.now() - timedelta(days=i)).replace(hour=23,minute=59,second=59).isoformat()
+        cnt = (db_fetchone(conn, 'SELECT COUNT(*) FROM reports WHERE user_id=? AND created_at>=? AND created_at<=?', (uid, day_start, day_end)) or [0])[0]
+        day_label = (datetime.now() - timedelta(days=i)).strftime('%a')
+        daily.append({'day': day_label, 'count': cnt})
+
+    # Patienten-Anzahl
+    patient_count = (db_fetchone(conn, 'SELECT COUNT(*) FROM patients WHERE user_id=?', (uid,)) or [0])[0]
+
+    conn.close()
+    return jsonify({
+        'total': total,
+        'this_week': week,
+        'this_month': month,
+        'by_species': by_species,
+        'by_severity': by_severity,
+        'by_region': by_region,
+        'daily': daily,
+        'patient_count': patient_count
+    })
+
+# ═══════════════════════════════════════════════════
 # 2FA (TOTP)
 # ═══════════════════════════════════════════════════
 
@@ -942,6 +1221,18 @@ def analyse():
     focus_text = d.get('focus_text','').strip()
     img_a      = d.get('img_a','')
     img_b      = d.get('img_b','')
+
+    # DICOM-Erkennung: Falls Base64-Daten ein DICOM-File sind, konvertieren
+    dicom_metadata = {}
+    is_dicom = d.get('is_dicom', False)
+    if is_dicom and img_a:
+        app.logger.info('DICOM-Datei erkannt, konvertiere...')
+        converted, dicom_metadata = convert_dicom_to_jpeg_base64(img_a)
+        if converted:
+            img_a = converted
+            app.logger.info(f'DICOM erfolgreich konvertiert. Metadaten: {dicom_metadata}')
+        else:
+            return jsonify({'error': 'DICOM-Datei konnte nicht verarbeitet werden. Bitte als JPEG/PNG exportieren.'}), 400
 
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
@@ -1844,7 +2135,7 @@ STRICT RULES:
 
     audit('Analyse',user['id'],f'{species}/{region}/{mode} via {used_provider}')
     result = {'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now(),
-              'quality_ok':quality_ok,'quality_score':quality_score}
+              'quality_ok':quality_ok,'quality_score':quality_score,'dicom_metadata':dicom_metadata}
     return jsonify(result)
 
 # ═══════════════════════════════════════════════════

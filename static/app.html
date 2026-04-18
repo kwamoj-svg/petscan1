@@ -350,6 +350,8 @@ a{color:inherit;text-decoration:none;}
           <div class="fg"><label class="fl">E-Mail</label><input class="fi" type="email" id="l-em" placeholder="ihre@email.de"></div>
           <div class="fg"><label class="fl">Passwort</label><input class="fi" type="password" id="l-pw" placeholder="••••••••"></div>
           <button class="l-btn" id="l-btn" onclick="doLogin()">Anmelden</button>
+          <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text3);">— oder —</div>
+          <button class="l-btn" style="background:var(--s2);color:var(--text);border:1px solid var(--border);margin-top:8px;" onclick="startDemo()">Demo testen (kein Login)</button>
           <div class="l-link">Noch kein Konto? <a href="#" onclick="switchTab('register')">Kostenlos registrieren</a></div>
           <div class="l-link"><a href="#" onclick="switchTab('forgot')">Passwort vergessen?</a></div>
         </div>
@@ -418,6 +420,14 @@ a{color:inherit;text-decoration:none;}
         <button class="nb" data-v="reports" onclick="navTo('reports',this)">
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Meine Befunde <span class="nb-cnt" id="nb-cnt">0</span>
+        </button>
+        <button class="nb" data-v="stats" onclick="navTo('stats',this)">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Statistiken
+        </button>
+        <button class="nb" data-v="patients" onclick="navTo('patients',this)">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Patienten
         </button>
       </div>
       <div class="sb-sec">
@@ -615,6 +625,41 @@ function doLogout() {
   ME=null; ALL_REPORTS=[]; CACHED=[];
   document.getElementById('as').classList.remove('active');
   document.getElementById('ls').classList.add('active');
+}
+
+function startDemo() {
+  var btn = event.target;
+  btn.disabled = true; btn.textContent = 'Demo wird geladen...';
+  fetch('/api/demo/report').then(function(r){ return r.json(); }).then(function(data){
+    // Demo-User simulieren
+    ME = {id:'demo', email:'demo@animioo.de', name:'Demo-Nutzer', plan:'professional', role:'demo',
+           analyses_used:1, analyses_limit:999, email_verified:1};
+    document.getElementById('ls').classList.remove('active');
+    document.getElementById('as').classList.add('active');
+    document.getElementById('tb-name').textContent = 'Demo-Modus';
+    document.getElementById('sb-un').textContent = 'Demo-Modus';
+    document.getElementById('sb-up').textContent = 'Animioo';
+    var planEl = document.getElementById('tb-plan');
+    planEl.textContent = 'Demo';
+    planEl.className = 'tb-plan-badge plan-professional';
+    document.getElementById('nb-upgrade').style.display='none';
+    var vb = document.getElementById('verify-banner');
+    if(vb) vb.style.display='none';
+    // Demo-Befund anzeigen
+    navTo('analyse', document.querySelector('.nb'));
+    setTimeout(function(){
+      var report = Object.assign({}, data, {img_a:''});
+      CACHED.unshift(report);
+      updateBadge(1);
+      renderResult(report);
+      var ts = document.getElementById('result-ts');
+      if(ts) ts.textContent = 'Demo-Befund';
+      toast('Demo geladen — kein echter Befund, nur zur Demonstration');
+    }, 300);
+  }).catch(function(){
+    btn.disabled=false; btn.textContent='Demo testen (kein Login)';
+    toast('Demo konnte nicht geladen werden','red');
+  });
 }
 
 function show2FALogin(tempToken) {
@@ -843,10 +888,10 @@ function navTo(view, btn) {
   closeMobileMenu();
   document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('on'); });
   if(btn) btn.classList.add('on');
-  var titles = {analyse:'Neue Analyse',reports:'Meine Befunde',account:'Mein Account',upgrade:'Plan upgraden'};
+  var titles = {analyse:'Neue Analyse',reports:'Meine Befunde',account:'Mein Account',upgrade:'Plan upgraden',stats:'Statistiken',patients:'Patientenkartei'};
   document.getElementById('ph-t').textContent = titles[view]||view;
   document.getElementById('result-ts').textContent='';
-  ({analyse:renderAnalyse,reports:renderReports,account:renderAccount,upgrade:renderUpgrade}[view]||renderAnalyse)();
+  ({analyse:renderAnalyse,reports:renderReports,account:renderAccount,upgrade:renderUpgrade,stats:renderStats,patients:renderPatients}[view]||renderAnalyse)();
 }
 
 function updateBadge(n){ document.getElementById('nb-cnt').textContent=n||0; }
@@ -987,6 +1032,25 @@ function loadImg(file, k) {
   if(file.size>50*1024*1024){ toast('Datei zu groß — max 50MB','red'); return; }
   if(!file.type.startsWith('image/') && !file.name.match(/\.(dcm|dicom)$/i)) {
     toast('Bitte JPG, PNG oder DICOM hochladen','red'); return;
+  }
+  // DICOM-Erkennung
+  var isDicom = file.name.toLowerCase().endsWith('.dcm') || file.name.toLowerCase().endsWith('.dicom') || file.type === 'application/dicom';
+  if (isDicom) {
+    // DICOM als base64 senden, Server konvertiert
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var b64 = e.target.result.split(',')[1] || e.target.result;
+      var dataUrl = 'data:application/dicom;base64,' + b64;
+      if(k==='a') AN.imgA={url:dataUrl, b64:b64, name:file.name, isDicom:true};
+      else AN.imgB={url:dataUrl, b64:b64, name:file.name, isDicom:true};
+      var uz=document.getElementById('uz-'+k);
+      uz.className='uz loaded';
+      uz.innerHTML='<span class="uz-tag lt" style="background:var(--blue-dim);color:var(--blue);">DICOM — '+file.name+'</span>'
+        +'<div style="font-size:11px;color:var(--blue);margin-top:4px;">DICOM wird beim Upload konvertiert</div>'
+        +'<button class="uz-rm" onclick="removeImg(\''+k+'\',event)">✕</button>';
+    };
+    reader.readAsDataURL(file);
+    return; // Normal processing überspringen
   }
   var reader=new FileReader();
   reader.onload=function(ev){
@@ -1170,7 +1234,8 @@ function runAnalysis() {
     context:ctx?ctx.value.trim():'',
     focus_mode:AN.focusMode,
     focus_text:focusTxt&&AN.focusMode==='specific'?focusTxt.value.trim():'',
-    img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:''
+    img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:'',
+    is_dicom: AN.imgA && AN.imgA.isDicom ? true : false
   })
   .then(function(data){
     completeProgress();
@@ -1665,6 +1730,246 @@ function delReport(id,e) {
 // COMPARE FROM EXISTING REPORT (delegate to new function)
 function startCompareFromReport(reportId) {
   useImageForCompare(reportId);
+}
+
+// STATISTIK-DASHBOARD
+function renderStats() {
+  var c = document.getElementById('main-content');
+  c.innerHTML = '<div style="overflow-y:auto;padding:22px;flex:1;">'
+    + '<div style="max-width:900px;margin:0 auto;">'
+    + '<div id="stats-content"><div style="color:var(--text3);text-align:center;padding:40px;">Statistiken werden geladen...</div></div>'
+    + '</div></div>';
+  api('/api/stats').then(function(d){
+    var sev = d.by_severity || {};
+    var sevTotal = (sev.low||0)+(sev.mid||0)+(sev.high||0);
+    var maxDay = Math.max.apply(null, (d.daily||[]).map(function(x){return x.count;})) || 1;
+    var speciesHtml = (d.by_species||[]).map(function(s){
+      var pct = Math.round((s.count/(d.total||1))*100);
+      return '<div style="margin-bottom:8px;">'
+        +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span>'+escHtml(s.species||'')+'</span><span style="color:var(--text3);">'+s.count+'</span></div>'
+        +'<div style="height:6px;background:var(--border);border-radius:3px;"><div style="height:100%;background:var(--blue);border-radius:3px;width:'+pct+'%"></div></div>'
+        +'</div>';
+    }).join('');
+    var regionHtml = (d.by_region||[]).map(function(r){
+      var pct = Math.round((r.count/(d.total||1))*100);
+      return '<div style="margin-bottom:8px;">'
+        +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span>'+escHtml(r.region||'')+'</span><span style="color:var(--text3);">'+r.count+'</span></div>'
+        +'<div style="height:6px;background:var(--border);border-radius:3px;"><div style="height:100%;background:var(--green);border-radius:3px;width:'+pct+'%"></div></div>'
+        +'</div>';
+    }).join('');
+    var dailyHtml = (d.daily||[]).map(function(day){
+      var pct = Math.round((day.count/maxDay)*100);
+      return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">'
+        +'<div style="width:100%;background:var(--border);border-radius:3px;height:80px;display:flex;align-items:flex-end;padding:2px;">'
+        +'<div style="width:100%;background:var(--blue);border-radius:2px;height:'+Math.max(pct,4)+'%;transition:height .3s;"></div></div>'
+        +'<div style="font-size:10px;color:var(--text3);">'+day.day+'</div>'
+        +'<div style="font-size:11px;font-weight:600;color:var(--text);">'+day.count+'</div>'
+        +'</div>';
+    }).join('');
+    document.getElementById('stats-content').innerHTML =
+      '<div class="kpi-g" style="margin-bottom:20px;">'
+      +'<div class="kpi"><div class="kpi-l">Befunde gesamt</div><div class="kpi-v">'+d.total+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Diese Woche</div><div class="kpi-v">'+d.this_week+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Dieser Monat</div><div class="kpi-v">'+d.this_month+'</div></div>'
+      +'<div class="kpi"><div class="kpi-l">Patienten</div><div class="kpi-v">'+(d.patient_count||0)+'</div></div>'
+      +'</div>'
+      // Severity
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">'
+      +'<div class="ac-card"><div class="ac-h">Dringlichkeit</div>'
+      +'<div style="display:flex;gap:8px;margin-top:8px;">'
+      +'<div style="flex:1;text-align:center;padding:10px;background:var(--green-dim);border-radius:6px;"><div style="font-size:20px;font-weight:800;color:var(--green);">'+(sev.low||0)+'</div><div style="font-size:10px;color:var(--text3);">Niedrig</div></div>'
+      +'<div style="flex:1;text-align:center;padding:10px;background:var(--amber-dim);border-radius:6px;"><div style="font-size:20px;font-weight:800;color:var(--amber);">'+(sev.mid||0)+'</div><div style="font-size:10px;color:var(--text3);">Mittel</div></div>'
+      +'<div style="flex:1;text-align:center;padding:10px;background:var(--red-dim);border-radius:6px;"><div style="font-size:20px;font-weight:800;color:var(--red);">'+(sev.high||0)+'</div><div style="font-size:10px;color:var(--text3);">Hoch</div></div>'
+      +'</div></div>'
+      // Daily chart
+      +'<div class="ac-card"><div class="ac-h">Letzte 7 Tage</div>'
+      +'<div style="display:flex;gap:6px;margin-top:8px;align-items:flex-end;">'+dailyHtml+'</div>'
+      +'</div></div>'
+      // Species + Region
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
+      +'<div class="ac-card"><div class="ac-h">Top Tierarten</div><div style="margin-top:10px;">'+(speciesHtml||'<div style="color:var(--text3);font-size:12px;">Noch keine Daten</div>')+'</div></div>'
+      +'<div class="ac-card"><div class="ac-h">Top Körperregionen</div><div style="margin-top:10px;">'+(regionHtml||'<div style="color:var(--text3);font-size:12px;">Noch keine Daten</div>')+'</div></div>'
+      +'</div>';
+  }).catch(function(e){
+    document.getElementById('stats-content').innerHTML='<div style="color:var(--red);padding:20px;">'+e.message+'</div>';
+  });
+}
+
+// PATIENTENKARTEI
+var PATIENTS = [];
+function renderPatients() {
+  var c = document.getElementById('main-content');
+  c.innerHTML = '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">'
+    +'<div style="padding:14px 20px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:10px;">'
+    +'<input type="text" placeholder="Patient suchen..." id="pat-q" oninput="filterPatients(this.value)" style="flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--f);">'
+    +'<button class="abt ab-p" onclick="showCreatePatient()">+ Neuer Patient</button>'
+    +'</div>'
+    +'<div id="pat-list" style="flex:1;overflow-y:auto;padding:16px 20px;"></div>'
+    +'</div>';
+  loadPatients();
+}
+
+function loadPatients() {
+  api('/api/patients').then(function(d){
+    PATIENTS = d.patients || [];
+    filterPatients(document.getElementById('pat-q') ? document.getElementById('pat-q').value : '');
+  }).catch(function(e){
+    var el = document.getElementById('pat-list');
+    if(el) el.innerHTML='<div style="color:var(--red);padding:20px;">'+e.message+'</div>';
+  });
+}
+
+function filterPatients(q) {
+  var el = document.getElementById('pat-list');
+  if(!el) return;
+  var filtered = PATIENTS.filter(function(p){
+    return !q || [p.name,p.species,p.breed,p.owner_name].join(' ').toLowerCase().indexOf(q.toLowerCase())>=0;
+  });
+  if(!filtered.length){
+    el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">'+(PATIENTS.length?'Kein Patient gefunden':'Noch keine Patienten. Erstellen Sie den ersten Patienten.')+'</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(function(p){
+    var initials = (p.name||'?').charAt(0).toUpperCase();
+    var colors = ['#1a56db','#059669','#b45309','#dc2626','#7c3aed'];
+    var col = colors[(p.name||'').charCodeAt(0)%colors.length];
+    return '<div onclick="openPatient(\''+p.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .12s;" onmouseover="this.style.borderColor=\'var(--blue)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:'+col+';display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;flex-shrink:0;">'+initials+'</div>'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div style="font-weight:700;font-size:13px;">'+escHtml(p.name)+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">'+escHtml(p.species||'')+(p.breed?' · '+escHtml(p.breed):'')+(p.owner_name?' · Besitzer: '+escHtml(p.owner_name):'')+'</div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0;">'
+      +'<div style="font-size:11px;color:var(--text3);">'+(p.report_count||0)+' Befunde</div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function showCreatePatient() {
+  var ex = document.getElementById('pat-modal'); if(ex) ex.remove();
+  var ov = document.createElement('div');
+  ov.id='pat-modal';
+  ov.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML='<div style="background:var(--surface);border-radius:12px;width:100%;max-width:480px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">'
+    +'<div style="font-size:16px;font-weight:800;">Neuer Patient</div>'
+    +'<button onclick="document.getElementById(\'pat-modal\').remove()" style="font-size:18px;color:var(--text3);cursor:pointer;background:none;border:none;">✕</button>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Tiername *</label><input class="fi" id="pc-name" placeholder="z.B. Max, Luna..."></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    +'<div class="fg"><label class="fl">Tierart</label><input class="fi" id="pc-species" placeholder="Hund, Katze..."></div>'
+    +'<div class="fg"><label class="fl">Rasse</label><input class="fi" id="pc-breed" placeholder="Labrador..."></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    +'<div class="fg"><label class="fl">Geburtsdatum</label><input class="fi" id="pc-bdate" type="date"></div>'
+    +'<div class="fg"><label class="fl">Gewicht (kg)</label><input class="fi" id="pc-weight" placeholder="12.5"></div>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Besitzer Name</label><input class="fi" id="pc-oname" placeholder="Max Mustermann"></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    +'<div class="fg"><label class="fl">Telefon</label><input class="fi" id="pc-phone" placeholder="+49..."></div>'
+    +'<div class="fg"><label class="fl">E-Mail Besitzer</label><input class="fi" id="pc-email" placeholder="besitzer@mail.de"></div>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Notizen</label><textarea class="fi ctx" id="pc-notes" placeholder="Vorerkrankungen, Allergien..." style="min-height:60px;"></textarea></div>'
+    +'<div id="pc-err" class="l-err"></div>'
+    +'<button class="abt ab-p" onclick="saveNewPatient()" style="width:100%;padding:10px;">Patient speichern</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ document.getElementById('pc-name').focus(); },100);
+}
+
+function saveNewPatient() {
+  var name = (document.getElementById('pc-name').value||'').trim();
+  var err = document.getElementById('pc-err');
+  if(!name){ err.textContent='Tiername erforderlich'; err.style.display='block'; return; }
+  err.style.display='none';
+  api('/api/patients','POST',{
+    name:name,
+    species:(document.getElementById('pc-species').value||'').trim(),
+    breed:(document.getElementById('pc-breed').value||'').trim(),
+    birth_date:(document.getElementById('pc-bdate').value||''),
+    weight:(document.getElementById('pc-weight').value||'').trim(),
+    owner_name:(document.getElementById('pc-oname').value||'').trim(),
+    owner_phone:(document.getElementById('pc-phone').value||'').trim(),
+    owner_email:(document.getElementById('pc-email').value||'').trim(),
+    notes:(document.getElementById('pc-notes').value||'').trim()
+  }).then(function(){
+    document.getElementById('pat-modal').remove();
+    toast('Patient gespeichert');
+    loadPatients();
+  }).catch(function(e){ err.textContent=e.message; err.style.display='block'; });
+}
+
+function openPatient(id) {
+  var p = PATIENTS.find(function(x){return x.id===id;});
+  if(!p) return;
+  var ex = document.getElementById('pat-modal'); if(ex) ex.remove();
+  var ov = document.createElement('div');
+  ov.id='pat-modal';
+  ov.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  var initials = (p.name||'?').charAt(0).toUpperCase();
+  ov.innerHTML='<div style="background:var(--surface);border-radius:12px;width:100%;max-width:560px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">'
+    +'<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:18px;">'
+    +'<div style="width:52px;height:52px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;flex-shrink:0;">'+initials+'</div>'
+    +'<div style="flex:1;">'
+    +'<div style="font-size:18px;font-weight:800;">'+escHtml(p.name)+'</div>'
+    +'<div style="font-size:12px;color:var(--text3);">'+escHtml(p.species||'')+(p.breed?' · '+escHtml(p.breed):'')+'</div>'
+    +'</div>'
+    +'<button onclick="document.getElementById(\'pat-modal\').remove()" style="font-size:18px;color:var(--text3);cursor:pointer;background:none;border:none;">✕</button>'
+    +'</div>'
+    // Info rows
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">'
+    +(p.birth_date?'<div style="background:var(--s2);padding:8px 12px;border-radius:6px;font-size:12px;"><div style="color:var(--text3);font-size:10px;">Geburtsdatum</div>'+escHtml(p.birth_date)+'</div>':'')
+    +(p.weight?'<div style="background:var(--s2);padding:8px 12px;border-radius:6px;font-size:12px;"><div style="color:var(--text3);font-size:10px;">Gewicht</div>'+escHtml(p.weight)+' kg</div>':'')
+    +(p.owner_name?'<div style="background:var(--s2);padding:8px 12px;border-radius:6px;font-size:12px;"><div style="color:var(--text3);font-size:10px;">Besitzer</div>'+escHtml(p.owner_name)+'</div>':'')
+    +(p.owner_phone?'<div style="background:var(--s2);padding:8px 12px;border-radius:6px;font-size:12px;"><div style="color:var(--text3);font-size:10px;">Telefon</div>'+escHtml(p.owner_phone)+'</div>':'')
+    +'</div>'
+    +(p.notes?'<div style="background:var(--amber-dim);border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;margin-bottom:14px;"><strong>Notizen:</strong> '+escHtml(p.notes)+'</div>':'')
+    // Befunde
+    +'<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">'+(p.report_count||0)+' Befunde</div>'
+    +'<div id="pat-reports-'+id+'"><div style="color:var(--text3);font-size:12px;">Wird geladen...</div></div>'
+    +'<div style="display:flex;gap:8px;margin-top:16px;">'
+    +'<button class="abt ab-p" onclick="usePatientForAnalysis(\''+id+'\',\''+escHtml(p.name)+'\',\''+escHtml(p.species||'')+'\')">Neue Analyse für diesen Patienten</button>'
+    +'<button class="abt ab-g" onclick="deletePatientConfirm(\''+id+'\')">Löschen</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  // Befunde laden
+  api('/api/patients/'+id).then(function(d){
+    var el = document.getElementById('pat-reports-'+id);
+    if(!el) return;
+    var reps = (d.patient||{}).reports || [];
+    if(!reps.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px;">Noch keine Befunde für diesen Patienten.</div>'; return; }
+    el.innerHTML = reps.map(function(r){
+      var sev={low:'var(--green)',mid:'var(--amber)',high:'var(--red)'}[r.severity]||'var(--text3)';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:6px;font-size:12px;">'
+        +'<div style="width:8px;height:8px;border-radius:50%;background:'+sev+';flex-shrink:0;"></div>'
+        +'<div style="flex:1;">'+escHtml(r.species||'')+' · '+escHtml(r.region||'')+' · '+fmtDate(r.created_at)+'</div>'
+        +'</div>';
+    }).join('');
+  }).catch(function(){});
+}
+
+function usePatientForAnalysis(patId, patName, patSpecies) {
+  document.getElementById('pat-modal').remove();
+  AN.petName = patName;
+  if(patSpecies) AN.species = patSpecies;
+  navTo('analyse', document.querySelector('.nb'));
+  setTimeout(function(){
+    var inp=document.getElementById('sp-inp'); if(inp&&patSpecies){inp.value=patSpecies; selectSp(patSpecies);}
+    var nameInp=document.getElementById('pet-name-inp')||document.querySelector('input[placeholder*="Bella"]');
+    if(nameInp) nameInp.value=patName;
+    toast('Patient '+patName+' ausgewählt');
+  },200);
+}
+
+function deletePatientConfirm(id) {
+  if(!confirm('Patient wirklich löschen? Die verknüpften Befunde bleiben erhalten.')) return;
+  api('/api/patients/'+id,'DELETE').then(function(){
+    document.getElementById('pat-modal').remove();
+    toast('Patient gelöscht');
+    loadPatients();
+  }).catch(function(e){ toast('Fehler: '+e.message,'red'); });
 }
 
 // ACCOUNT
