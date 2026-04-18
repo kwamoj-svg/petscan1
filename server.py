@@ -2129,7 +2129,17 @@ STRICT RULES:
         return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
 
     tl   = text.lower()
-    sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
+    import re as _re
+    # Robuste Severity-Erkennung — fängt alle Formate: **HOCH**, [HOCH], Dringlichkeit: HOCH etc.
+    _high = bool(_re.search(r'(notfall|emergency|\burgent\b)', tl) or
+                 _re.search(r'dringlichkeit[^a-z]{0,20}(hoch|high|notfall)', tl) or
+                 _re.search(r'\*{1,2}\s*(hoch|high|notfall)\s*\*{1,2}', tl) or
+                 _re.search(r'\[\s*(hoch|high|notfall)\s*\]', tl))
+    _low  = bool(not _high and (
+                 _re.search(r'dringlichkeit[^a-z]{0,20}(niedrig|low|gering)', tl) or
+                 _re.search(r'\*{1,2}\s*(niedrig|low)\s*\*{1,2}', tl) or
+                 _re.search(r'\[\s*(niedrig|low)\s*\]', tl)))
+    sev   = 'high' if _high else ('low' if _low else 'mid')
 
     # ── Qualitätskontrolle ──
     required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
@@ -3040,7 +3050,16 @@ def v1_analyse():
         return jsonify({'error': 'KI-Analyse fehlgeschlagen'}), 503
 
     tl = text.lower()
-    sev = 'high' if ('**hoch**' in tl or '**notfall**' in tl) else ('low' if '**niedrig**' in tl else 'mid')
+    import re as _re
+    _high = bool(_re.search(r'(notfall|emergency|\burgent\b)', tl) or
+                 _re.search(r'dringlichkeit[^a-z]{0,20}(hoch|high|notfall)', tl) or
+                 _re.search(r'\*{1,2}\s*(hoch|high|notfall)\s*\*{1,2}', tl) or
+                 _re.search(r'\[\s*(hoch|high|notfall)\s*\]', tl))
+    _low  = bool(not _high and (
+                 _re.search(r'dringlichkeit[^a-z]{0,20}(niedrig|low|gering)', tl) or
+                 _re.search(r'\*{1,2}\s*(niedrig|low)\s*\*{1,2}', tl) or
+                 _re.search(r'\[\s*(niedrig|low)\s*\]', tl)))
+    sev   = 'high' if _high else ('low' if _low else 'mid')
 
     required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
     sections_found = sum(1 for s in required_sections if s in tl)

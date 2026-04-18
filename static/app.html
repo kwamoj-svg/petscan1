@@ -1219,6 +1219,11 @@ function runAnalysis() {
   showProgressModal();
   var ctx=document.getElementById('ctx');
   var focusTxt=document.getElementById('focus-text');
+  // Aktuelle Input-Felder lesen — Nutzer kann direkt tippen ohne Dropdown zu klicken
+  var spInpVal = (document.getElementById('sp-inp')||{}).value||'';
+  var rgInpVal = (document.getElementById('rg-inp')||{}).value||'';
+  if(spInpVal.trim()) AN.species = spInpVal.trim();
+  if(rgInpVal.trim()) AN.region  = rgInpVal.trim();
   api('/api/analyse','POST',{
     species:AN.species, region:AN.region, mode:AN.mode,
     pet_name:AN.petName.trim(),
