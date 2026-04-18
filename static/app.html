@@ -489,19 +489,26 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
 
+  // Session via HttpOnly Cookie oder localStorage-Token prüfen
   var token = localStorage.getItem('ps_token');
-  if (token) {
-    fetch('/api/auth/me', {headers:{'Authorization':'Bearer '+token}})
-      .then(function(r){ return r.json(); })
-      .then(function(d){ if(d.user){ ME=d.user; showApp(); } else { localStorage.removeItem('ps_token'); } })
-      .catch(function(){ localStorage.removeItem('ps_token'); });
-  }
+  var headers = {'Content-Type':'application/json'};
+  if (token) headers['Authorization'] = 'Bearer '+token;
+  fetch('/api/auth/me', {credentials:'include', headers:headers})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.user){
+        ME=d.user;
+        showApp();
+      }
+    })
+    .catch(function(){});
 });
 
 // API HELPER
 function api(url, method, body) {
   method = method || 'GET';
-  var opts = {method:method, headers:{'Content-Type':'application/json'}};
+  var opts = {method:method, headers:{'Content-Type':'application/json'}, credentials:'include'};
+  // Fallback: localStorage token falls Cookie nicht gesetzt (z.B. ältere Browser)
   var token = localStorage.getItem('ps_token');
   if (token) opts.headers['Authorization'] = 'Bearer '+token;
   if (body) opts.body = JSON.stringify(body);
@@ -534,7 +541,12 @@ function doLogin() {
   err.style.display='none';
   api('/api/auth/login','POST',{email:em,password:pw})
     .then(function(d){
-      localStorage.setItem('ps_token',d.token);
+      if (d.requires_2fa) {
+        // 2FA erforderlich – Code-Eingabe anzeigen
+        show2FALogin(d.temp_token);
+        return;
+      }
+      if (d.token) localStorage.setItem('ps_token', d.token);
       ME=d.user;
       if(ME.role==='admin'){ window.location.href='/admin'; return; }
       showApp();
@@ -598,12 +610,94 @@ function doReset() {
 }
 
 function doLogout() {
-  var token = localStorage.getItem('ps_token');
-  if (token) fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+token}}).catch(function(){});
+  api('/api/auth/logout','POST',{}).catch(function(){});
   localStorage.removeItem('ps_token');
-  ME=null;
+  ME=null; ALL_REPORTS=[]; CACHED=[];
   document.getElementById('as').classList.remove('active');
   document.getElementById('ls').classList.add('active');
+}
+
+function show2FALogin(tempToken) {
+  var loginCard = document.querySelector('.l-card');
+  if (!loginCard) return;
+  loginCard.innerHTML = '<div class="l-top">'
+    + '<div class="l-brand"><div class="l-brand-icon"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="6.5" r="2"/><circle cx="16.5" cy="6.5" r="2"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><path d="M7.5 15.5C7.5 14 9.5 12 12 12s4.5 2 4.5 3.5c0 2-1.5 4-2.5 4.5-.7.3-1.3.5-2 .5s-1.3-.2-2-.5c-1-.5-2.5-2.5-2.5-4.5z"/></svg></div>'
+    + '<span class="l-brand-name">Animioo</span></div>'
+    + '<div class="l-tagline">Zwei-Faktor-Authentifizierung</div></div>'
+    + '<div class="l-body">'
+    + '<div style="text-align:center;margin-bottom:16px;font-size:13px;color:var(--text2);">Bitte geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.</div>'
+    + '<div id="tfa-err" class="l-err"></div>'
+    + '<div class="fg"><label class="fl">Authenticator-Code</label>'
+    + '<input class="fi" id="tfa-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code" style="text-align:center;font-size:22px;letter-spacing:8px;">'
+    + '</div>'
+    + '<button class="l-btn" id="tfa-btn" onclick="do2FAVerify(\''+tempToken+'\')">Verifizieren</button>'
+    + '<div class="l-link" style="margin-top:12px;"><a href="#" onclick="location.reload()">Zurück zur Anmeldung</a></div>'
+    + '</div>';
+  setTimeout(function(){ var c=document.getElementById('tfa-code'); if(c){c.focus(); c.addEventListener('keydown',function(e){if(e.key==='Enter')do2FAVerify(tempToken);}); }}, 100);
+}
+
+function do2FAVerify(tempToken) {
+  var code = (document.getElementById('tfa-code').value||'').trim();
+  var btn = document.getElementById('tfa-btn');
+  var err = document.getElementById('tfa-err');
+  if (!code || code.length !== 6) { err.textContent='Bitte 6-stelligen Code eingeben'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Prüfen...';
+  err.style.display='none';
+  api('/api/auth/2fa/verify','POST',{temp_token:tempToken, code:code})
+    .then(function(d){
+      if (d.token) localStorage.setItem('ps_token', d.token);
+      ME=d.user;
+      if(ME.role==='admin'){ window.location.href='/admin'; return; }
+      showApp();
+    })
+    .catch(function(e){ err.textContent=e.message||'Ungültiger Code'; err.style.display='block'; btn.disabled=false; btn.textContent='Verifizieren'; });
+}
+
+function start2FASetup() {
+  var setupEl = document.getElementById('tfa-setup-area');
+  if (!setupEl) return;
+  setupEl.innerHTML = '<div style="color:var(--text3);font-size:12px;">Wird vorbereitet...</div>';
+  api('/api/auth/2fa/setup','POST',{})
+    .then(function(d){
+      setupEl.innerHTML = '<div style="margin-top:10px;">'
+        + '<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Scannen Sie diesen QR-Code mit Ihrer Authenticator-App (z.B. Google Authenticator, Authy):</div>'
+        + '<div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;margin-bottom:10px;">'
+        + '<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(d.otp_uri)+'" alt="QR Code" style="border-radius:4px;">'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Oder manuell eingeben: <code style="background:var(--s2);padding:2px 6px;border-radius:3px;font-size:11px;">'+d.secret+'</code></div>'
+        + '<div class="fg"><label class="fl">Code aus Authenticator-App bestätigen</label>'
+        + '<input class="fi" id="tfa-activate-code" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;font-size:18px;letter-spacing:6px;"></div>'
+        + '<button class="abt ab-p" onclick="activate2FA()" style="width:100%;">2FA aktivieren</button>'
+        + '<div id="tfa-act-err" class="l-err" style="margin-top:8px;"></div>'
+        + '</div>';
+    })
+    .catch(function(e){ setupEl.innerHTML='<div style="color:var(--red);font-size:12px;">'+e.message+'</div>'; });
+}
+
+function activate2FA() {
+  var code = (document.getElementById('tfa-activate-code').value||'').trim();
+  var err = document.getElementById('tfa-act-err');
+  if (!code || code.length !== 6) { err.textContent='Bitte 6-stelligen Code eingeben'; err.style.display='block'; return; }
+  err.style.display='none';
+  api('/api/auth/2fa/activate','POST',{code:code})
+    .then(function(){
+      toast('2FA erfolgreich aktiviert!');
+      ME.totp_enabled = 1;
+      navTo('account', document.querySelector('.nb[onclick*="account"]'));
+    })
+    .catch(function(e){ err.textContent=e.message; err.style.display='block'; });
+}
+
+function disable2FA() {
+  var pw = prompt('Bitte Passwort eingeben, um 2FA zu deaktivieren:');
+  if (!pw) return;
+  api('/api/auth/2fa/disable','POST',{password:pw})
+    .then(function(){
+      toast('2FA deaktiviert');
+      ME.totp_enabled = 0;
+      navTo('account', document.querySelector('.nb[onclick*="account"]'));
+    })
+    .catch(function(e){ toast('Fehler: '+e.message,'red'); });
 }
 
 function resendVerify() {
@@ -1591,6 +1685,11 @@ function buildAccount() {
     +'<div class="ac-row"><span class="ac-lbl">E-Mail</span><span class="ac-val">'+ME.email+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Praxis</span><span class="ac-val">'+(ME.praxis||'–')+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Plan</span><span class="ac-val">'+pl+'</span></div></div>'
+    +'<div class="ac-card" style="margin-top:14px;">'
+    +'<div class="ac-h">Zwei-Faktor-Authentifizierung (2FA)</div>'
+    +'<div id="tfa-status" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>'
+    +'<div id="tfa-setup-area"></div>'
+    +'</div>'
     +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 143 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
     +'<div class="ac-card"><div class="ac-h">Datenschutz (DSGVO)</div>'
     +'<p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Gem&auml;&szlig; DSGVO haben Sie das Recht, Ihre Daten einzusehen, zu exportieren und Ihr Konto zu l&ouml;schen.</p>'
@@ -1601,6 +1700,20 @@ function buildAccount() {
     +'<p style="font-size:11px;color:var(--text3);margin-top:10px;">Fragen zum Datenschutz: <a href="mailto:kontakt@animioo.de" style="color:var(--blue);">kontakt@animioo.de</a> · <a href="/datenschutz" target="_blank" style="color:var(--blue);">Datenschutzerkl&auml;rung</a></p>'
     +'</div>'
     +'</div></div>';
+  // 2FA Status laden
+  api('/api/auth/me').then(function(d){
+    var u = d.user || {};
+    var statusEl = document.getElementById('tfa-status');
+    var setupEl = document.getElementById('tfa-setup-area');
+    if (!statusEl || !setupEl) return;
+    if (u.totp_enabled) {
+      statusEl.innerHTML = '<span style="color:var(--green);font-weight:700;">Aktiviert</span> — Ihr Konto ist mit 2FA gesichert.';
+      setupEl.innerHTML = '<button class="abt ab-g" onclick="disable2FA()" style="margin-top:6px;">2FA deaktivieren</button>';
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--amber);font-weight:700;">Nicht aktiv</span> — Aktivieren Sie 2FA für mehr Sicherheit.';
+      setupEl.innerHTML = '<button class="abt ab-p" onclick="start2FASetup()" style="margin-top:6px;">2FA aktivieren</button>';
+    }
+  }).catch(function(){});
 }
 
 // DSGVO: Daten exportieren

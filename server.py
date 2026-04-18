@@ -8,6 +8,10 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import anthropic, hashlib, secrets, os, json, smtplib, logging, math, io
+try:
+    import pyotp
+except ImportError:
+    pyotp = None
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -35,6 +39,24 @@ if SENTRY_DSN:
 # Rate Limiting
 limiter = Limiter(get_remote_address, app=app, default_limits=["200 per minute"],
                   storage_uri="memory://")
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    # CSP: allow self + inline scripts/styles (needed for app) + Google Fonts + data URIs for images
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self';"
+    )
+    return response
 
 # ═══════════════════════════════════════════════════
 # CONFIG
@@ -137,6 +159,8 @@ def init_db():
                 trial_ends_at TEXT DEFAULT '',
                 pet_name TEXT DEFAULT '',
                 api_key TEXT DEFAULT '',
+                totp_secret TEXT DEFAULT '',
+                totp_enabled INTEGER DEFAULT 0,
                 created_at TEXT,
                 last_login TEXT
             )''',
@@ -219,6 +243,8 @@ def init_db():
                 reset_token TEXT DEFAULT "",
                 reset_expires TEXT DEFAULT "",
                 trial_ends_at TEXT DEFAULT "",
+                totp_secret TEXT DEFAULT "",
+                totp_enabled INTEGER DEFAULT 0,
                 created_at TEXT,
                 last_login TEXT
             );
@@ -303,6 +329,15 @@ def init_db():
     try:
         db_execute(conn, "ALTER TABLE users ADD COLUMN api_key TEXT DEFAULT ''")
     except: pass
+    for col in [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER DEFAULT 0",
+    ]:
+        try:
+            db_execute(conn, col); conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except: pass
 
     # ── DB-INDIZES ──
     indexes = [
@@ -450,7 +485,10 @@ def audit(action, uid, detail=''):
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization','').replace('Bearer ','').strip()
+        # Cookie zuerst (sicherer), dann Authorization-Header als Fallback
+        token = request.cookies.get('ps_session', '')
+        if not token:
+            token = request.headers.get('Authorization','').replace('Bearer ','').strip()
         if not token: return jsonify({'error':'Nicht angemeldet'}), 401
         conn = get_db()
         sess = db_dict(db_fetchone(conn, 'SELECT * FROM sessions WHERE token=? AND expires_at>?',(token,now())))
@@ -553,11 +591,14 @@ def register():
         f'{name or email} ({email}) hat sich registriert. Praxis: {praxis or "k.A."}')
 
     audit('Registrierung',uid,email)
-    return jsonify({
+    resp = make_response(jsonify({
         'token': token,
         'user': {'id':uid,'email':email,'name':name or email,'praxis':praxis,'plan':'trial','role':'customer',
                  'analyses_used':0,'analyses_limit':20,'email_verified':0}
-    }), 201
+    }), 201)
+    is_https = APP_URL.startswith('https')
+    resp.set_cookie('ps_session', token, httponly=True, secure=is_https, samesite='Lax', max_age=30*24*3600, path='/')
+    return resp
 
 @app.route('/api/auth/verify-email', methods=['POST'])
 def verify_email():
@@ -670,6 +711,15 @@ def login():
     if HAS_BCRYPT and not user['password'].startswith('$2'):
         db_execute(conn, 'UPDATE users SET password=? WHERE id=?', (hash_pw(pw), user['id']))
 
+    # 2FA Check
+    if user.get('totp_enabled'):
+        # Nur temporären Token erstellen (kurze Gültigkeit: 10 Minuten)
+        temp_token = 'tmp_' + secrets.token_hex(32)
+        db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
+                   (temp_token, user['id'], (datetime.now()+timedelta(minutes=10)).isoformat(), now()))
+        conn.commit(); conn.close()
+        return jsonify({'requires_2fa': True, 'temp_token': temp_token})
+
     token = secrets.token_hex(32)
     db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
                  (token,user['id'],(datetime.now()+timedelta(days=30)).isoformat(),now()))
@@ -677,20 +727,26 @@ def login():
     conn.commit(); conn.close()
 
     audit('Login',user['id'],em)
-    return jsonify({
+    resp = make_response(jsonify({
         'token': token,
         'user': {k: user[k] for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','email_verified']}
-    })
+    }))
+    is_https = APP_URL.startswith('https')
+    resp.set_cookie('ps_session', token, httponly=True, secure=is_https, samesite='Lax', max_age=30*24*3600, path='/')
+    return resp
 
 @app.route('/api/auth/logout', methods=['POST'])
 @require_auth
 def logout():
-    token = request.headers.get('Authorization','').replace('Bearer ','')
+    # Token aus Cookie ODER Header lesen
+    token = request.cookies.get('ps_session','') or request.headers.get('Authorization','').replace('Bearer ','').strip()
     conn = get_db()
-    db_execute(conn, 'DELETE FROM sessions WHERE token=?',(token,))
+    if token: db_execute(conn, 'DELETE FROM sessions WHERE token=?',(token,))
     conn.commit(); conn.close()
     audit('Logout',request.user['id'])
-    return jsonify({'ok':True})
+    resp = make_response(jsonify({'ok':True}))
+    resp.delete_cookie('ps_session', path='/')
+    return resp
 
 @app.route('/api/auth/me')
 @require_auth
@@ -700,6 +756,142 @@ def me():
     conn.close()
     if not user: return jsonify({'error':'User not found'}), 404
     return jsonify({'user': {k: user.get(k,'') for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','trial_ends_at','email_verified']}})
+
+# ═══════════════════════════════════════════════════
+# 2FA (TOTP)
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/auth/2fa/setup', methods=['POST'])
+@require_auth
+def setup_2fa():
+    """Generiert TOTP-Secret und gibt QR-Code-URL zurück."""
+    try:
+        import pyotp
+    except ImportError:
+        return jsonify({'error': 'pyotp nicht installiert. Bitte requirements.txt aktualisieren.'}), 503
+
+    user = request.user
+    # Neues Secret generieren
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+
+    # QR-Code-URL für Authenticator-Apps
+    issuer = 'Animioo'
+    otp_uri = totp.provisioning_uri(name=user['email'], issuer_name=issuer)
+
+    # Secret temporär speichern (noch nicht aktiviert)
+    conn = get_db()
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT ''")
+        db_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER DEFAULT 0")
+        conn.commit()
+    except:
+        try: conn.rollback()
+        except: pass
+    db_execute(conn, 'UPDATE users SET totp_secret=? WHERE id=?', (secret, user['id']))
+    conn.commit(); conn.close()
+
+    return jsonify({'secret': secret, 'otp_uri': otp_uri, 'ok': True})
+
+@app.route('/api/auth/2fa/activate', methods=['POST'])
+@require_auth
+def activate_2fa():
+    """Aktiviert 2FA nach Verifikation des ersten TOTP-Codes."""
+    try:
+        import pyotp
+    except ImportError:
+        return jsonify({'error': 'pyotp nicht installiert'}), 503
+
+    d = request.json or {}
+    code = d.get('code', '').strip()
+    if not code: return jsonify({'error': 'TOTP-Code fehlt'}), 400
+
+    user = request.user
+    conn = get_db()
+    u = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=?', (user['id'],)))
+    conn.close()
+
+    secret = u.get('totp_secret', '')
+    if not secret: return jsonify({'error': 'Kein Setup durchgeführt. Bitte zuerst /api/auth/2fa/setup aufrufen.'}), 400
+
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        return jsonify({'error': 'Ungültiger Code. Bitte prüfen Sie Ihre Authenticator-App.'}), 400
+
+    conn = get_db()
+    db_execute(conn, 'UPDATE users SET totp_enabled=1 WHERE id=?', (user['id'],))
+    conn.commit(); conn.close()
+    audit('2FA aktiviert', user['id'])
+    return jsonify({'ok': True, 'message': '2FA erfolgreich aktiviert!'})
+
+@app.route('/api/auth/2fa/disable', methods=['POST'])
+@require_auth
+def disable_2fa():
+    """Deaktiviert 2FA nach Passwortverifikation."""
+    d = request.json or {}
+    password = d.get('password', '')
+    if not password: return jsonify({'error': 'Passwort erforderlich'}), 400
+
+    user = request.user
+    conn = get_db()
+    u = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=?', (user['id'],)))
+    if not check_pw(password, u['password']):
+        conn.close()
+        return jsonify({'error': 'Passwort falsch'}), 401
+
+    db_execute(conn, "UPDATE users SET totp_enabled=0, totp_secret='' WHERE id=?", (user['id'],))
+    conn.commit(); conn.close()
+    audit('2FA deaktiviert', user['id'])
+    return jsonify({'ok': True, 'message': '2FA wurde deaktiviert.'})
+
+@app.route('/api/auth/2fa/verify', methods=['POST'])
+@limiter.limit("10 per minute")
+def verify_2fa():
+    """Verifiziert TOTP-Code beim Login (zweiter Schritt)."""
+    try:
+        import pyotp
+    except ImportError:
+        return jsonify({'error': 'pyotp nicht installiert'}), 503
+
+    d = request.json or {}
+    temp_token = d.get('temp_token', '').strip()
+    code = d.get('code', '').strip()
+
+    if not temp_token or not code:
+        return jsonify({'error': 'Token und Code erforderlich'}), 400
+
+    # Temp-Session nachschlagen (mit prefix 'tmp_')
+    conn = get_db()
+    sess = db_dict(db_fetchone(conn, 'SELECT * FROM sessions WHERE token=? AND expires_at>?', (temp_token, now())))
+    if not sess:
+        conn.close()
+        return jsonify({'error': 'Sitzung abgelaufen. Bitte neu anmelden.'}), 401
+
+    user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=?', (sess['user_id'],)))
+    if not user or not user.get('totp_enabled'):
+        conn.close()
+        return jsonify({'error': 'Ungültige Anfrage'}), 400
+
+    totp = pyotp.TOTP(user['totp_secret'])
+    if not totp.verify(code, valid_window=1):
+        conn.close()
+        return jsonify({'error': 'Ungültiger Code'}), 400
+
+    # Temp-Session löschen, vollständige Session erstellen
+    db_execute(conn, 'DELETE FROM sessions WHERE token=?', (temp_token,))
+    new_token = secrets.token_hex(32)
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
+               (new_token, user['id'], (datetime.now()+timedelta(days=30)).isoformat(), now()))
+    conn.commit(); conn.close()
+
+    audit('2FA Login', user['id'], user['email'])
+    resp = make_response(jsonify({
+        'token': new_token,
+        'user': {k: user.get(k,'') for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','email_verified']}
+    }))
+    is_https = APP_URL.startswith('https')
+    resp.set_cookie('ps_session', new_token, httponly=True, secure=is_https, samesite='Lax', max_age=30*24*3600, path='/')
+    return resp
 
 # ═══════════════════════════════════════════════════
 # KI-ANALYSE
