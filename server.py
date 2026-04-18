@@ -245,6 +245,18 @@ def init_db():
                 role TEXT DEFAULT 'member',
                 invited_by TEXT DEFAULT '',
                 joined_at TEXT
+            )''',
+            '''CREATE TABLE IF NOT EXISTS support_tickets (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                user_email TEXT DEFAULT '',
+                user_name TEXT DEFAULT '',
+                subject TEXT DEFAULT '',
+                message TEXT NOT NULL,
+                status TEXT DEFAULT 'open',
+                admin_reply TEXT DEFAULT '',
+                created_at TEXT,
+                updated_at TEXT
             )'''
         ]
         for t in tables:
@@ -360,6 +372,18 @@ def init_db():
                 role TEXT DEFAULT "member",
                 invited_by TEXT DEFAULT "",
                 joined_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS support_tickets (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                user_email TEXT DEFAULT "",
+                user_name TEXT DEFAULT "",
+                subject TEXT DEFAULT "",
+                message TEXT NOT NULL,
+                status TEXT DEFAULT "open",
+                admin_reply TEXT DEFAULT "",
+                created_at TEXT,
+                updated_at TEXT
             );
         ''')
 
@@ -617,16 +641,6 @@ def require_auth(f):
         token = request.cookies.get('ps_session', '')
         if not token:
             token = request.headers.get('Authorization','').replace('Bearer ','').strip()
-        # X-API-Key Header Support
-        api_key_header = request.headers.get('X-API-Key', '')
-        if api_key_header and not token:
-            conn = get_db()
-            user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE api_key=? AND active=1', (api_key_header,)))
-            conn.close()
-            if user:
-                request.user = user
-                return f(*args, **kwargs)
-            return jsonify({'error':'Ungültiger API-Key'}), 401
         if not token: return jsonify({'error':'Nicht angemeldet'}), 401
         conn = get_db()
         sess = db_dict(db_fetchone(conn, 'SELECT * FROM sessions WHERE token=? AND expires_at>?',(token,now())))
@@ -646,21 +660,7 @@ def require_admin(f):
         return f(*args, **kwargs)
     return require_auth(dec)
 
-def require_api_key(f):
-    """Authenticate via X-API-Key header for external integrations."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        api_key = request.headers.get('X-API-Key', '').strip()
-        if not api_key:
-            return jsonify({'error': 'API-Key fehlt. Header X-API-Key erforderlich.'}), 401
-        conn = get_db()
-        user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE api_key=? AND active=1', (api_key,)))
-        conn.close()
-        if not user:
-            return jsonify({'error': 'Ungültiger API-Key'}), 401
-        request.user = user
-        return f(*args, **kwargs)
-    return decorated
+
 
 # ═══════════════════════════════════════════════════
 # STATIC ROUTES
@@ -2415,27 +2415,33 @@ def get_reports():
     join = ' LEFT JOIN users u ON r.user_id=u.id' if is_admin else ''
     select_extra = ',u.name as user_name,u.praxis' if is_admin else ''
 
+    # Explicit column list — NEVER include image_data in list queries.
+    # image_data can be 500KB–2MB per report; it's lazy-loaded separately via /image endpoint.
+    safe_cols = (
+        "r.id, r.user_id, r.pet_name, r.species, r.region, r.mode, "
+        "r.severity, r.report_text, r.image_hash, r.quality_score, r.created_at, "
+        "CASE WHEN (r.image_data IS NOT NULL AND r.image_data != '') THEN 1 ELSE 0 END AS has_image"
+    )
+    try:
+        # patient_id added later via ALTER TABLE — may not exist on all DBs
+        safe_cols += ", COALESCE(r.patient_id, '') AS patient_id"
+    except Exception:
+        pass
+
     # If page param provided, use pagination; otherwise return all (backward compat)
     if page is not None:
         page = max(page, 1)
-        # Get total count
         count_row = db_dict(db_fetchone(conn, f'SELECT COUNT(*) as n FROM reports r{join}{where}', params))
-        total = count_row['n']
+        total = (count_row or {}).get('n', 0)
         pages = math.ceil(total / per_page) if per_page > 0 else 1
         offset = (page - 1) * per_page
-        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?', params + [per_page, offset])
+        rows = db_fetchall(conn, f'SELECT {safe_cols}{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?', params + [per_page, offset])
         conn.close()
-        for r in rows:
-            r['has_image'] = bool(r.get('image_data'))
-            r.pop('image_data', None)
-        return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
+        return jsonify({'reports': rows or [], 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
     else:
-        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC', params)
+        rows = db_fetchall(conn, f'SELECT {safe_cols}{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC', params)
         conn.close()
-        for r in rows:
-            r['has_image'] = bool(r.get('image_data'))
-            r.pop('image_data', None)
-        return jsonify({'reports': rows})
+        return jsonify({'reports': rows or []})
 
 @app.route('/api/reports/<rid>/image')
 @require_auth
@@ -2451,35 +2457,48 @@ def get_report_image(rid):
         return jsonify({'error':'Kein Bild vorhanden'}), 404
     return jsonify({'image_data':r['image_data']})
 
+_thumb_cache = {}  # rid -> thumbnail_b64  (in-memory, max 200 entries)
+_THUMB_CACHE_MAX = 200
+
 @app.route('/api/reports/<rid>/thumbnail')
 @require_auth
 def get_report_thumbnail(rid):
-    """Generate a small thumbnail (120px) from the report image"""
+    """Generate a small thumbnail (120px) from the report image. Cached in memory."""
+    # Auth check first (lightweight)
     conn = get_db()
-    rows = db_fetchall(conn, 'SELECT image_data,user_id FROM reports WHERE id=?',(rid,))
+    auth_row = db_dict(db_fetchone(conn, 'SELECT user_id, image_data FROM reports WHERE id=?', (rid,)))
     conn.close()
-    if not rows: return jsonify({'error':'Befund nicht gefunden'}), 404
-    r = rows[0]
-    if r['user_id'] != request.user['id'] and request.user['role'] != 'admin':
-        return jsonify({'error':'Kein Zugriff'}), 403
-    if not r.get('image_data'):
-        return jsonify({'error':'Kein Bild vorhanden'}), 404
+    if not auth_row:
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    if auth_row['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error': 'Kein Zugriff'}), 403
+    if not auth_row.get('image_data'):
+        return jsonify({'error': 'Kein Bild vorhanden'}), 404
+
+    # Return cached thumbnail if available
+    if rid in _thumb_cache:
+        return jsonify({'thumbnail': _thumb_cache[rid]})
+
     try:
         import base64, io
         from PIL import Image
-        img_bytes = base64.b64decode(r['image_data'])
+        img_bytes = base64.b64decode(auth_row['image_data'])
         img = Image.open(io.BytesIO(img_bytes))
         img.thumbnail((120, 120), Image.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format='JPEG', quality=60)
         thumb_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        # Store in cache (evict oldest if full)
+        if len(_thumb_cache) >= _THUMB_CACHE_MAX:
+            oldest = next(iter(_thumb_cache))
+            del _thumb_cache[oldest]
+        _thumb_cache[rid] = thumb_b64
         return jsonify({'thumbnail': thumb_b64})
     except ImportError:
-        # Pillow not installed — return first chars of original as fallback
-        return jsonify({'thumbnail': r['image_data']})
+        return jsonify({'thumbnail': auth_row['image_data']})
     except Exception as e:
         app.logger.warning(f'Thumbnail-Fehler: {e}')
-        return jsonify({'thumbnail': r['image_data']})
+        return jsonify({'thumbnail': auth_row['image_data']})
 
 @app.route('/api/reports/<rid>', methods=['DELETE'])
 @require_auth
@@ -2610,6 +2629,107 @@ def admin_stats():
     }
     conn.close()
     return jsonify(stats)
+
+@app.route('/api/admin/live')
+@require_admin
+def admin_live():
+    """Live-Tracking: aktive Nutzer, Analysen, Echtzeit-Feed."""
+    conn = get_db()
+    # Online in last 30 min (sessions not expired + created recently)
+    if USE_POSTGRES:
+        online_rows = db_fetchall(conn, """
+            SELECT DISTINCT u.id, u.name, u.email, u.praxis, u.plan, u.last_login
+            FROM sessions s JOIN users u ON s.user_id=u.id
+            WHERE s.expires_at > %s AND u.role != 'admin'
+            ORDER BY u.last_login DESC LIMIT 50
+        """, (now(),))
+        recent_analyses = db_fetchall(conn, """
+            SELECT r.id, r.species, r.region, r.severity, r.created_at,
+                   u.name as user_name, u.praxis
+            FROM reports r LEFT JOIN users u ON r.user_id=u.id
+            ORDER BY r.created_at DESC LIMIT 20
+        """, ())
+        today_count = db_dict(db_fetchone(conn, """
+            SELECT COUNT(*) as n FROM reports WHERE DATE(created_at) = CURRENT_DATE
+        """, ()))['n']
+        hour_count = db_dict(db_fetchone(conn, """
+            SELECT COUNT(*) as n FROM reports
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """, ()))['n']
+    else:
+        online_rows = db_fetchall(conn, """
+            SELECT DISTINCT u.id, u.name, u.email, u.praxis, u.plan, u.last_login
+            FROM sessions s JOIN users u ON s.user_id=u.id
+            WHERE s.expires_at > ? AND u.role != 'admin'
+            ORDER BY u.last_login DESC LIMIT 50
+        """, (now(),))
+        recent_analyses = db_fetchall(conn, """
+            SELECT r.id, r.species, r.region, r.severity, r.created_at,
+                   u.name as user_name, u.praxis
+            FROM reports r LEFT JOIN users u ON r.user_id=u.id
+            ORDER BY r.created_at DESC LIMIT 20
+        """, ())
+        today_count = db_dict(db_fetchone(conn, """
+            SELECT COUNT(*) as n FROM reports WHERE date(created_at) = date('now')
+        """, ()))['n']
+        hour_count = db_dict(db_fetchone(conn, """
+            SELECT COUNT(*) as n FROM reports
+            WHERE created_at > datetime('now', '-1 hour')
+        """, ()))['n']
+    conn.close()
+    return jsonify({
+        'online': online_rows or [],
+        'online_count': len(online_rows) if online_rows else 0,
+        'recent_analyses': recent_analyses or [],
+        'today_count': today_count,
+        'hour_count': hour_count,
+        'timestamp': now()
+    })
+
+
+@app.route('/api/admin/feedback-stats')
+@require_admin
+def admin_feedback_stats():
+    """Kundenfeedback-Statistiken aus report_feedback."""
+    conn = get_db()
+    total_row = db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM report_feedback", ()))
+    total = total_row['n'] if total_row else 0
+    if total == 0:
+        conn.close()
+        return jsonify({'total': 0, 'avg_rating': 0, 'correct_pct': 0,
+                        'distribution': {}, 'recent': []})
+    avg_row = db_dict(db_fetchone(conn, "SELECT AVG(CAST(rating AS FLOAT)) as avg FROM report_feedback WHERE rating IS NOT NULL", ()))
+    avg_rating = round(float(avg_row['avg'] or 0), 1)
+    correct_row = db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM report_feedback WHERE correct=1", ()))
+    correct_total_row = db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM report_feedback WHERE correct IS NOT NULL", ()))
+    correct_pct = round(correct_row['n'] / correct_total_row['n'] * 100) if correct_total_row['n'] > 0 else 0
+    dist_rows = db_fetchall(conn, "SELECT rating, COUNT(*) as n FROM report_feedback WHERE rating IS NOT NULL GROUP BY rating ORDER BY rating", ())
+    distribution = {str(r['rating']): r['n'] for r in (dist_rows or [])}
+    if USE_POSTGRES:
+        recent = db_fetchall(conn, """
+            SELECT rf.rating, rf.correct, rf.comment, rf.created_at,
+                   u.name as user_name, u.praxis
+            FROM report_feedback rf LEFT JOIN users u ON rf.user_id=u.id
+            WHERE rf.comment IS NOT NULL AND rf.comment != ''
+            ORDER BY rf.created_at DESC LIMIT 20
+        """, ())
+    else:
+        recent = db_fetchall(conn, """
+            SELECT rf.rating, rf.correct, rf.comment, rf.created_at,
+                   u.name as user_name, u.praxis
+            FROM report_feedback rf LEFT JOIN users u ON rf.user_id=u.id
+            WHERE rf.comment IS NOT NULL AND rf.comment != ''
+            ORDER BY rf.created_at DESC LIMIT 20
+        """, ())
+    conn.close()
+    return jsonify({
+        'total': total,
+        'avg_rating': avg_rating,
+        'correct_pct': correct_pct,
+        'distribution': distribution,
+        'recent': recent or []
+    })
+
 
 @app.route('/api/admin/customers')
 @require_admin
@@ -2992,178 +3112,6 @@ def get_report_feedback(rid):
     return jsonify({'feedback': rows})
 
 # ═══════════════════════════════════════════════════
-# API-KEY MANAGEMENT
-# ═══════════════════════════════════════════════════
-@app.route('/api/auth/api-key')
-@require_auth
-def get_api_key():
-    """Get or generate an API key for the current user."""
-    conn = get_db()
-    user = db_dict(db_fetchone(conn, 'SELECT api_key FROM users WHERE id=?', (request.user['id'],)))
-    api_key = user.get('api_key', '') if user else ''
-    if not api_key:
-        api_key = 'ak_' + secrets.token_hex(24)
-        db_execute(conn, 'UPDATE users SET api_key=? WHERE id=?', (api_key, request.user['id']))
-        conn.commit()
-    conn.close()
-    return jsonify({'api_key': api_key})
-
-# ═══════════════════════════════════════════════════
-# PRAXISMANAGEMENT-INTEGRATION API (v1)
-# ═══════════════════════════════════════════════════
-@app.route('/api/v1/analyse', methods=['POST'])
-@require_api_key
-@limiter.limit("10 per minute")
-def v1_analyse():
-    """External API: analyse an image via multipart/form-data with API key auth."""
-    user = request.user
-
-    if user['role'] != 'admin':
-        if user['plan'] in ('trial',) and user['analyses_used'] >= user['analyses_limit']:
-            return jsonify({'error': 'Analyse-Kontingent aufgebraucht', 'upgrade_required': True}), 402
-        if user['plan'] == 'starter' and user['analyses_used'] >= 50:
-            return jsonify({'error': 'Monatliches Kontingent erreicht', 'upgrade_required': True}), 402
-
-    import base64
-
-    # Accept either multipart form or JSON
-    if request.content_type and 'multipart/form-data' in request.content_type:
-        image_file = request.files.get('image')
-        if not image_file:
-            return jsonify({'error': 'Kein Bild hochgeladen (multipart field "image" erwartet)'}), 400
-        img_a = base64.b64encode(image_file.read()).decode('utf-8')
-        species = request.form.get('species', 'Hund')
-        region = request.form.get('region', 'Thorax')
-    else:
-        d = request.json or {}
-        img_a = d.get('image', '')
-        species = d.get('species', 'Hund')
-        region = d.get('region', 'Thorax')
-
-    if not img_a:
-        return jsonify({'error': 'Kein Bild-Daten'}), 400
-
-    # Reuse the main analyse logic by forwarding internally
-    # Build the JSON body and call the analyse function indirectly
-    from flask import g
-    # Store original json and set up the request data
-    request._v1_data = {
-        'img_a': img_a, 'species': species, 'region': region,
-        'mode': 'single', 'context': '', 'focus_mode': 'general', 'focus_text': '',
-        'pet_name': '', 'img_b': ''
-    }
-
-    # Check cache
-    img_h = image_hash(img_a, species, region, 'single')
-    conn = get_db()
-    cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
-    conn.close()
-    if cached:
-        result = {k: cached.get(k, '') for k in ['id', 'report_text', 'severity', 'species', 'region', 'mode', 'created_at']}
-        result['cached'] = True
-        return jsonify(result)
-
-    # Call AI (simplified — use same providers)
-    if not ANTHROPIC_API_KEY and not OPENAI_API_KEY and not GEMINI_API_KEY:
-        return jsonify({'error': 'KI nicht konfiguriert'}), 503
-
-    import time as _time
-
-    system_prompt = "Du bist ein erfahrener Veterinärradiologe. Erstelle einen vollständigen Befundbericht auf Deutsch."
-    msgs = [
-        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': img_a}},
-        {'type': 'text', 'text': f'Erstelle einen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}.'}
-    ]
-
-    text = None
-    # Try OpenAI
-    if OPENAI_API_KEY and not text:
-        try:
-            from openai import OpenAI
-            oc = OpenAI(api_key=OPENAI_API_KEY)
-            oai_content = []
-            for m in msgs:
-                if m['type'] == 'image':
-                    oai_content.append({'type': 'image_url', 'image_url': {'url': f"data:{m['source']['media_type']};base64,{m['source']['data']}", 'detail': 'high'}})
-                else:
-                    oai_content.append({'type': 'text', 'text': m['text']})
-            resp = oc.chat.completions.create(model='gpt-4o', max_tokens=4096, temperature=0,
-                messages=[{'role': 'system', 'content': system_prompt}, {'role': 'user', 'content': oai_content}])
-            text = resp.choices[0].message.content
-        except Exception as e:
-            app.logger.warning(f'v1 OpenAI Fehler: {e}')
-
-    # Try Anthropic
-    if ANTHROPIC_API_KEY and not text:
-        try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=4096, temperature=0,
-                system=system_prompt, messages=[{'role': 'user', 'content': msgs}])
-            text = resp.content[0].text
-        except Exception as e:
-            app.logger.warning(f'v1 Anthropic Fehler: {e}')
-
-    if not text:
-        return jsonify({'error': 'KI-Analyse fehlgeschlagen'}), 503
-
-    tl = text.lower()
-    import re as _re
-    _high = bool(_re.search(r'(notfall|emergency|\burgent\b)', tl) or
-                 _re.search(r'dringlichkeit[^a-z]{0,20}(hoch|high|notfall)', tl) or
-                 _re.search(r'\*{1,2}\s*(hoch|high|notfall)\s*\*{1,2}', tl) or
-                 _re.search(r'\[\s*(hoch|high|notfall)\s*\]', tl))
-    _low  = bool(not _high and (
-                 _re.search(r'dringlichkeit[^a-z]{0,20}(niedrig|low|gering)', tl) or
-                 _re.search(r'\*{1,2}\s*(niedrig|low)\s*\*{1,2}', tl) or
-                 _re.search(r'\[\s*(niedrig|low)\s*\]', tl)))
-    sev   = 'high' if _high else ('low' if _low else 'mid')
-
-    required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
-    sections_found = sum(1 for s in required_sections if s in tl)
-    quality_score = sections_found
-
-    rid = 'r_' + nid()
-    conn = get_db()
-    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-               (rid, user['id'], '', species, region, 'single', sev, text, img_a, img_h, quality_score, now()))
-    db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?', (user['id'],))
-    conn.commit(); conn.close()
-
-    audit('v1_Analyse', user['id'], f'{species}/{region}')
-    return jsonify({'id': rid, 'report_text': text, 'severity': sev, 'species': species, 'region': region,
-                    'quality_score': quality_score, 'created_at': now()})
-
-@app.route('/api/v1/reports')
-@require_api_key
-def v1_list_reports():
-    """External API: list reports for API key user."""
-    page = request.args.get('page', 1, type=int)
-    per_page = min(max(request.args.get('per_page', 20, type=int), 1), 100)
-    page = max(page, 1)
-
-    conn = get_db()
-    count_row = db_dict(db_fetchone(conn, 'SELECT COUNT(*) as n FROM reports WHERE user_id=?', (request.user['id'],)))
-    total = count_row['n']
-    pages = math.ceil(total / per_page) if per_page > 0 else 1
-    offset = (page - 1) * per_page
-    rows = db_fetchall(conn, 'SELECT id,pet_name,species,region,mode,severity,quality_score,created_at FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-                       (request.user['id'], per_page, offset))
-    conn.close()
-    return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
-
-@app.route('/api/v1/reports/<rid>')
-@require_api_key
-def v1_get_report(rid):
-    """External API: get a single report by ID."""
-    conn = get_db()
-    report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=? AND user_id=?', (rid, request.user['id'])))
-    conn.close()
-    if not report:
-        return jsonify({'error': 'Befund nicht gefunden'}), 404
-    report.pop('image_data', None)
-    return jsonify({'report': report})
-
-# ═══════════════════════════════════════════════════
 # PRAXIS-TEAMS
 # ═══════════════════════════════════════════════════
 
@@ -3425,53 +3373,6 @@ def send_report_email(rid):
     return jsonify({'ok': True})
 
 
-# ═══════════════════════════════════════════════════
-# API-SCHLÜSSEL-VERWALTUNG
-# ═══════════════════════════════════════════════════
-
-@app.route('/api/apikey', methods=['GET'])
-@require_auth
-def get_apikey():
-    """Gibt den API-Key zurück (maskiert oder im Klartext bei ?reveal=1)."""
-    conn = get_db()
-    user = db_dict(db_fetchone(conn, 'SELECT api_key FROM users WHERE id=?', (request.user['id'],)))
-    conn.close()
-    api_key = user.get('api_key', '') if user else ''
-    if not api_key:
-        return jsonify({'api_key': None, 'has_key': False})
-    reveal = request.args.get('reveal', '0') == '1'
-    if reveal:
-        return jsonify({'api_key': api_key, 'api_key_masked': api_key, 'has_key': True})
-    # Maskieren: erste 8 + "..." + letzte 4
-    if len(api_key) > 12:
-        masked = api_key[:8] + '...' + api_key[-4:]
-    else:
-        masked = api_key[:4] + '...'
-    return jsonify({'api_key': masked, 'api_key_masked': masked, 'has_key': True})
-
-
-@app.route('/api/apikey/regenerate', methods=['POST'])
-@require_auth
-def regenerate_apikey():
-    """Erzeugt einen neuen API-Key."""
-    new_key = 'ak_' + secrets.token_hex(32)
-    conn = get_db()
-    db_execute(conn, 'UPDATE users SET api_key=? WHERE id=?', (new_key, request.user['id']))
-    conn.commit(); conn.close()
-    audit('API-Key erneuert', request.user['id'])
-    return jsonify({'api_key': new_key, 'ok': True})
-
-
-@app.route('/api/apikey', methods=['DELETE'])
-@require_auth
-def delete_apikey():
-    """Löscht den API-Key."""
-    conn = get_db()
-    db_execute(conn, "UPDATE users SET api_key='' WHERE id=?", (request.user['id'],))
-    conn.commit(); conn.close()
-    audit('API-Key gelöscht', request.user['id'])
-    return jsonify({'ok': True})
-
 
 # ═══════════════════════════════════════════════════
 # BEFUND-VERLAUF PRO PATIENT
@@ -3506,19 +3407,73 @@ def patient_reports(pid):
 
 
 # ═══════════════════════════════════════════════════
-# ÖFFENTLICHE API v1 (mit X-API-Key oder Bearer, zusätzliche Endpunkte)
+# SUPPORT TICKETS
 # ═══════════════════════════════════════════════════
 
-@app.route('/api/v1/patients', methods=['GET'])
+@app.route('/api/support', methods=['POST'])
 @require_auth
-@limiter.limit("60 per minute")
-def v1_list_patients():
-    """Public API: Gibt Patienten des API-Users zurück."""
-    uid = request.user['id']
+@limiter.limit("5 per hour")
+def create_support_ticket():
+    """Nutzer erstellt ein Support-Ticket."""
+    d = request.json or {}
+    subject = d.get('subject', '').strip()[:200]
+    message = d.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Nachricht erforderlich'}), 400
+    u = request.user
+    tid = 'st_' + nid()
     conn = get_db()
-    rows = db_fetchall(conn, 'SELECT * FROM patients WHERE user_id=? ORDER BY name ASC', (uid,))
+    db_execute(conn, '''INSERT INTO support_tickets
+        (id, user_id, user_email, user_name, subject, message, status, admin_reply, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)''',
+        (tid, u['id'], u.get('email',''), u.get('name',''), subject, message, 'open', '', now(), now()))
+    conn.commit(); conn.close()
+    audit('Support-Ticket erstellt', u['id'], subject or message[:60])
+    return jsonify({'id': tid, 'ok': True}), 201
+
+
+@app.route('/api/support', methods=['GET'])
+@require_auth
+def get_my_support_tickets():
+    """Gibt alle Tickets des eingeloggten Nutzers zurück."""
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT * FROM support_tickets WHERE user_id=? ORDER BY created_at DESC', (request.user['id'],))
     conn.close()
-    return jsonify({'patients': rows or []})
+    return jsonify({'tickets': rows or []})
+
+
+@app.route('/api/admin/support', methods=['GET'])
+@require_admin
+def admin_list_support():
+    """Admin: alle offenen Support-Tickets."""
+    status = request.args.get('status', '')
+    conn = get_db()
+    if status:
+        rows = db_fetchall(conn, "SELECT * FROM support_tickets WHERE status=? ORDER BY created_at DESC", (status,))
+    else:
+        rows = db_fetchall(conn, "SELECT * FROM support_tickets ORDER BY created_at DESC LIMIT 100")
+    conn.close()
+    return jsonify({'tickets': rows or []})
+
+
+@app.route('/api/admin/support/<tid>', methods=['PUT'])
+@require_admin
+def admin_update_support(tid):
+    """Admin: Ticket beantworten oder Status ändern."""
+    d = request.json or {}
+    status = d.get('status', '').strip()
+    reply = d.get('admin_reply', '').strip()
+    conn = get_db()
+    if status and reply:
+        db_execute(conn, 'UPDATE support_tickets SET status=?, admin_reply=?, updated_at=? WHERE id=?',
+                   (status, reply, now(), tid))
+    elif status:
+        db_execute(conn, 'UPDATE support_tickets SET status=?, updated_at=? WHERE id=?', (status, now(), tid))
+    elif reply:
+        db_execute(conn, 'UPDATE support_tickets SET admin_reply=?, updated_at=? WHERE id=?', (reply, now(), tid))
+    conn.commit(); conn.close()
+    audit('Support-Ticket aktualisiert', request.user['id'], tid)
+    return jsonify({'ok': True})
 
 
 # ═══════════════════════════════════════════════════

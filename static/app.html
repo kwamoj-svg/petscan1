@@ -411,13 +411,13 @@ a{color:inherit;text-decoration:none;}
   <div class="app-wrap">
     <div class="sb" id="app-sb">
       <div class="sb-sec">
-        <div class="sb-lbl">KI-Analyse</div>
+        <div class="sb-lbl">KI-Radiologie</div>
         <button class="nb on" data-v="analyse" onclick="navTo('analyse',this)">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Neue Analyse
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>KI-Analyse
         </button>
         <button class="nb" data-v="reports" onclick="navTo('reports',this)">
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Meine Befunde <span class="nb-cnt" id="nb-cnt">0</span>
+          Befunde <span class="nb-cnt" id="nb-cnt">0</span>
         </button>
         <button class="nb" data-v="stats" onclick="navTo('stats',this)">
           <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -458,6 +458,65 @@ a{color:inherit;text-decoration:none;}
         <span style="font-size:11px;color:var(--text3)" id="result-ts"></span>
       </div>
       <div id="main-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SUPPORT BUTTON -->
+<button id="support-btn" onclick="openSupport()" style="position:fixed;bottom:80px;right:20px;z-index:4000;width:50px;height:50px;border-radius:50%;background:var(--blue);color:#fff;box-shadow:0 4px 18px rgba(26,86,219,.45);display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;transition:all .2s;" title="Support & Hilfe" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <span id="support-badge" style="display:none;position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:50%;background:#ef4444;font-size:9px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff;"></span>
+</button>
+
+<!-- SUPPORT MODAL -->
+<div id="support-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:4500;align-items:flex-end;justify-content:flex-end;padding:20px 20px 80px;">
+  <div style="background:var(--surface);border-radius:14px;width:380px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;">
+    <!-- Header -->
+    <div style="background:var(--blue);padding:16px 18px;display:flex;align-items:center;gap:10px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:700;color:#fff;">Animioo Support</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.75);">Wir antworten schnellstmöglich</div>
+      </div>
+      <button onclick="closeSupport()" style="color:rgba(255,255,255,.7);padding:4px;border-radius:4px;cursor:pointer;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.7)'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);">
+      <button id="sup-tab-new" onclick="supTab('new')" style="flex:1;padding:10px;font-size:12.5px;font-weight:600;color:var(--blue);border-bottom:2px solid var(--blue);background:none;cursor:pointer;transition:all .15s;">Neue Frage</button>
+      <button id="sup-tab-history" onclick="supTab('history')" style="flex:1;padding:10px;font-size:12.5px;font-weight:600;color:var(--text3);border-bottom:2px solid transparent;background:none;cursor:pointer;transition:all .15s;">Meine Tickets</button>
+    </div>
+    <!-- New ticket form -->
+    <div id="sup-panel-new" style="padding:16px;overflow-y:auto;flex:1;">
+      <div style="margin-bottom:12px;">
+        <label style="display:block;font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:5px;">Thema</label>
+        <select id="sup-subject" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--f);color:var(--text);background:var(--surface);">
+          <option value="Technisches Problem">🔧 Technisches Problem</option>
+          <option value="KI-Analyse Frage">🤖 Frage zur KI-Analyse</option>
+          <option value="Abrechnung & Plan">💳 Abrechnung & Plan</option>
+          <option value="DICOM / Bildformat">📁 DICOM / Bildformat</option>
+          <option value="Befund Feedback">📋 Feedback zu Befund</option>
+          <option value="Sonstiges">💬 Sonstiges</option>
+        </select>
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:5px;">Ihre Nachricht</label>
+        <textarea id="sup-message" placeholder="Beschreiben Sie Ihr Anliegen …" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--f);color:var(--text);background:var(--surface);resize:vertical;min-height:110px;line-height:1.55;transition:border-color .15s;" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      </div>
+      <button onclick="submitSupport()" style="width:100%;padding:10px;background:var(--blue);color:#fff;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:7px;" onmouseover="this.style.background='var(--blue2)'" onmouseout="this.style.background='var(--blue)'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Absenden
+      </button>
+      <p style="font-size:11px;color:var(--text3);text-align:center;margin-top:10px;">Oder direkt: <a href="mailto:kontakt@animioo.de" style="color:var(--blue);font-weight:600;">kontakt@animioo.de</a></p>
+    </div>
+    <!-- Ticket history -->
+    <div id="sup-panel-history" style="display:none;overflow-y:auto;flex:1;">
+      <div id="sup-tickets-list" style="padding:14px;">
+        <div style="text-align:center;color:var(--text3);font-size:13px;padding:20px;">Wird geladen…</div>
+      </div>
     </div>
   </div>
 </div>
@@ -879,7 +938,7 @@ function navTo(view, btn) {
   closeMobileMenu();
   document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('on'); });
   if(btn) btn.classList.add('on');
-  var titles = {analyse:'Neue Analyse',reports:'Meine Befunde',account:'Mein Account',upgrade:'Plan upgraden',stats:'Statistiken',patients:'Patientenkartei',team:'Praxis-Team'};
+  var titles = {analyse:'KI-Analyse',reports:'Befunde',account:'Mein Account',upgrade:'Plan upgraden',stats:'Statistiken',patients:'Patientenkartei',team:'Praxis-Team'};
   document.getElementById('ph-t').textContent = titles[view]||view;
   document.getElementById('result-ts').textContent='';
   ({analyse:renderAnalyse,reports:renderReports,account:renderAccount,upgrade:renderUpgrade,stats:renderStats,patients:renderPatients,team:renderTeam}[view]||renderAnalyse)();
@@ -2180,25 +2239,7 @@ function buildAccount() {
     +'<div id="tfa-status" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>'
     +'<div id="tfa-setup-area"></div>'
     +'</div>'
-    +'<div class="ac-card" id="api-key-card" style="margin-top:14px;">'
-    +'<div class="ac-h">&#x1F511; API-Zugang für Praxissoftware</div>'
-    +'<div class="ac-row">'
-    +'<div class="ac-lbl">Ihr API-Key</div>'
-    +'<div style="display:flex;align-items:center;gap:8px;">'
-    +'<code id="api-key-display" style="font-size:11px;background:var(--s2);padding:4px 8px;border-radius:4px;border:1px solid var(--border);">Wird geladen...</code>'
-    +'<button class="abt ab-g" onclick="revealApiKey()" id="api-reveal-btn" style="font-size:11px;padding:4px 10px;">Anzeigen</button>'
-    +'</div>'
-    +'</div>'
-    +'<div class="ac-row">'
-    +'<div class="ac-lbl">API-Dokumentation</div>'
-    +'<div><code style="font-size:11px;color:var(--text3);">POST /api/v1/analyse &middot; GET /api/v1/reports</code></div>'
-    +'</div>'
-    +'<div style="margin-top:12px;display:flex;gap:8px;">'
-    +'<button class="abt ab-p" onclick="regenerateApiKey()" style="font-size:12px;">Neuen Key generieren</button>'
-    +'<button class="abt ab-g" onclick="deleteApiKey()" style="font-size:12px;">Key löschen</button>'
-    +'</div>'
-    +'</div>'
-    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);margin-top:14px;"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 143 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
+    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);margin-top:14px;"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 99 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
     +'<div class="ac-card"><div class="ac-h">Datenschutz (DSGVO)</div>'
     +'<p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Gem&auml;&szlig; DSGVO haben Sie das Recht, Ihre Daten einzusehen, zu exportieren und Ihr Konto zu l&ouml;schen.</p>'
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
@@ -2222,53 +2263,6 @@ function buildAccount() {
       setupEl.innerHTML = '<button class="abt ab-p" onclick="start2FASetup()" style="margin-top:6px;">2FA aktivieren</button>';
     }
   }).catch(function(){});
-  loadApiKey();
-}
-
-// Feature 5: API Key functions
-function loadApiKey() {
-  api('/api/apikey').then(function(d){
-    var el = document.getElementById('api-key-display');
-    if (el) el.textContent = d.api_key_masked || d.api_key || '(kein Key)';
-    var btn = document.getElementById('api-reveal-btn');
-    if (btn) btn.style.display = d.api_key_masked ? '' : 'none';
-  }).catch(function(){
-    var el = document.getElementById('api-key-display');
-    if (el) el.textContent = 'Kein API-Key vorhanden';
-    var btn = document.getElementById('api-reveal-btn');
-    if (btn) btn.style.display = 'none';
-  });
-}
-
-function revealApiKey() {
-  api('/api/apikey?reveal=1').then(function(d){
-    var el = document.getElementById('api-key-display');
-    if (el) el.textContent = d.api_key || '(kein Key)';
-    var btn = document.getElementById('api-reveal-btn');
-    if (btn) btn.style.display = 'none';
-  }).catch(function(e){ toast('Fehler: '+e.message, 'red'); });
-}
-
-function regenerateApiKey() {
-  if (!confirm('Einen neuen API-Key generieren? Der alte Key wird sofort ungültig.')) return;
-  api('/api/apikey/regenerate', 'POST', {}).then(function(d){
-    var el = document.getElementById('api-key-display');
-    if (el) el.textContent = d.api_key || '(kein Key)';
-    var btn = document.getElementById('api-reveal-btn');
-    if (btn) btn.style.display = 'none';
-    toast('Neuer API-Key generiert');
-  }).catch(function(e){ toast('Fehler: '+e.message, 'red'); });
-}
-
-function deleteApiKey() {
-  if (!confirm('API-Key wirklich löschen?')) return;
-  api('/api/apikey', 'DELETE').then(function(){
-    var el = document.getElementById('api-key-display');
-    if (el) el.textContent = 'Kein API-Key vorhanden';
-    var btn = document.getElementById('api-reveal-btn');
-    if (btn) btn.style.display = 'none';
-    toast('API-Key gelöscht');
-  }).catch(function(e){ toast('Fehler: '+e.message, 'red'); });
 }
 
 // DSGVO: Daten exportieren
@@ -2299,6 +2293,73 @@ function deleteMyAccount() {
   }).catch(function(e){ toast('Fehler: ' + e.message); });
 }
 
+// ═══════════════════════════════════════
+// SUPPORT
+// ═══════════════════════════════════════
+function openSupport() {
+  var m = document.getElementById('support-modal');
+  m.style.display = 'flex';
+  supTab('new');
+}
+function closeSupport() {
+  document.getElementById('support-modal').style.display = 'none';
+}
+function supTab(tab) {
+  var isNew = tab === 'new';
+  document.getElementById('sup-panel-new').style.display = isNew ? 'block' : 'none';
+  document.getElementById('sup-panel-history').style.display = isNew ? 'none' : 'block';
+  document.getElementById('sup-tab-new').style.color = isNew ? 'var(--blue)' : 'var(--text3)';
+  document.getElementById('sup-tab-new').style.borderBottomColor = isNew ? 'var(--blue)' : 'transparent';
+  document.getElementById('sup-tab-history').style.color = isNew ? 'var(--text3)' : 'var(--blue)';
+  document.getElementById('sup-tab-history').style.borderBottomColor = isNew ? 'transparent' : 'var(--blue)';
+  if (!isNew) loadMyTickets();
+}
+function submitSupport() {
+  var subject = document.getElementById('sup-subject').value;
+  var message = document.getElementById('sup-message').value.trim();
+  if (!message) { toast('Bitte eine Nachricht eingeben.', 'amber'); return; }
+  api('/api/support', 'POST', { subject: subject, message: message })
+    .then(function() {
+      document.getElementById('sup-message').value = '';
+      toast('Anfrage gesendet — wir melden uns bald!');
+      supTab('history');
+    })
+    .catch(function(e) { toast('Fehler: ' + e.message, 'red'); });
+}
+function loadMyTickets() {
+  var el = document.getElementById('sup-tickets-list');
+  el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px;">Wird geladen…</div>';
+  api('/api/support').then(function(d) {
+    var tickets = d.tickets || [];
+    if (!tickets.length) {
+      el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:24px 16px;">Noch keine Anfragen.<br><span style="font-size:12px;">Schreiben Sie uns über "Neue Frage".</span></div>';
+      return;
+    }
+    el.innerHTML = tickets.map(function(t) {
+      var sColor = t.status === 'open' ? 'var(--amber)' : t.status === 'closed' ? 'var(--green)' : 'var(--blue)';
+      var sLabel = {open:'Offen', answered:'Beantwortet', closed:'Geschlossen'}[t.status] || t.status;
+      var dt = '';
+      try { dt = new Date(t.created_at).toLocaleDateString('de-DE'); } catch(e) {}
+      return '<div style="border:1px solid var(--border);border-radius:var(--r);padding:12px 13px;margin-bottom:10px;">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+        + '<span style="font-size:12px;font-weight:700;color:var(--text);flex:1;">' + (t.subject || 'Anfrage') + '</span>'
+        + '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,.06);color:' + sColor + ';">' + sLabel + '</span>'
+        + '</div>'
+        + '<p style="font-size:12px;color:var(--text2);margin-bottom:6px;line-height:1.5;">' + escHtml(t.message) + '</p>'
+        + (t.admin_reply ? '<div style="background:var(--blue-dim);border-left:3px solid var(--blue);border-radius:0 var(--r) var(--r) 0;padding:8px 10px;margin-top:8px;font-size:12px;color:var(--blue2);line-height:1.5;"><strong>Antwort:</strong> ' + escHtml(t.admin_reply) + '</div>' : '')
+        + '<div style="font-size:10.5px;color:var(--text3);margin-top:6px;">' + dt + '</div>'
+        + '</div>';
+    }).join('');
+  }).catch(function() {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px;">Fehler beim Laden.</div>';
+  });
+}
+// Close support modal on background click
+document.addEventListener('click', function(e) {
+  var m = document.getElementById('support-modal');
+  if (m && m.style.display === 'flex' && e.target === m) closeSupport();
+});
+
 // UPGRADE
 var UP_YEARLY=false;
 function toggleUpPricing(){
@@ -2308,9 +2369,9 @@ function toggleUpPricing(){
 function renderUpgrade() {
   var c=document.getElementById('main-content');
   c.style.overflow='';
-  var sPrice=UP_YEARLY?'39':'49', pPrice=UP_YEARLY?'143':'179';
+  var sPrice=UP_YEARLY?'39':'49', pPrice=UP_YEARLY?'99':'129';
   var sPeriod=UP_YEARLY?'pro Monat · jährlich (468 €/Jahr)':'pro Monat · zzgl. MwSt.';
-  var pPeriod=UP_YEARLY?'pro Monat · jährlich (1.716 €/Jahr)':'pro Monat · zzgl. MwSt.';
+  var pPeriod=UP_YEARLY?'pro Monat · jährlich (1.188 €/Jahr)':'pro Monat · zzgl. MwSt.';
   var sBilling=UP_YEARLY?'yearly':'monthly', pBilling=UP_YEARLY?'yearly':'monthly';
   c.innerHTML='<div style="overflow-y:auto;padding:22px;flex:1;"><div style="max-width:720px;margin:0 auto;">'
     +'<h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Plan wählen</h2>'

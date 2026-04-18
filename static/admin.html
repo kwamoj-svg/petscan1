@@ -245,6 +245,53 @@ td strong{color:var(--text);font-weight:600;}
 .prog-val{font-family:var(--f);color:var(--text3);}
 .prog-track{height:5px;background:var(--s3);border-radius:3px;overflow:hidden;}
 .prog-fill{height:100%;border-radius:3px;}
+/* LIVE PULSE */
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes countUp{from{opacity:0}to{opacity:1}}
+
+/* ENHANCED KPI CARDS */
+.kpi-e{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;transition:border-color .2s,box-shadow .2s;position:relative;overflow:hidden;animation:fadeIn .3s ease both;}
+.kpi-e:hover{border-color:var(--border2);box-shadow:0 4px 16px rgba(0,0,0,.25);}
+.kpi-e::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 100% 60% at 0% 0%,rgba(255,255,255,.025),transparent 60%);}
+.kpi-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;position:relative;flex-shrink:0;}
+.kpi-ico svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;}
+.kpi-val2{font-size:28px;font-weight:800;color:var(--text);letter-spacing:-.5px;line-height:1;margin-bottom:5px;font-variant-numeric:tabular-nums;}
+.kpi-lbl2{font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;}
+.kpi-trend{font-size:11px;font-weight:500;display:flex;align-items:center;gap:3px;}
+.t-up{color:var(--green);}
+.t-down{color:var(--red);}
+.t-neutral{color:var(--text3);}
+
+/* WELCOME BAR */
+.dash-welcome{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:16px 18px;background:var(--s1);border:1px solid var(--border);border-radius:10px;animation:fadeIn .3s ease both;}
+.dash-greeting{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.3px;}
+.dash-date{font-size:11.5px;color:var(--text3);margin-top:3px;}
+
+/* CHART CONTAINER */
+.chart-box{padding:12px 14px 8px;}
+.chart-days{display:flex;justify-content:space-between;padding:0 2px 10px;margin-top:2px;}
+.chart-day{font-size:9.5px;color:var(--text3);text-align:center;}
+
+/* AVATAR */
+.av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+
+/* QUICK STATS ROW */
+.stat-row{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);gap:10px;transition:background .12s;}
+.stat-row:hover{background:rgba(255,255,255,.012);}
+.stat-row:last-child{border-bottom:none;}
+
+/* HEALTH BAR */
+.hbar-wrap{margin-bottom:13px;}
+.hbar-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}
+.hbar-name{font-size:12px;font-weight:600;color:var(--text);}
+.hbar-meta{font-size:10.5px;color:var(--text3);}
+.hbar-track{height:6px;background:var(--s3);border-radius:4px;overflow:hidden;}
+.hbar-fill{height:100%;border-radius:4px;transition:width .9s cubic-bezier(.34,1.56,.64,1);}
+
+/* MRR GOAL */
+.mrr-goal-bar{height:10px;background:var(--s3);border-radius:5px;overflow:hidden;margin:10px 0 6px;}
+.mrr-goal-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--blue),var(--green));transition:width 1.2s cubic-bezier(.34,1.56,.64,1);}
 </style>
 </head>
 <body>
@@ -293,10 +340,11 @@ td strong{color:var(--text);font-weight:600;}
           <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <div class="top-nd"></div>
           <div class="np" id="np-panel">
-            <div class="np-h">Benachrichtigungen</div>
-            <div class="ni"><div style="display:flex;gap:7px;align-items:flex-start"><div class="ndot" style="margin-top:3px;flex-shrink:0"></div><div><div class="ni-t">Neuer Lead: Pferdeklinik Nord</div><div class="ni-d">Interesse am Professional Plan</div><div class="ni-ts">vor 12 Min</div></div></div></div>
-            <div class="ni"><div style="display:flex;gap:7px;align-items:flex-start"><div class="ndot" style="margin-top:3px;flex-shrink:0"></div><div><div class="ni-t">Neue Registrierung</div><div class="ni-d">Neuer Tierarzt hat sich angemeldet</div><div class="ni-ts">vor 1 Std</div></div></div></div>
-            <div class="ni"><div style="display:flex;gap:7px;align-items:flex-start"><div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:3px"></div><div><div class="ni-t">Monatsbericht März</div><div class="ni-d">247 Analysen, 8 neue Kunden</div><div class="ni-ts">heute 08:00</div></div></div></div>
+            <div class="np-h" style="display:flex;align-items:center;justify-content:space-between">
+              Benachrichtigungen
+              <button onclick="toggleNP()" style="font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0">Schließen</button>
+            </div>
+            <div id="np-body"><div style="padding:18px;text-align:center;color:var(--text3);font-size:12px">Wird geladen…</div></div>
           </div>
         </div>
         <div class="top-ib" onclick="nav('settings')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
@@ -319,6 +367,11 @@ td strong{color:var(--text);font-weight:600;}
           <button class="nb on" data-v="dashboard" onclick="nav('dashboard',this)">
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard
           </button>
+          <button class="nb" data-v="live" onclick="nav('live',this)" style="position:relative">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Live-Tracking
+            <span id="live-online" style="margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:var(--green-bg);color:var(--green)">0</span>
+          </button>
           <button class="nb" data-v="analytics" onclick="nav('analytics',this)">
             <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics
           </button>
@@ -333,6 +386,12 @@ td strong{color:var(--text);font-weight:600;}
           </button>
           <button class="nb" data-v="reports" onclick="nav('reports',this)">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Befunde
+          </button>
+          <button class="nb" data-v="feedback" onclick="nav('feedback',this)">
+            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Feedback
+          </button>
+          <button class="nb" data-v="support" onclick="nav('support',this)">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Support<span class="nb-badge" id="sb-sup">0</span>
           </button>
         </div>
         <div class="sb-sec">
@@ -373,38 +432,10 @@ td strong{color:var(--text);font-weight:600;}
 <div class="toast" id="toast"><div class="t-dot"></div><span id="t-msg"></span></div>
 
 <script>
-// DATA
-const D={
-  customers:[
-    {id:'c1',name:'Dr. Anna Müller',email:'dr.mueller@tierklinik.de',praxis:'Tierklinik München-Mitte',plan:'Professional',analyses:47,revenue:149,joined:'2024-03-15',lastLogin:'2025-04-05',active:true},
-    {id:'c2',name:'Dr. Stefan Schmidt',email:'info@kleintierpraxis.de',praxis:'Kleintierpraxis Schmidt',plan:'Starter',analyses:22,revenue:49,joined:'2024-05-02',lastLogin:'2025-04-01',active:true},
-    {id:'c3',name:'Dr. Julia Weber',email:'vetberlin@example.de',praxis:'Veterinärklinik Berlin',plan:'Professional',analyses:89,revenue:149,joined:'2024-06-10',lastLogin:'2025-04-05',active:true},
-    {id:'c4',name:'Dr. Marcus Klein',email:'m.klein@tierarzt.de',praxis:'Tierarztpraxis Klein',plan:'Starter',analyses:11,revenue:49,joined:'2025-01-18',lastLogin:'2025-03-28',active:false},
-    {id:'c5',name:'Dr. Lisa Hoffmann',email:'lisa@pferdeklinik.de',praxis:'Pferdeklinik Hoffmann',plan:'Professional',analyses:134,revenue:149,joined:'2024-02-01',lastLogin:'2025-04-06',active:true},
-  ],
-  leads:[
-    {id:'l1',name:'Pferdeklinik Nord',contact:'Dr. Hans Meyer',email:'h.meyer@pferdeklinik-nord.de',msg:'Interesse am Professional Plan, 3 Tierärzte',status:'new',source:'Website',created:'2025-04-05'},
-    {id:'l2',name:'VetCenter Hamburg',contact:'Dr. Klaus Bauer',email:'k.bauer@vetcenter.de',msg:'Demo-Anfrage für gesamtes Team',status:'contacted',source:'Empfehlung',created:'2025-03-28'},
-    {id:'l3',name:'Kleintierpraxis Braun',contact:'Dr. Sandra Braun',email:'braun@praxis.de',msg:'Frage zur API-Integration',status:'demo',source:'Google',created:'2025-03-20'},
-    {id:'l4',name:'TiergesundheitCenter',contact:'Dr. Peter Vogel',email:'p.vogel@tgc.de',msg:'Enterprise-Anfrage, 10+ Nutzer',status:'proposal',source:'Messe',created:'2025-03-10'},
-  ],
-  reports:[
-    {id:'r1',cid:'c1',customer:'Dr. Anna Müller',species:'Hund',region:'Thorax',severity:'mid',created:'2025-04-05T10:23:00'},
-    {id:'r2',cid:'c3',customer:'Dr. Julia Weber',species:'Katze',region:'Abdomen',severity:'high',created:'2025-04-04T14:45:00'},
-    {id:'r3',cid:'c5',customer:'Dr. Lisa Hoffmann',species:'Pferd',region:'Extremitäten',severity:'low',created:'2025-04-04T09:12:00'},
-    {id:'r4',cid:'c1',customer:'Dr. Anna Müller',species:'Hund',region:'Schädel',severity:'low',created:'2025-04-03T16:30:00'},
-    {id:'r5',cid:'c2',customer:'Dr. Stefan Schmidt',species:'Katze',region:'Thorax',severity:'mid',created:'2025-04-03T11:05:00'},
-  ],
-  audit:[
-    {action:'Login',user:'admin',detail:'Sitzung gestartet',time:'2025-04-06T07:45:00',type:'auth'},
-    {action:'Kunde angelegt',user:'admin',detail:'dr.mueller@tierklinik.de',time:'2025-04-05T08:00:00',type:'create'},
-    {action:'Lead-Status geändert',user:'admin',detail:'VetCenter → Kontaktiert',time:'2025-04-04T15:22:00',type:'update'},
-    {action:'Befund gelöscht',user:'admin',detail:'ID: r3',time:'2025-04-04T10:11:00',type:'delete'},
-    {action:'Plan geändert',user:'admin',detail:'Dr. Klein: Starter → Pro',time:'2025-04-03T14:00:00',type:'update'},
-  ]
-};
-const mrr=()=>D.customers.filter(c=>c.active).reduce((s,c)=>s+c.revenue,0);
-const total=()=>D.customers.reduce((s,c)=>s+c.analyses,0);
+// ── LIVE DATA STORE ──
+const D={customers:[],leads:[],reports:[],audit:[]};
+const mrr=()=>D.customers.filter(c=>c.active).reduce((s,c)=>s+(c.plan==='Professional'?129:c.plan==='Starter'?49:0),0);
+const total=()=>D.customers.reduce((s,c)=>s+(c.analyses||0),0);
 const newL=()=>D.leads.filter(l=>l.status==='new').length;
 
 // AUTH
@@ -467,20 +498,28 @@ function doLogout(){
 }
 var _currentView='dashboard';
 var _autoRefresh=null;
+var _liveInterval=null;
+var _lastRefresh=null;
+
 async function init(){
-  // Load live data on startup
   await loadLiveData();
-  updBadges(); rDash();
-  // Auto-Refresh: alle 15 Sekunden
-  _autoRefresh=setInterval(async function(){
+  updBadges();
+  rDash();
+  // Auto-refresh alle 20s
+  _autoRefresh=setInterval(async()=>{
     await loadLiveData();
-    if(_currentView==='dashboard') rDash();
-    if(_currentView==='customers') rCustomers();
-    if(_currentView==='leads') rLeads();
-    if(_currentView==='reports') rReports();
     updBadges();
-  },15000);
+    if(_currentView==='dashboard') rDash();
+    else if(_currentView==='customers') rCustomers();
+    else if(_currentView==='leads') rLeads();
+    else if(_currentView==='reports') rReports();
+    else if(_currentView==='live') rLive();
+  },20000);
+  // Live ticker alle 10s
+  _liveInterval=setInterval(tickLive,10000);
+  tickLive();
 }
+
 async function loadLiveData(){
   try{
     const [cRes,lRes,rRes]=await Promise.all([
@@ -488,19 +527,40 @@ async function loadLiveData(){
       fetch('/api/admin/leads',{headers:authHeader()}),
       fetch('/api/admin/reports',{headers:authHeader()})
     ]);
-    if(cRes.ok){const d=await cRes.json();D.customers=d.customers.map(c=>({id:c.id,name:c.name||'–',email:c.email,praxis:c.praxis||'–',plan:c.plan==='professional'?'Professional':c.plan==='starter'?'Starter':c.plan==='trial'?'Trial':c.plan,analyses:c.analyses_used||0,revenue:c.plan==='professional'?179:c.plan==='starter'?49:0,joined:c.created_at||'–',lastLogin:c.last_login||'–',active:c.active===1||c.active===true,email_verified:c.email_verified}));}
+    if(cRes.ok){const d=await cRes.json();D.customers=d.customers.map(c=>({id:c.id,name:c.name||'–',email:c.email,praxis:c.praxis||'–',plan:c.plan==='professional'?'Professional':c.plan==='starter'?'Starter':c.plan==='trial'?'Trial':c.plan,analyses:c.analyses_used||0,joined:c.created_at||'–',lastLogin:c.last_login||'–',active:c.active===1||c.active===true,email_verified:c.email_verified}));}
     if(lRes.ok){const d=await lRes.json();D.leads=d.leads.map(l=>({...l,msg:l.message||l.msg||'–',created:l.created_at||l.created}));}
     if(rRes.ok){const d=await rRes.json();D.reports=d.reports.map(r=>({...r,customer:r.user_name||r.customer||'–',created:r.created_at||r.created}));}
-  }catch(e){console.error('Live data load error:',e);}
+    _lastRefresh=new Date();
+    updRefreshBadge();
+  }catch(e){console.error('loadLiveData:',e);}
+}
+
+async function tickLive(){
+  try{
+    const res=await fetch('/api/admin/live',{headers:authHeader()});
+    if(!res.ok) return;
+    const d=await res.json();
+    window._liveData=d;
+    // Update top live badge
+    const el=document.getElementById('live-online');
+    if(el) el.textContent=d.online_count||0;
+    if(_currentView==='live') renderLivePanel(d);
+    if(_currentView==='dashboard') updateDashLive(d);
+  }catch(e){}
+}
+
+function updRefreshBadge(){
+  const el=document.getElementById('last-refresh');
+  if(el && _lastRefresh) el.textContent='Aktualisiert '+_lastRefresh.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 
 // NAV
 function nav(view,btn){
   _currentView=view;
   if(btn){document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
-  const titles={dashboard:'Dashboard',analytics:'Analytics',customers:'Kunden',leads:'Lead-Pipeline',reports:'Alle Befunde',settings:'Einstellungen',audit:'Audit-Log'};
+  const titles={dashboard:'Dashboard',live:'Live-Tracking',analytics:'Analytics',customers:'Kunden',leads:'Lead-Pipeline',reports:'Alle Befunde',feedback:'Kundenfeedback',support:'Support-Inbox',settings:'Einstellungen',audit:'Audit-Log'};
   document.getElementById('ph-t').textContent=titles[view]||view;
-  ({dashboard:rDash,analytics:rAnalytics,customers:()=>rCustomers(),leads:rLeads,reports:rReports,settings:rSettings,audit:rAudit}[view]||rDash)();
+  ({dashboard:rDash,live:rLive,analytics:rAnalytics,customers:()=>rCustomers(),leads:rLeads,reports:()=>rReports(),feedback:rFeedback,support:rSupport,settings:rSettings,audit:rAudit}[view]||rDash)();
 }
 function authHeader(){
   const t=localStorage.getItem('ps_admin_token')||'';
@@ -509,94 +569,554 @@ function authHeader(){
 function updBadges(){
   document.getElementById('sb-c').textContent=D.customers.filter(c=>c.active).length;
   document.getElementById('sb-l').textContent=newL();
+  // Support open tickets
+  fetch('/api/admin/support?status=open',{headers:authHeader()}).then(r=>r.json()).then(d=>{
+    const n=(d.tickets||[]).length;
+    const el=document.getElementById('sb-sup');
+    if(el){el.textContent=n;el.style.display=n>0?'':'none';}
+  }).catch(()=>{});
 }
 function globalSearch(q){if(!q)return;rCustomers(q.toLowerCase());}
 
-// DASHBOARD
-async function rDash(){
-  // Load live stats from API
-  try{
-    const res=await fetch('/api/admin/stats',{headers:authHeader()});
-    if(res.ok){
-      const s=await res.json();
-      window._liveStats=s;
-    }
-  }catch(e){}
-  const S=window._liveStats||{};
-  const activeC=S.customers!==undefined?S.customers:D.customers.filter(c=>c.active).length;
-  const leadsN=S.leads!==undefined?S.leads:D.leads.length;
-  const newLeadsN=S.new_leads!==undefined?S.new_leads:newL();
-  const totalA=S.analyses!==undefined?S.analyses:total();
-  const mrrV=S.mrr!==undefined?S.mrr:mrr();
-  const auditItems=S.audit&&S.audit.length?S.audit:D.audit;
+// ── SVG LINE CHART ──
+function svgLine(vals,color='#3b7bf8',h=90){
+  const n=vals.length;
+  if(!n||n<2||vals.every(v=>v===0)) return `<div style="height:${h}px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px">Noch keine Daten</div>`;
+  const W=320,pad=6;
+  const mx=Math.max(...vals,1);
+  const pts=vals.map((v,i)=>[pad+Math.round(i/(n-1)*(W-pad*2)), Math.round(h-pad-(v/mx)*(h-pad*2))]);
+  let path=`M ${pts[0][0]} ${pts[0][1]}`;
+  for(let i=1;i<pts.length;i++){
+    const cx=(pts[i-1][0]+pts[i][0])/2;
+    path+=` C ${cx} ${pts[i-1][1]} ${cx} ${pts[i][1]} ${pts[i][0]} ${pts[i][1]}`;
+  }
+  const area=path+` L ${pts[pts.length-1][0]} ${h} L ${pts[0][0]} ${h} Z`;
+  const gid='g'+Math.random().toString(36).slice(2,8);
+  const maxI=vals.indexOf(Math.max(...vals));
+  const gridLines=Array.from({length:4},(_,i)=>{
+    const y=Math.round(h-pad-(i/3)*(h-pad*2));
+    return `<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="rgba(255,255,255,.04)" stroke-width="1"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${h}" style="width:100%;height:${h}px;display:block" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity=".22"/>
+        <stop offset="85%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${gridLines}
+    <path d="${area}" fill="url(#${gid})"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${pts.map((p,i)=>vals[i]>0?`<circle cx="${p[0]}" cy="${p[1]}" r="${i===maxI?4:2.5}" fill="${color}" ${i===maxI?'stroke="var(--s1)" stroke-width="2"':'opacity=".55"'}/>`:''  ).join('')}
+  </svg>`;
+}
 
-  const wd=[12,18,14,22,31,27,19],days=['Mo','Di','Mi','Do','Fr','Sa','So'];
-  const mx=Math.max(...wd);
+// ── DASHBOARD ──
+async function rDash(){
+  let S={};
+  try{const r=await fetch('/api/admin/stats',{headers:authHeader()});if(r.ok)S=await r.json();}catch(e){}
+  window._liveStats=S;
+  const live=window._liveData||{};
+  const activeC=S.customers??D.customers.filter(c=>c.active).length;
+  const leadsN=S.leads??D.leads.length;
+  const newLeadsN=S.new_leads??newL();
+  const totalA=S.analyses??total();
+  const mrrV=S.mrr??mrr();
+  const auditItems=(S.audit&&S.audit.length)?S.audit:D.audit;
+  const weekly=S.weekly||[];
+  const wVals=weekly.length?weekly.map(w=>w.n||0).reverse():[0,0,0,0,0,0,0];
+  const wDays=weekly.length?weekly.map(w=>{try{return new Date(w.day).toLocaleDateString('de-DE',{weekday:'short'});}catch{return '–';}}).reverse():['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const onlineN=live.online_count||0;
+  const hourN=live.hour_count||0;
+  const todayN=live.today_count||0;
+  const hour=new Date().getHours();
+  const greeting=hour<12?'Guten Morgen':hour<18?'Guten Tag':'Guten Abend';
+  const today=new Date().toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const weekSum=wVals.reduce((a,b)=>a+b,0);
+  const mrrGoal=5000;
+  const mrrPct=Math.min(Math.round(mrrV/mrrGoal*100),100);
+  const proN=D.customers.filter(c=>c.plan==='Professional').length;
+  const starterN=D.customers.filter(c=>c.plan==='Starter').length;
+  const trialN=D.customers.filter(c=>c.plan==='Trial').length;
+
   document.getElementById('pc').innerHTML=`
-    <div class="kpi-g">
-      <div class="kpi"><div class="kpi-lbl">Aktive Kunden</div><div class="kpi-val">${activeC}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>+2 diesen Monat</div></div>
-      <div class="kpi"><div class="kpi-lbl">Offene Leads</div><div class="kpi-val">${leadsN}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>${newLeadsN} neu</div></div>
-      <div class="kpi"><div class="kpi-lbl">Gesamtanalysen</div><div class="kpi-val">${totalA}</div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>diese Woche</div></div>
-      <div class="kpi"><div class="kpi-lbl">MRR</div><div class="kpi-val">${mrrV} €</div><div class="kpi-d n">monatlich</div></div>
+    <!-- Welcome -->
+    <div class="dash-welcome">
+      <div>
+        <div class="dash-greeting">${greeting}, Admin 👋</div>
+        <div class="dash-date">${today} · <span id="last-refresh" style="color:var(--text2)">–</span></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="act-btn ab-g" onclick="loadLiveData().then(()=>rDash())">
+          <svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          Aktualisieren
+        </button>
+        <button class="act-btn ab-p" onclick="openAddCustomerModal()">
+          <svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Kunde anlegen
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI Strip -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
+      <div class="kpi-e">
+        <div class="kpi-ico" style="background:rgba(59,123,248,.13);color:var(--blue)">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        </div>
+        <div class="kpi-val2">${activeC}</div>
+        <div class="kpi-lbl2">Aktive Kunden</div>
+        <div class="kpi-trend t-neutral">von ${D.customers.length} gesamt</div>
+      </div>
+      <div class="kpi-e">
+        <div class="kpi-ico" style="background:rgba(34,197,94,.13);color:var(--green)">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="kpi-val2">${mrrV}<span style="font-size:14px;font-weight:600;color:var(--text3)"> €</span></div>
+        <div class="kpi-lbl2">MRR</div>
+        <div class="kpi-trend" style="color:var(--green)">${mrrPct}% von Ziel</div>
+      </div>
+      <div class="kpi-e">
+        <div class="kpi-ico" style="background:rgba(245,158,11,.13);color:var(--amber)">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </div>
+        <div class="kpi-val2">${totalA}</div>
+        <div class="kpi-lbl2">Analysen gesamt</div>
+        <div class="kpi-trend t-up">↑ ${todayN} heute</div>
+      </div>
+      <div class="kpi-e">
+        <div class="kpi-ico" style="background:rgba(239,68,68,.13);color:var(--red)">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="kpi-val2">${leadsN}</div>
+        <div class="kpi-lbl2">Leads</div>
+        <div class="kpi-trend t-up">↑ ${newLeadsN} neu</div>
+      </div>
+      <div class="kpi-e" style="cursor:pointer;${onlineN>0?'border-color:rgba(34,197,94,.3)':''}" onclick="nav('live',document.querySelector('[data-v=live]'))">
+        <div class="kpi-ico" style="background:rgba(34,197,94,.13);color:var(--green);position:relative">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ${onlineN>0?`<span style="position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--green);border:2px solid var(--s1);animation:pulse 1.5s infinite"></span>`:''}
+        </div>
+        <div class="kpi-val2" id="dash-online">${onlineN}</div>
+        <div class="kpi-lbl2">Jetzt online</div>
+        <div class="kpi-trend" style="color:var(--green)">${hourN} Analysen/h</div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="g2">
+      <!-- SVG Line Chart -->
+      <div class="card">
+        <div class="card-h">
+          <span class="card-t">Analysen — letzte 7 Tage</span>
+          <div class="csp"></div>
+          <span style="font-size:10.5px;font-weight:700;color:var(--green);background:var(--green-bg);padding:2px 9px;border-radius:8px">${weekSum} gesamt</span>
+        </div>
+        <div class="chart-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 2px">
+            <span style="font-size:10px;color:var(--text3)">Analysen pro Tag</span>
+            <span style="font-size:10px;color:var(--text3)">Max: ${Math.max(...wVals)}</span>
+          </div>
+          ${svgLine(wVals,'#3b7bf8',90)}
+          <div class="chart-days">
+            ${wDays.map(d=>`<span class="chart-day">${d}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Activity Feed -->
+      <div class="card">
+        <div class="card-h">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 1.5s infinite"></span>
+          <span class="card-t">Live-Aktivität</span>
+          <button class="smb smb-b" style="margin-left:auto" onclick="nav('live',document.querySelector('[data-v=live]'))">Alle →</button>
+        </div>
+        <div id="dash-live-feed">
+          ${(live.recent_analyses||[]).slice(0,6).map(a=>`
+            <div class="stat-row">
+              <div class="av" style="background:${a.severity==='high'?'var(--red-bg)':a.severity==='low'?'var(--green-bg)':'var(--amber-bg)'};color:${a.severity==='high'?'var(--red)':a.severity==='low'?'var(--green)':'var(--amber)'}">
+                <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.user_name||'Unbekannt'}</div>
+                <div style="font-size:11px;color:var(--text3)">${a.species||'–'} · ${a.region||'–'}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <span class="b" style="font-size:9px;background:${a.severity==='high'?'var(--red-bg)':a.severity==='low'?'var(--green-bg)':'var(--amber-bg)'};color:${a.severity==='high'?'var(--red)':a.severity==='low'?'var(--green)':'var(--amber)'}">${a.severity==='high'?'HOCH':a.severity==='low'?'NIEDRIG':'MITTEL'}</span>
+                <div style="font-size:10px;color:var(--text3);margin-top:2px">${timeAgo(a.created_at)}</div>
+              </div>
+            </div>`).join('')}
+          ${!(live.recent_analyses||[]).length?`<div style="padding:28px;text-align:center;color:var(--text3);font-size:12.5px;line-height:1.8">
+            <svg viewBox="0 0 24 24" style="width:28px;height:28px;fill:none;stroke:var(--text3);stroke-width:1.5;display:block;margin:0 auto 8px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Warte auf Aktivität…<br><span style="font-size:10.5px">Aktualisiert alle 10 Sekunden</span></div>`:''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Row -->
+    <div class="g2">
+      <!-- Top Customers -->
+      <div class="card">
+        <div class="card-h">
+          <span class="card-t">Top-Kunden nach Analysen</span>
+          <div class="csp"></div>
+          <button class="smb smb-b" onclick="nav('customers',document.querySelector('[data-v=customers]'))">Alle →</button>
+        </div>
+        ${[...D.customers].sort((a,b)=>(b.analyses||0)-(a.analyses||0)).slice(0,5).map((c,i)=>`
+          <div class="stat-row">
+            <div class="av" style="background:var(--blue-bg);border:1px solid rgba(59,123,248,.2);color:var(--blue)">${(c.name||'?')[0].toUpperCase()}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
+              <div style="font-size:10.5px;color:var(--text3)">${c.praxis}</div>
+            </div>
+            <span class="b ${c.plan==='Professional'?'bb':c.plan==='Starter'?'bgy':'ba'}" style="font-size:9.5px">${c.plan}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--text);font-family:var(--f);min-width:30px;text-align:right">${c.analyses}</span>
+          </div>`).join('')}
+        ${!D.customers.length?'<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Noch keine Kunden</div>':''}
+      </div>
+
+      <!-- Right column: Plan distribution + MRR goal -->
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <!-- Plan Distribution -->
+        <div class="card">
+          <div class="card-h">
+            <span class="card-t">Plan-Verteilung</span>
+            <span style="margin-left:auto;font-size:10.5px;color:var(--text3)">${D.customers.length} Kunden</span>
+          </div>
+          <div style="padding:14px 16px">
+            ${[['Professional',proN,'var(--blue)',proN*129],
+               ['Starter',starterN,'#64748b',starterN*49],
+               ['Trial',trialN,'var(--amber)',0]].map(([p,n,col,rev])=>`
+              <div class="hbar-wrap">
+                <div class="hbar-row">
+                  <span class="hbar-name">${p}</span>
+                  <span class="hbar-meta">${n} Nutzer${rev>0?` · ${rev} €/Mo`:''}</span>
+                </div>
+                <div class="hbar-track">
+                  <div class="hbar-fill" style="width:${D.customers.length?Math.round(n/D.customers.length*100):0}%;background:${col}"></div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- MRR Goal -->
+        <div class="card">
+          <div class="card-h">
+            <span class="card-t">MRR-Ziel</span>
+            <span style="margin-left:auto;font-size:10.5px;font-weight:700;color:var(--green)">${mrrPct}%</span>
+          </div>
+          <div style="padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+              <span style="font-size:22px;font-weight:800;color:var(--text)">${mrrV} €</span>
+              <span style="font-size:12px;color:var(--text3);align-self:flex-end;margin-bottom:3px">Ziel: ${mrrGoal.toLocaleString('de-DE')} €</span>
+            </div>
+            <div class="mrr-goal-bar">
+              <div class="mrr-goal-fill" style="width:${mrrPct}%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px">
+              <span style="font-size:10.5px;color:var(--text3)">0 €</span>
+              <span style="font-size:10.5px;color:var(--text3)">Noch ${(mrrGoal-mrrV).toLocaleString('de-DE')} € bis Ziel</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  updRefreshBadge();
+}
+
+function updateDashLive(d){
+  const el=document.getElementById('dash-online');
+  if(el) el.textContent=d.online_count||0;
+  const feed=document.getElementById('dash-live-feed');
+  if(feed && d.recent_analyses && d.recent_analyses.length){
+    feed.innerHTML=(d.recent_analyses||[]).slice(0,6).map(a=>`
+      <div class="stat-row">
+        <div class="av" style="background:${a.severity==='high'?'var(--red-bg)':a.severity==='low'?'var(--green-bg)':'var(--amber-bg)'};color:${a.severity==='high'?'var(--red)':a.severity==='low'?'var(--green)':'var(--amber)'}">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.user_name||'Unbekannt'}</div>
+          <div style="font-size:11px;color:var(--text3)">${a.species||'–'} · ${a.region||'–'}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <span class="b" style="font-size:9px;background:${a.severity==='high'?'var(--red-bg)':a.severity==='low'?'var(--green-bg)':'var(--amber-bg)'};color:${a.severity==='high'?'var(--red)':a.severity==='low'?'var(--green)':'var(--amber)'}">${a.severity==='high'?'HOCH':a.severity==='low'?'NIEDRIG':'MITTEL'}</span>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${timeAgo(a.created_at)}</div>
+        </div>
+      </div>`).join('');
+  }
+}
+
+// ── LIVE TRACKING ──
+async function rLive(){
+  document.getElementById('pc').innerHTML=`
+    <div class="kpi-g" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+      <div class="kpi" style="border-top:3px solid var(--green)">
+        <div class="kpi-lbl" style="display:flex;align-items:center;gap:5px">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;display:inline-block"></span>Jetzt online
+        </div>
+        <div class="kpi-val" id="live-now-count">–</div>
+        <div class="kpi-d n">aktive Sessions</div>
+      </div>
+      <div class="kpi"><div class="kpi-lbl">Analysen heute</div><div class="kpi-val" id="live-today">–</div><div class="kpi-d n">gesamt heute</div></div>
+      <div class="kpi"><div class="kpi-lbl">Letzte Stunde</div><div class="kpi-val" id="live-hour">–</div><div class="kpi-d n">Analysen</div></div>
+      <div class="kpi"><div class="kpi-lbl">Auto-Refresh</div><div class="kpi-val" style="font-size:16px">10s</div><div class="kpi-d up" style="color:var(--green)">Live aktiv</div></div>
     </div>
     <div class="g2">
       <div class="card">
-        <div class="card-h"><span class="card-t">Analysen diese Woche</span><span style="font-family:var(--f);font-size:10px;color:var(--text3);margin-left:auto">143 gesamt</span></div>
-        <div style="padding:14px"><div class="bars">${wd.map((v,i)=>`<div class="bw"><div class="bv">${v}</div><div class="bar" style="height:${Math.round((v/mx)*64)+8}px"></div><div class="bl">${days[i]}</div></div>`).join('')}</div></div>
+        <div class="card-h">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 1.5s infinite"></span>
+          <span class="card-t">Online-Nutzer</span>
+        </div>
+        <div id="live-users-panel" style="padding:10px">
+          <div style="text-align:center;color:var(--text3);padding:20px;font-size:13px;">Wird geladen…</div>
+        </div>
       </div>
       <div class="card">
-        <div class="card-h"><span class="card-t">Aktivität</span></div>
-        <div class="act-list">${auditItems.slice(0,5).map(a=>`<div class="act-item"><div class="act-dot" style="background:${a.type==='create'?'var(--green)':a.type==='delete'?'var(--red)':a.type==='auth'?'var(--blue)':'var(--amber)'}"></div><div><div class="act-msg"><strong>${a.action}</strong> — ${a.detail}</div><div class="act-t">${fF(a.time)}</div></div></div>`).join('')}</div>
+        <div class="card-h">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0;animation:pulse 1.5s infinite"></span>
+          <span class="card-t">Letzte Analysen — Live</span>
+        </div>
+        <div id="live-analyses-panel" style="padding:0">
+          <div style="text-align:center;color:var(--text3);padding:20px;font-size:13px;">Wird geladen…</div>
+        </div>
+      </div>
+    </div>`;
+  // Sofort laden
+  const d=window._liveData;
+  if(d) renderLivePanel(d);
+  else await tickLive();
+}
+
+function renderLivePanel(d){
+  const nc=document.getElementById('live-now-count');
+  const td=document.getElementById('live-today');
+  const hr=document.getElementById('live-hour');
+  if(nc) nc.textContent=d.online_count||0;
+  if(td) td.textContent=d.today_count||0;
+  if(hr) hr.textContent=d.hour_count||0;
+
+  const up=document.getElementById('live-users-panel');
+  if(up){
+    const users=d.online||[];
+    up.innerHTML=users.length?users.map(u=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);">
+        <div style="width:30px;height:30px;border-radius:50%;background:var(--blue-bg);border:1px solid rgba(59,123,248,.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--blue);flex-shrink:0">${(u.name||'?')[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.name||u.email||'–'}</div>
+          <div style="font-size:11px;color:var(--text3)">${u.praxis||''}</div>
+        </div>
+        <span class="b ${u.plan==='professional'?'bb':'bgy'}" style="font-size:9.5px">${u.plan||'–'}</span>
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
+      </div>`).join('')
+      :`<div style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">Aktuell keine aktiven Sessions.</div>`;
+  }
+
+  const ap=document.getElementById('live-analyses-panel');
+  if(ap){
+    const analyses=d.recent_analyses||[];
+    const sevColor={high:'var(--red)',mid:'var(--amber)',low:'var(--green)'};
+    const sevLabel={high:'HOCH',mid:'MITTEL',low:'NIEDRIG'};
+    ap.innerHTML=analyses.length?analyses.map(a=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:${sevColor[a.severity]||'var(--text3)'};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;color:var(--text);font-weight:500">${a.species||'?'} · ${a.region||'?'}</div>
+          <div style="font-size:11px;color:var(--text3)">${a.user_name||'–'} · ${a.praxis||''}</div>
+        </div>
+        <span class="b" style="font-size:9.5px;background:${sevColor[a.severity]||'var(--s3)'}22;color:${sevColor[a.severity]||'var(--text3)'}">${sevLabel[a.severity]||'–'}</span>
+        <span style="font-size:10px;color:var(--text3)">${timeAgo(a.created_at)}</span>
+      </div>`).join('')
+      :`<div style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">Noch keine Analysen.</div>`;
+  }
+}
+
+// ── KUNDENFEEDBACK ──
+async function rFeedback(){
+  let fb={total:0,avg_rating:0,correct_pct:0,distribution:{},recent:[]};
+  try{
+    const res=await fetch('/api/admin/feedback-stats',{headers:authHeader()});
+    if(res.ok) fb=await res.json();
+  }catch(e){}
+
+  const dist=fb.distribution||{};
+  const maxDist=Math.max(...Object.values(dist),1);
+  const stars=n=>Array.from({length:5},(_,i)=>`<svg width="13" height="13" viewBox="0 0 24 24" fill="${i<Math.round(n)?'var(--amber)':'none'}" stroke="var(--amber)" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`).join('');
+
+  document.getElementById('pc').innerHTML=`
+    <!-- KPI -->
+    <div class="kpi-g" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-lbl">Gesamt-Feedbacks</div>
+        <div class="kpi-val">${fb.total}</div>
+        <div class="kpi-d n">von Nutzern</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Ø Bewertung</div>
+        <div class="kpi-val" style="display:flex;align-items:center;gap:6px">${fb.avg_rating}<span style="display:flex;gap:1px">${stars(fb.avg_rating)}</span></div>
+        <div class="kpi-d n">von 5 Sternen</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Diagnose korrekt</div>
+        <div class="kpi-val" style="color:var(--green)">${fb.correct_pct}<span style="font-size:16px">%</span></div>
+        <div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>laut Tierärzten</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Kommentare</div>
+        <div class="kpi-val">${(fb.recent||[]).length}</div>
+        <div class="kpi-d n">mit Text-Feedback</div>
       </div>
     </div>
+
     <div class="g2">
+      <!-- Bewertungsverteilung -->
       <div class="card">
-        <div class="card-h"><span class="card-t">Top-Kunden</span><div class="csp"></div><button class="smb smb-b" onclick="nav('customers',document.querySelector('[data-v=customers]'))">Alle</button></div>
-        <table><thead><tr><th>Name</th><th>Plan</th><th>Analysen</th><th>Status</th></tr></thead><tbody>
-          ${[...D.customers].sort((a,b)=>b.analyses-a.analyses).slice(0,4).map(c=>`<tr><td><strong>${c.name}</strong><br><span style="font-size:11px;color:var(--text3)">${c.praxis}</span></td><td><span class="b ${c.plan==='Professional'?'bb':'bgy'}">${c.plan}</span></td><td style="font-family:var(--f)">${c.analyses}</td><td><span class="b ${c.active?'bg':'bgy'}">${c.active?'Aktiv':'Inaktiv'}</span></td></tr>`).join('')}
-        </tbody></table>
+        <div class="card-h"><span class="card-t">Bewertungsverteilung</span></div>
+        <div style="padding:16px">
+          ${[5,4,3,2,1].map(n=>`
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="display:flex;gap:1px;flex-shrink:0">${stars(n)}</div>
+              <div style="flex:1;height:12px;background:var(--s3);border-radius:6px;overflow:hidden">
+                <div style="height:100%;width:${Math.round(((dist[String(n)]||0)/maxDist)*100)}%;background:var(--amber);border-radius:6px;transition:width .6s"></div>
+              </div>
+              <span style="font-size:11px;color:var(--text3);width:20px;text-align:right">${dist[String(n)]||0}</span>
+            </div>`).join('')}
+          ${fb.total===0?'<div style="text-align:center;color:var(--text3);padding:14px;font-size:13px;">Noch kein Feedback eingegangen.</div>':''}
+        </div>
       </div>
+
+      <!-- Letzte Kommentare -->
       <div class="card">
-        <div class="card-h"><span class="card-t">Lead-Pipeline</span><div class="csp"></div><button class="smb smb-b" onclick="nav('leads',document.querySelector('[data-v=leads]'))">Alle</button></div>
-        <table><thead><tr><th>Lead</th><th>Quelle</th><th>Status</th></tr></thead><tbody>
-          ${D.leads.map(l=>`<tr><td><strong>${l.name}</strong><br><span style="font-size:11px;color:var(--text3)">${l.contact}</span></td><td style="font-size:11px">${l.source}</td><td><span class="b ${lBadge(l.status)}">${lLabel(l.status)}</span></td></tr>`).join('')}
-        </tbody></table>
+        <div class="card-h"><span class="card-t">Neueste Kommentare</span></div>
+        <div style="overflow-y:auto;max-height:320px">
+          ${(fb.recent||[]).length?(fb.recent||[]).map(r=>`
+            <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                <div style="display:flex;gap:1px">${stars(r.rating||0)}</div>
+                <span style="font-size:11px;color:var(--text3);margin-left:auto">${fF(r.created_at)}</span>
+              </div>
+              <p style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:5px">"${r.comment}"</p>
+              <div style="font-size:11px;color:var(--text3)">${r.user_name||'–'} · ${r.praxis||''}</div>
+              ${r.correct!==null&&r.correct!==undefined?`<span class="b ${r.correct?'bg':'br'}" style="margin-top:5px;display:inline-flex">${r.correct?'✓ Diagnose korrekt':'✗ Diagnose nicht korrekt'}</span>`:''}
+            </div>`).join('')
+          :`<div style="text-align:center;color:var(--text3);padding:28px;font-size:13px;">Noch keine Kommentare.</div>`}
+        </div>
       </div>
     </div>`;
 }
 
 // ANALYTICS
-function rAnalytics(){
-  const months=['Okt','Nov','Dez','Jan','Feb','Mär'];
-  const mData=[3,5,6,8,9,11],rData=[34,67,89,112,143,187];
-  const mMax=Math.max(...mData),rMax=Math.max(...rData);
+async function rAnalytics(){
+  let S=window._liveStats||{};
+  if(!Object.keys(S).length){
+    try{const r=await fetch('/api/admin/stats',{headers:authHeader()});if(r.ok)S=await r.json();}catch(e){}
+  }
+  const weekly=S.weekly||[];
+  const wVals=weekly.length?weekly.map(w=>w.n||0).reverse():[0,0,0,0,0,0,0];
+  const wDays=weekly.length?weekly.map(w=>{try{return new Date(w.day).toLocaleDateString('de-DE',{weekday:'short'});}catch{return '–';}}).reverse():['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const totalC=D.customers.length||1;
+  const avgA=D.customers.length?Math.round(total()/D.customers.length):0;
+  const proN=D.customers.filter(c=>c.plan==='Professional').length;
+  const starterN=D.customers.filter(c=>c.plan==='Starter').length;
+  const trialN=D.customers.filter(c=>c.plan==='Trial').length;
+  const leadSrc=D.leads.reduce((acc,l)=>{acc[l.source]=(acc[l.source]||0)+1;return acc;},{});
+  const srcItems=Object.entries(leadSrc).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const srcMax=Math.max(...srcItems.map(s=>s[1]),1);
+
   document.getElementById('pc').innerHTML=`
-    <div class="g3">
-      <div class="kpi"><div class="kpi-lbl">Conversion Rate</div><div class="kpi-val">28<span style="font-size:16px">%</span></div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>Lead → Kunde</div></div>
-      <div class="kpi"><div class="kpi-lbl">Ø Analysen / Kunde</div><div class="kpi-val">${Math.round(total()/D.customers.length)}</div><div class="kpi-d n">pro Monat</div></div>
-      <div class="kpi"><div class="kpi-lbl">Churn Rate</div><div class="kpi-val">4<span style="font-size:16px">%</span></div><div class="kpi-d up"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>Niedrig</div></div>
-    </div>
-    <div class="g2">
-      <div class="card">
-        <div class="card-h"><span class="card-t">Kundenwachstum (6 Monate)</span></div>
-        <div style="padding:14px"><div class="bars" style="height:100px">${mData.map((v,i)=>`<div class="bw"><div class="bv">${v}</div><div class="bar" style="height:${Math.round((v/mMax)*80)+8}px;background:var(--green-bg);border-color:rgba(34,197,94,.2)"></div><div class="bl">${months[i]}</div></div>`).join('')}</div></div>
+    <!-- KPI Row -->
+    <div class="g3" style="margin-bottom:14px">
+      <div class="kpi-e">
+        <div class="kpi-ico" style="background:rgba(34,197,94,.13);color:var(--green)">
+          <svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        </div>
+        <div class="kpi-val2">${totalC}</div>
+        <div class="kpi-lbl2">Registrierungen</div>
+        <div class="kpi-trend t-up">↑ gesamt</div>
       </div>
-      <div class="card">
-        <div class="card-h"><span class="card-t">Analysen-Wachstum (6 Monate)</span></div>
-        <div style="padding:14px"><div class="bars" style="height:100px">${rData.map((v,i)=>`<div class="bw"><div class="bv">${v}</div><div class="bar" style="height:${Math.round((v/rMax)*80)+8}px"></div><div class="bl">${months[i]}</div></div>`).join('')}</div></div>
+      <div class="kpi-e">
+        <div class="kpi-ico" style="background:rgba(59,123,248,.13);color:var(--blue)">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </div>
+        <div class="kpi-val2">${avgA}</div>
+        <div class="kpi-lbl2">Ø Analysen / Nutzer</div>
+        <div class="kpi-trend t-neutral">Durchschnitt</div>
+      </div>
+      <div class="kpi-e">
+        <div class="kpi-ico" style="background:rgba(245,158,11,.13);color:var(--amber)">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="kpi-val2">${D.leads.length}</div>
+        <div class="kpi-lbl2">Leads gesamt</div>
+        <div class="kpi-trend t-up">↑ ${newL()} offen</div>
       </div>
     </div>
+
     <div class="g2">
+      <!-- Weekly SVG Chart -->
       <div class="card">
-        <div class="card-h"><span class="card-t">Plan-Verteilung</span></div>
-        <div style="padding:14px">
-          ${[['Professional',D.customers.filter(c=>c.plan==='Professional').length,'var(--blue)'],['Starter',D.customers.filter(c=>c.plan==='Starter').length,'var(--text3)']].map(([p,n,c])=>`<div class="prog-wrap"><div class="prog-row"><span class="prog-lbl">${p}</span><span class="prog-val">${n} Kunden</span></div><div class="prog-track"><div class="prog-fill" style="width:${Math.round(n/D.customers.length*100)}%;background:${c}"></div></div></div>`).join('')}
+        <div class="card-h">
+          <span class="card-t">Analysen — letzte 7 Tage</span>
+          <span style="margin-left:auto;font-size:10.5px;color:var(--green);background:var(--green-bg);font-weight:700;padding:2px 8px;border-radius:8px">${wVals.reduce((a,b)=>a+b,0)} total</span>
+        </div>
+        <div class="chart-box">
+          ${svgLine(wVals,'#3b7bf8',100)}
+          <div class="chart-days">
+            ${wDays.map(d=>`<span class="chart-day">${d}</span>`).join('')}
+          </div>
         </div>
       </div>
+
+      <!-- Plan Revenue Breakdown -->
+      <div class="card">
+        <div class="card-h"><span class="card-t">Umsatz nach Plan</span></div>
+        <div style="padding:16px">
+          ${[['Professional',proN,129,'var(--blue)'],
+             ['Starter',starterN,49,'#64748b'],
+             ['Trial',trialN,0,'var(--amber)']].map(([p,n,pr,col])=>`
+            <div class="hbar-wrap">
+              <div class="hbar-row">
+                <span class="hbar-name">${p}</span>
+                <span class="hbar-meta">${n} × ${pr > 0 ? pr+'€' : 'kostenlos'} = <strong style="color:var(--text)">${n*pr} €/Mo</strong></span>
+              </div>
+              <div class="hbar-track"><div class="hbar-fill" style="width:${totalC?Math.round(n/totalC*100):0}%;background:${col}"></div></div>
+            </div>`).join('')}
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--text2);font-weight:600">Gesamt MRR</span>
+            <span style="font-size:18px;font-weight:800;color:var(--green)">${proN*129+starterN*49} €</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <!-- Plan Distribution Donut-style -->
+      <div class="card">
+        <div class="card-h"><span class="card-t">Nutzerverteilung</span></div>
+        <div style="padding:16px">
+          ${[['Professional',proN,'var(--blue)'],
+             ['Starter',starterN,'#64748b'],
+             ['Trial',trialN,'var(--amber)'],
+             ['Inaktiv',D.customers.filter(c=>!c.active).length,'var(--red)']].map(([p,n,col])=>`
+            <div class="hbar-wrap">
+              <div class="hbar-row">
+                <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:50%;background:${col};display:inline-block"></span><span class="hbar-name">${p}</span></span>
+                <span class="hbar-meta">${n} (${totalC?Math.round(n/totalC*100):0}%)</span>
+              </div>
+              <div class="hbar-track"><div class="hbar-fill" style="width:${totalC?Math.round(n/totalC*100):0}%;background:${col}"></div></div>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Lead Sources -->
       <div class="card">
         <div class="card-h"><span class="card-t">Lead-Quellen</span></div>
-        <div style="padding:14px">
-          ${[['Website','45%'],['Empfehlung','28%'],['Google','18%'],['Messen','9%']].map(([s,p])=>`<div class="prog-wrap"><div class="prog-row"><span class="prog-lbl">${s}</span><span class="prog-val">${p}</span></div><div class="prog-track"><div class="prog-fill" style="width:${p};background:var(--amber)"></div></div></div>`).join('')}
+        <div style="padding:16px">
+          ${srcItems.length?srcItems.map(([src,n])=>`
+            <div class="hbar-wrap">
+              <div class="hbar-row"><span class="hbar-name">${src||'Unbekannt'}</span><span class="hbar-meta">${n} Leads</span></div>
+              <div class="hbar-track"><div class="hbar-fill" style="width:${Math.round(n/srcMax*100)}%;background:var(--amber)"></div></div>
+            </div>`).join('')
+          :'<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Noch keine Lead-Daten</div>'}
         </div>
       </div>
     </div>`;
@@ -721,17 +1241,38 @@ async function doAddLead(){
 }
 
 // REPORTS
-async function rReports(){
+async function rReports(q=''){
   try{
     const res=await fetch('/api/admin/reports',{headers:authHeader()});
     if(res.ok){const data=await res.json();D.reports=data.reports.map(r=>({...r,customer:r.user_name||r.customer||'–',created:r.created_at||r.created}));}
   }catch(e){}
+  let reps=D.reports;
+  if(q) reps=reps.filter(r=>(r.customer+r.species+r.region).toLowerCase().includes(q.toLowerCase()));
 
   document.getElementById('pc').innerHTML=`
+    <div class="kpi-g" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+      <div class="kpi"><div class="kpi-lbl">Befunde gesamt</div><div class="kpi-val">${D.reports.length}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Dringlichkeit Hoch</div><div class="kpi-val" style="color:var(--red)">${D.reports.filter(r=>r.severity==='high').length}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Dringlichkeit Mittel</div><div class="kpi-val" style="color:var(--amber)">${D.reports.filter(r=>r.severity==='mid').length}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Dringlichkeit Niedrig</div><div class="kpi-val" style="color:var(--green)">${D.reports.filter(r=>r.severity==='low').length}</div></div>
+    </div>
     <div class="card">
-      <div class="card-h"><span class="card-t">Alle Befunde (${D.reports.length})</span></div>
+      <div class="card-h">
+        <span class="card-t">Alle Befunde (${reps.length})</span>
+        <div class="csp"></div>
+        <input class="srch" placeholder="Tierarzt, Tierart, Region …" value="${q}" oninput="rReports(this.value)" style="width:220px">
+      </div>
       <table><thead><tr><th>Tierarzt</th><th>Tierart</th><th>Region</th><th>Dringlichkeit</th><th>Datum</th><th></th></tr></thead><tbody>
-        ${D.reports.map(r=>`<tr><td><strong>${r.customer}</strong></td><td>${r.species}</td><td>${r.region}</td><td><span class="b ${r.severity==='low'?'bg':r.severity==='high'?'br':'ba'}">${r.severity==='low'?'NIEDRIG':r.severity==='high'?'HOCH':'MITTEL'}</span></td><td style="font-family:var(--f);font-size:11px">${fF(r.created)}</td><td><button class="smb smb-r" onclick="delReport('${r.id}')">Löschen</button></td></tr>`).join('')}
+        ${reps.length?reps.map(r=>`
+          <tr>
+            <td><strong>${r.customer}</strong></td>
+            <td>${r.species||'–'}</td>
+            <td>${r.region||'–'}</td>
+            <td><span class="b ${r.severity==='low'?'bg':r.severity==='high'?'br':'ba'}">${r.severity==='low'?'NIEDRIG':r.severity==='high'?'HOCH':'MITTEL'}</span></td>
+            <td style="font-family:var(--f);font-size:11px">${fF(r.created)}</td>
+            <td><button class="smb smb-r" onclick="delReport('${r.id}')">Löschen</button></td>
+          </tr>`).join('')
+        :'<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3)">Keine Befunde gefunden</td></tr>'}
       </tbody></table>
     </div>`;
 }
@@ -744,27 +1285,90 @@ function delReport(id){
 
 // SETTINGS
 function rSettings(){
-  document.getElementById('pc').innerHTML=`<div style="max-width:680px">
+  document.getElementById('pc').innerHTML=`<div style="max-width:700px">
     <div class="st-sec">
       <div class="st-h">Allgemein</div>
-      <div class="st-row"><div><div class="st-lbl">Plattform-Name</div><div class="st-desc">In E-Mails und der Plattform angezeigt</div></div><input class="form-i" style="width:180px" value="Animioo"></div>
-      <div class="st-row"><div><div class="st-lbl">Support-E-Mail</div><div class="st-desc">Kontaktadresse für Kunden</div></div><input class="form-i" style="width:220px" id="s-email"></div>
+      <div class="st-row">
+        <div><div class="st-lbl">Plattform-Name</div><div class="st-desc">In E-Mails und der Plattform angezeigt</div></div>
+        <input class="form-i" style="width:180px" value="Animioo">
+      </div>
+      <div class="st-row">
+        <div><div class="st-lbl">Support-E-Mail</div><div class="st-desc">Kontaktadresse für Kunden</div></div>
+        <input class="form-i" style="width:230px" id="s-email">
+      </div>
+      <div class="st-row">
+        <div><div class="st-lbl">Admin-Benachrichtigungen</div><div class="st-desc">E-Mail bei neuer Registrierung oder Support-Ticket</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
     </div>
+
     <div class="st-sec">
-      <div class="st-h">Analyse-Einstellungen</div>
-      <div class="st-row"><div><div class="st-lbl">KI-Modell</div><div class="st-desc">Aktuell verwendetes Analysemodell</div></div><select class="form-s" style="width:180px"><option>Claude Sonnet 4</option><option>Claude Opus 4</option></select></div>
-      <div class="st-row"><div><div class="st-lbl">Automatisches PDF speichern</div><div class="st-desc">Nach jeder Analyse automatisch PDF erstellen</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
-      <div class="st-row"><div><div class="st-lbl">Audit-Log aktiviert</div><div class="st-desc">Alle Admin-Aktionen protokollieren</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="st-h">KI-Analyse — Anbieterreihenfolge</div>
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6">
+          Das System wählt automatisch den nächsten verfügbaren Anbieter, falls der primäre nicht antwortet.
+        </div>
+      </div>
+      <div class="st-row">
+        <div>
+          <div class="st-lbl" style="display:flex;align-items:center;gap:7px">
+            <span class="b bb" style="font-size:9px">PRIMÄR</span> OpenAI GPT-4o
+          </div>
+          <div class="st-desc">Hauptanbieter für alle KI-Analysen</div>
+        </div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="st-row">
+        <div>
+          <div class="st-lbl" style="display:flex;align-items:center;gap:7px">
+            <span class="b bgy" style="font-size:9px">FALLBACK 1</span> Anthropic Claude
+          </div>
+          <div class="st-desc">Wird verwendet wenn OpenAI nicht verfügbar</div>
+        </div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="st-row">
+        <div>
+          <div class="st-lbl" style="display:flex;align-items:center;gap:7px">
+            <span class="b bgy" style="font-size:9px">FALLBACK 2</span> Google Gemini
+          </div>
+          <div class="st-desc">Letzter Fallback wenn beide oberen nicht verfügbar</div>
+        </div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="st-row">
+        <div><div class="st-lbl">Audit-Log aktiviert</div><div class="st-desc">Alle Admin-Aktionen protokollieren (DSGVO)</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
     </div>
+
     <div class="st-sec">
-      <div class="st-h">API & Integrationen</div>
-      <div class="st-row"><div><div class="st-lbl">Anthropic API Key</div><div class="st-desc">Für die KI-Bildanalyse</div></div><input class="form-i" style="width:260px" type="password" placeholder="sk-ant-..." value="••••••••••••"></div>
-      <div class="st-row"><div><div class="st-lbl">Google OAuth Client-ID</div><div class="st-desc">Für Google Sign-In auf der Landingpage</div></div><input class="form-i" style="width:260px" placeholder="xxxxx.apps.googleusercontent.com"></div>
+      <div class="st-h">API-Keys (Umgebungsvariablen auf Render)</div>
+      <div style="background:var(--amber-bg);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--amber)">
+        ⚠️ API-Keys werden als Umgebungsvariablen auf Render.com gesetzt, nicht hier im Dashboard gespeichert.
+      </div>
+      <div class="st-row">
+        <div><div class="st-lbl">OPENAI_API_KEY</div><div class="st-desc">sk-... (Render Env Var)</div></div>
+        <span class="b bg" style="font-size:10px">Konfiguriert</span>
+      </div>
+      <div class="st-row">
+        <div><div class="st-lbl">ANTHROPIC_API_KEY</div><div class="st-desc">sk-ant-... (Render Env Var)</div></div>
+        <span class="b bg" style="font-size:10px">Konfiguriert</span>
+      </div>
+      <div class="st-row">
+        <div><div class="st-lbl">GEMINI_API_KEY</div><div class="st-desc">AIza... (Render Env Var)</div></div>
+        <span class="b bg" style="font-size:10px">Konfiguriert</span>
+      </div>
+      <div class="st-row">
+        <div><div class="st-lbl">STRIPE_SECRET_KEY</div><div class="st-desc">sk_live_... (Render Env Var)</div></div>
+        <span class="b ba" style="font-size:10px">Ausstehend</span>
+      </div>
     </div>
-    <button class="act-btn ab-p" onclick="toast('Einstellungen gespeichert')">Einstellungen speichern</button>
+
+    <button class="act-btn ab-p" onclick="toast('✓ Einstellungen gespeichert')">Einstellungen speichern</button>
   </div>`;
   const se=document.getElementById('s-email');
-  if(se) se.value='support'+'\u0040'+'animioo.de';
+  if(se) se.value='kontakt\u0040animioo.de';
 }
 
 // AUDIT
@@ -783,16 +1387,112 @@ async function rAudit(){
     </div>`;
 }
 
+// SUPPORT INBOX
+async function rSupport(filter=''){
+  let tickets=[];
+  try{
+    const url='/api/admin/support'+(filter?'?status='+filter:'');
+    const res=await fetch(url,{headers:authHeader()});
+    if(res.ok){const d=await res.json();tickets=d.tickets||[];}
+  }catch(e){}
+
+  const counts={all:tickets.length,open:tickets.filter(t=>t.status==='open').length,answered:tickets.filter(t=>t.status==='answered').length,closed:tickets.filter(t=>t.status==='closed').length};
+  const filtered=filter?tickets.filter(t=>t.status===filter):tickets;
+
+  document.getElementById('pc').innerHTML=`
+    <div class="g3" style="margin-bottom:14px">
+      <div class="kpi" style="cursor:pointer" onclick="rSupport('')"><div class="kpi-lbl">Alle Tickets</div><div class="kpi-val">${counts.all}</div></div>
+      <div class="kpi" style="cursor:pointer;border-color:var(--amber)" onclick="rSupport('open')"><div class="kpi-lbl">Offen</div><div class="kpi-val" style="color:var(--amber)">${counts.open}</div></div>
+      <div class="kpi" style="cursor:pointer;border-color:var(--green)" onclick="rSupport('answered')"><div class="kpi-lbl">Beantwortet</div><div class="kpi-val" style="color:var(--green)">${counts.answered}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-h">
+        <span class="card-t">Support-Tickets ${filter?'· '+{open:'Offen',answered:'Beantwortet',closed:'Geschlossen'}[filter]:''}</span>
+        <div class="csp"></div>
+        <button class="smb smb-b" onclick="rSupport('')">Alle</button>
+        <button class="smb smb-a" onclick="rSupport('open')" style="margin-left:4px">Offen</button>
+      </div>
+      ${filtered.length===0?'<div style="padding:28px;text-align:center;color:var(--text3);font-size:13px;">Keine Tickets vorhanden.</div>':''}
+      <div style="display:flex;flex-direction:column;gap:0">
+        ${filtered.map(t=>{
+          const sc={open:'ba',answered:'bb',closed:'bg'}[t.status]||'bgy';
+          const sl={open:'Offen',answered:'Beantwortet',closed:'Geschlossen'}[t.status]||t.status;
+          return `<div style="padding:14px 16px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:var(--text);">${t.subject||'Anfrage'}</div>
+                <div style="font-size:11px;color:var(--text3);">${t.user_name||''} · ${t.user_email||''} · ${fF(t.created_at)}</div>
+              </div>
+              <span class="b ${sc}">${sl}</span>
+            </div>
+            <p style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:8px;">${t.message}</p>
+            ${t.admin_reply?`<div style="background:var(--blue-bg);border-left:3px solid var(--blue);border-radius:0 4px 4px 0;padding:8px 11px;font-size:12px;color:var(--text2);margin-bottom:8px;"><strong style="color:var(--blue)">Antwort:</strong> ${t.admin_reply}</div>`:''}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="smb smb-b" onclick="openReplyModal('${t.id}','${(t.admin_reply||'').replace(/'/g,'')}')">Antworten</button>
+              ${t.status!=='closed'?`<button class="smb smb-g" onclick="setTicketStatus('${t.id}','closed')">Schließen</button>`:''}
+              ${t.status==='open'?`<button class="smb smb-a" onclick="setTicketStatus('${t.id}','answered')">Als beantwortet</button>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+function openReplyModal(tid, existingReply){
+  openModal('Ticket beantworten',`
+    <div class="form-g"><label class="form-l">Antwort an den Nutzer</label>
+    <textarea class="form-ta" id="m-reply" style="min-height:100px">${existingReply||''}</textarea></div>
+    <div class="form-g"><label class="form-l">Status setzen</label>
+    <select class="form-s" id="m-status"><option value="answered">Beantwortet</option><option value="open">Offen lassen</option><option value="closed">Geschlossen</option></select></div>`,
+    `<button class="m-btn m-g" onclick="cModal()">Abbrechen</button><button class="m-btn m-p" onclick="doReply('${tid}')">Senden</button>`);
+}
+async function doReply(tid){
+  const reply=document.getElementById('m-reply')?.value?.trim()||'';
+  const status=document.getElementById('m-status')?.value||'answered';
+  if(!reply){toast('Bitte Antwort eingeben');return;}
+  try{await fetch('/api/admin/support/'+tid,{method:'PUT',headers:authHeader(),body:JSON.stringify({admin_reply:reply,status})});}catch(e){}
+  cModal();toast('Antwort gespeichert');rSupport();updBadges();
+}
+async function setTicketStatus(tid,status){
+  try{await fetch('/api/admin/support/'+tid,{method:'PUT',headers:authHeader(),body:JSON.stringify({status})});}catch(e){}
+  toast('Status aktualisiert');rSupport();updBadges();
+}
+
 // UTILS
 function lBadge(s){return {new:'br',contacted:'ba',demo:'bb',proposal:'bg'}[s]||'bgy';}
 function lLabel(s){return {new:'Neu',contacted:'Kontaktiert',demo:'Demo',proposal:'Angebot'}[s]||s;}
 function fmt(d){try{return new Date(d).toLocaleDateString('de-DE');}catch{return d||'–';}}
 function fF(d){try{return new Date(d).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return d||'–';}}
+function timeAgo(d){try{const s=Math.round((Date.now()-new Date(d))/1000);if(s<60)return 'Gerade eben';if(s<3600)return `vor ${Math.round(s/60)} Min`;if(s<86400)return `vor ${Math.round(s/3600)} Std`;return fmt(d);}catch{return '–';}}
 function v(id,tag='input'){return (tag==='s'?document.getElementById(id)?.value:document.getElementById(id)?.value)?.trim()||'';}
 function openModal(title,body,footer){document.getElementById('m-t').textContent=title;document.getElementById('m-b').innerHTML=body;document.getElementById('m-f').innerHTML=footer;document.getElementById('m-ov').classList.remove('h');}
 function cModal(){document.getElementById('m-ov').classList.add('h');}
 function toast(msg){document.getElementById('t-msg').textContent=msg;const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
-function toggleNP(){document.getElementById('np-panel').classList.toggle('open');}
+async function toggleNP(){
+  const p=document.getElementById('np-panel');
+  p.classList.toggle('open');
+  if(p.classList.contains('open')){
+    // Load real notifications from support + audit
+    try{
+      const [supRes]=await Promise.all([
+        fetch('/api/admin/support?status=open',{headers:authHeader()})
+      ]);
+      const sup=supRes.ok?await supRes.json():{tickets:[]};
+      const tickets=(sup.tickets||[]).slice(0,3);
+      const auditItems=(window._liveStats?.audit||D.audit||[]).slice(0,3);
+      const items=[
+        ...tickets.map(t=>({title:'Support: '+t.subject,desc:(t.user_name||t.user_email||'Nutzer')+' hat eine Anfrage gestellt',ts:t.created_at,dot:true,color:'var(--amber)'})),
+        ...auditItems.map(a=>({title:a.action,desc:a.detail||'',ts:a.time||a.created_at,dot:false,color:a.type==='create'?'var(--green)':a.type==='auth'?'var(--blue)':'var(--text3)'}))
+      ].slice(0,6);
+      const np=document.getElementById('np-body');
+      if(np) np.innerHTML=items.length?items.map(i=>`
+        <div class="ni"><div style="display:flex;gap:7px;align-items:flex-start">
+          <div style="width:6px;height:6px;border-radius:50%;background:${i.color};flex-shrink:0;margin-top:4px;${i.dot?'animation:pulse 1.5s infinite':''}"></div>
+          <div><div class="ni-t">${i.title}</div><div class="ni-d">${i.desc}</div><div class="ni-ts">${timeAgo(i.ts)}</div></div>
+        </div></div>`).join('')
+        :'<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px">Keine neuen Benachrichtigungen</div>';
+    }catch(e){}
+  }
+}
 document.addEventListener('click',e=>{if(!e.target.closest('#np-btn'))document.getElementById('np-panel')?.classList.remove('open');});
 </script>
 </body>
