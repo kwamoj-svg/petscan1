@@ -231,6 +231,20 @@ def init_db():
                 owner_email TEXT DEFAULT '',
                 notes TEXT DEFAULT '',
                 created_at TEXT
+            )''',
+            '''CREATE TABLE IF NOT EXISTS teams (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                owner_id TEXT NOT NULL,
+                created_at TEXT
+            )''',
+            '''CREATE TABLE IF NOT EXISTS team_members (
+                id TEXT PRIMARY KEY,
+                team_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                role TEXT DEFAULT 'member',
+                invited_by TEXT DEFAULT '',
+                joined_at TEXT
             )'''
         ]
         for t in tables:
@@ -333,6 +347,20 @@ def init_db():
                 notes TEXT DEFAULT "",
                 created_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS teams (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                owner_id TEXT NOT NULL,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS team_members (
+                id TEXT PRIMARY KEY,
+                team_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                role TEXT DEFAULT "member",
+                invited_by TEXT DEFAULT "",
+                joined_at TEXT
+            );
         ''')
 
     # Migrate: add new columns if missing (for existing DBs)
@@ -371,6 +399,14 @@ def init_db():
         "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT DEFAULT ''",
         "ALTER TABLE reports ADD COLUMN IF NOT EXISTS patient_id TEXT DEFAULT ''",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT ''",
+        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS name TEXT",
+        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS owner_id TEXT",
+        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS created_at TEXT",
+        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS team_id TEXT",
+        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS user_id TEXT",
+        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'member'",
+        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS invited_by TEXT DEFAULT ''",
+        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS joined_at TEXT",
     ]:
         try:
             db_execute(conn, col); conn.commit()
@@ -581,6 +617,16 @@ def require_auth(f):
         token = request.cookies.get('ps_session', '')
         if not token:
             token = request.headers.get('Authorization','').replace('Bearer ','').strip()
+        # X-API-Key Header Support
+        api_key_header = request.headers.get('X-API-Key', '')
+        if api_key_header and not token:
+            conn = get_db()
+            user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE api_key=? AND active=1', (api_key_header,)))
+            conn.close()
+            if user:
+                request.user = user
+                return f(*args, **kwargs)
+            return jsonify({'error':'Ungültiger API-Key'}), 401
         if not token: return jsonify({'error':'Nicht angemeldet'}), 401
         conn = get_db()
         sess = db_dict(db_fetchone(conn, 'SELECT * FROM sessions WHERE token=? AND expires_at>?',(token,now())))
@@ -1168,6 +1214,7 @@ def analyse():
     focus_text = d.get('focus_text','').strip()
     img_a      = d.get('img_a','')
     img_b      = d.get('img_b','')
+    patient_id = d.get('patient_id','').strip()
 
     # DICOM-Erkennung: Falls Base64-Daten ein DICOM-File sind, konvertieren
     dicom_metadata = {}
@@ -2062,8 +2109,8 @@ STRICT RULES:
             except: pass
     # INSERT mit allen Spalten
     try:
-        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-                     (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,now()))
+        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,patient_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                     (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,patient_id,now()))
     except Exception as e:
         app.logger.warning(f'INSERT fehlgeschlagen ({e}), Rollback + Fallback...')
         try: conn.rollback()
@@ -2931,6 +2978,364 @@ def v1_get_report(rid):
         return jsonify({'error': 'Befund nicht gefunden'}), 404
     report.pop('image_data', None)
     return jsonify({'report': report})
+
+# ═══════════════════════════════════════════════════
+# PRAXIS-TEAMS
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/teams', methods=['GET'])
+@require_auth
+def list_teams():
+    uid = request.user['id']
+    conn = get_db()
+    # Teams where user is owner OR member
+    teams = db_fetchall(conn, '''
+        SELECT DISTINCT t.id, t.name, t.owner_id, t.created_at
+        FROM teams t
+        LEFT JOIN team_members tm ON t.id = tm.team_id
+        WHERE t.owner_id=? OR tm.user_id=?
+        ORDER BY t.created_at DESC
+    ''', (uid, uid))
+    result = []
+    for team in (teams or []):
+        t = dict(team)
+        members = db_fetchall(conn, '''
+            SELECT tm.id, tm.user_id, tm.role, tm.joined_at, u.name, u.email
+            FROM team_members tm
+            LEFT JOIN users u ON tm.user_id=u.id
+            WHERE tm.team_id=?
+        ''', (t['id'],))
+        t['member_count'] = len(members or [])
+        result.append(t)
+    conn.close()
+    return jsonify({'teams': result})
+
+
+@app.route('/api/teams', methods=['POST'])
+@require_auth
+def create_team():
+    d = request.json or {}
+    name = d.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Teamname erforderlich'}), 400
+    uid = request.user['id']
+    tid = 't_' + nid()
+    mid = 'tm_' + nid()
+    conn = get_db()
+    try:
+        db_execute(conn, 'INSERT INTO teams (id, name, owner_id, created_at) VALUES (?,?,?,?)',
+                   (tid, name, uid, now()))
+        db_execute(conn, 'INSERT INTO team_members (id, team_id, user_id, role, invited_by, joined_at) VALUES (?,?,?,?,?,?)',
+                   (mid, tid, uid, 'owner', uid, now()))
+        conn.commit()
+    except Exception as e:
+        try: conn.rollback()
+        except: pass
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+    conn.close()
+    audit('Team erstellt', uid, f'{name} ({tid})')
+    return jsonify({'id': tid, 'ok': True}), 201
+
+
+@app.route('/api/teams/<tid>', methods=['GET'])
+@require_auth
+def get_team(tid):
+    uid = request.user['id']
+    conn = get_db()
+    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
+    if not team:
+        conn.close()
+        return jsonify({'error': 'Team nicht gefunden'}), 404
+    # Check membership
+    member = db_fetchone(conn, 'SELECT id FROM team_members WHERE team_id=? AND user_id=?', (tid, uid))
+    if not member and team['owner_id'] != uid and request.user.get('role') != 'admin':
+        conn.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+    members = db_fetchall(conn, '''
+        SELECT tm.id, tm.user_id, tm.role, tm.invited_by, tm.joined_at,
+               u.name, u.email, u.praxis
+        FROM team_members tm
+        LEFT JOIN users u ON tm.user_id=u.id
+        WHERE tm.team_id=?
+        ORDER BY tm.joined_at ASC
+    ''', (tid,))
+    conn.close()
+    team['members'] = members or []
+    return jsonify({'team': team})
+
+
+@app.route('/api/teams/<tid>/members', methods=['POST'])
+@require_auth
+def add_team_member(tid):
+    uid = request.user['id']
+    d = request.json or {}
+    email = d.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': 'E-Mail erforderlich'}), 400
+    conn = get_db()
+    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
+    if not team:
+        conn.close()
+        return jsonify({'error': 'Team nicht gefunden'}), 404
+    # Only owner or admin can invite
+    caller_member = db_dict(db_fetchone(conn, 'SELECT role FROM team_members WHERE team_id=? AND user_id=?', (tid, uid)))
+    caller_role = caller_member['role'] if caller_member else None
+    if team['owner_id'] != uid and caller_role not in ('owner', 'admin') and request.user.get('role') != 'admin':
+        conn.close()
+        return jsonify({'error': 'Nur Owner oder Admin darf Mitglieder einladen'}), 403
+    # Find invited user
+    invite_user = db_dict(db_fetchone(conn, 'SELECT id FROM users WHERE email=? AND active=1', (email,)))
+    if not invite_user:
+        conn.close()
+        return jsonify({'error': 'Kein aktiver User mit dieser E-Mail gefunden'}), 404
+    inv_uid = invite_user['id']
+    # Check if already member
+    existing = db_fetchone(conn, 'SELECT id FROM team_members WHERE team_id=? AND user_id=?', (tid, inv_uid))
+    if existing:
+        conn.close()
+        return jsonify({'error': 'User ist bereits Mitglied dieses Teams'}), 409
+    mid = 'tm_' + nid()
+    role_to_assign = d.get('role', 'member')
+    if role_to_assign not in ('admin', 'member'):
+        role_to_assign = 'member'
+    db_execute(conn, 'INSERT INTO team_members (id, team_id, user_id, role, invited_by, joined_at) VALUES (?,?,?,?,?,?)',
+               (mid, tid, inv_uid, role_to_assign, uid, now()))
+    conn.commit(); conn.close()
+    audit('Team-Mitglied eingeladen', uid, f'{email} -> {tid}')
+    return jsonify({'ok': True, 'id': mid}), 201
+
+
+@app.route('/api/teams/<tid>/members/<invited_uid>', methods=['DELETE'])
+@require_auth
+def remove_team_member(tid, invited_uid):
+    uid = request.user['id']
+    conn = get_db()
+    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
+    if not team:
+        conn.close()
+        return jsonify({'error': 'Team nicht gefunden'}), 404
+    caller_member = db_dict(db_fetchone(conn, 'SELECT role FROM team_members WHERE team_id=? AND user_id=?', (tid, uid)))
+    caller_role = caller_member['role'] if caller_member else None
+    if team['owner_id'] != uid and caller_role not in ('owner', 'admin') and request.user.get('role') != 'admin':
+        conn.close()
+        return jsonify({'error': 'Nur Owner oder Admin darf Mitglieder entfernen'}), 403
+    # Cannot remove owner
+    target_member = db_dict(db_fetchone(conn, 'SELECT role FROM team_members WHERE team_id=? AND user_id=?', (tid, invited_uid)))
+    if target_member and target_member['role'] == 'owner':
+        conn.close()
+        return jsonify({'error': 'Owner kann nicht entfernt werden'}), 400
+    db_execute(conn, 'DELETE FROM team_members WHERE team_id=? AND user_id=?', (tid, invited_uid))
+    conn.commit(); conn.close()
+    audit('Team-Mitglied entfernt', uid, f'{invited_uid} from {tid}')
+    return jsonify({'ok': True})
+
+
+@app.route('/api/teams/<tid>', methods=['DELETE'])
+@require_auth
+def delete_team(tid):
+    uid = request.user['id']
+    conn = get_db()
+    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
+    if not team:
+        conn.close()
+        return jsonify({'error': 'Team nicht gefunden'}), 404
+    if team['owner_id'] != uid and request.user.get('role') != 'admin':
+        conn.close()
+        return jsonify({'error': 'Nur der Owner darf ein Team löschen'}), 403
+    db_execute(conn, 'DELETE FROM team_members WHERE team_id=?', (tid,))
+    db_execute(conn, 'DELETE FROM teams WHERE id=?', (tid,))
+    conn.commit(); conn.close()
+    audit('Team gelöscht', uid, tid)
+    return jsonify({'ok': True})
+
+
+# ═══════════════════════════════════════════════════
+# E-MAIL-BEFUNDVERSAND
+# ═══════════════════════════════════════════════════
+
+def markdown_to_html(text):
+    """Simple Markdown -> HTML conversion for report email."""
+    import re
+    lines = text.split('\n')
+    html_lines = []
+    for line in lines:
+        # ## Heading
+        if line.startswith('## '):
+            line = '<h2>' + line[3:] + '</h2>'
+        # **bold**
+        line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
+        html_lines.append(line)
+    return '<br>\n'.join(html_lines)
+
+
+@app.route('/api/reports/<rid>/send-email', methods=['POST'])
+@require_auth
+def send_report_email(rid):
+    """Sendet einen Befund per E-Mail an eine angegebene Adresse."""
+    if not SMTP_HOST or not SMTP_USER:
+        return jsonify({'error': 'E-Mail-Versand nicht konfiguriert'}), 503
+
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=? AND user_id=?', (rid, request.user['id'])))
+    conn.close()
+    if not report:
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+
+    d = request.json or {}
+    to_email = d.get('to_email', '').strip()
+    message = d.get('message', '').strip()
+
+    if not to_email or '@' not in to_email:
+        return jsonify({'error': 'Gültige Ziel-E-Mail erforderlich'}), 400
+
+    pet_name = report.get('pet_name') or ''
+    species = report.get('species') or ''
+    region = report.get('region') or ''
+    created_at = (report.get('created_at') or '')[:19].replace('T', ' ')
+    report_text = report.get('report_text') or ''
+    report_html = markdown_to_html(report_text)
+
+    personal_message_html = ''
+    if message:
+        personal_message_html = f'''
+        <div style="background:#f0f9ff;border-left:4px solid #1a56db;padding:15px 20px;margin:20px 0;border-radius:0 6px 6px 0;">
+            <p style="margin:0;color:#1e3a5f;font-style:italic;">{message}</p>
+        </div>'''
+
+    html_body = f'''<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Inter,Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px;color:#1e293b;">
+    <div style="background:#1a56db;padding:20px 30px;border-radius:8px 8px 0 0;">
+        <h1 style="color:#fff;margin:0;font-size:22px;">Animioo KI-Befundassistent</h1>
+        <p style="color:#bfdbfe;margin:5px 0 0;">Veterinärradiologischer Befundbericht</p>
+    </div>
+    <div style="background:#f8fafc;padding:20px 30px;border:1px solid #e2e8f0;border-top:none;">
+        <table style="width:100%;border-collapse:collapse;margin-bottom:15px;">
+            <tr><td style="padding:4px 0;color:#64748b;width:120px;">Datum:</td><td style="padding:4px 0;font-weight:600;">{created_at}</td></tr>
+            {'<tr><td style="padding:4px 0;color:#64748b;">Patient:</td><td style="padding:4px 0;font-weight:600;">' + pet_name + '</td></tr>' if pet_name else ''}
+            <tr><td style="padding:4px 0;color:#64748b;">Tierart:</td><td style="padding:4px 0;">{species}</td></tr>
+            <tr><td style="padding:4px 0;color:#64748b;">Region:</td><td style="padding:4px 0;">{region}</td></tr>
+        </table>
+        {personal_message_html}
+    </div>
+    <div style="background:#fff;padding:25px 30px;border:1px solid #e2e8f0;border-top:none;line-height:1.7;font-size:14px;">
+        {report_html}
+    </div>
+    <div style="background:#f1f5f9;padding:15px 30px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+        <p style="margin:0;font-size:11px;color:#94a3b8;">
+            Animioo KI-Befundassistent &mdash; Kein Ersatz für tierärztliche Diagnose.<br>
+            Dieser Befund wurde von <strong>{request.user.get('name','')}</strong> ({request.user.get('praxis','')}) per E-Mail versandt.
+        </p>
+    </div>
+</body>
+</html>'''
+
+    subject_pet = f' – {pet_name}' if pet_name else ''
+    subject = f'Animioo Befundbericht{subject_pet} ({species}, {region})'
+    ok = send_email(to_email, subject, html_body)
+    if not ok:
+        return jsonify({'error': 'E-Mail-Versand fehlgeschlagen. Bitte Konfiguration prüfen.'}), 500
+    audit('Befund per E-Mail versandt', request.user['id'], f'{rid} -> {to_email}')
+    return jsonify({'ok': True})
+
+
+# ═══════════════════════════════════════════════════
+# API-SCHLÜSSEL-VERWALTUNG
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/apikey', methods=['GET'])
+@require_auth
+def get_apikey():
+    """Gibt den API-Key zurück (maskiert oder im Klartext bei ?reveal=1)."""
+    conn = get_db()
+    user = db_dict(db_fetchone(conn, 'SELECT api_key FROM users WHERE id=?', (request.user['id'],)))
+    conn.close()
+    api_key = user.get('api_key', '') if user else ''
+    if not api_key:
+        return jsonify({'api_key': None, 'has_key': False})
+    reveal = request.args.get('reveal', '0') == '1'
+    if reveal:
+        return jsonify({'api_key': api_key, 'has_key': True})
+    # Maskieren: erste 8 + "..." + letzte 4
+    if len(api_key) > 12:
+        masked = api_key[:8] + '...' + api_key[-4:]
+    else:
+        masked = api_key[:4] + '...'
+    return jsonify({'api_key': masked, 'has_key': True})
+
+
+@app.route('/api/apikey/regenerate', methods=['POST'])
+@require_auth
+def regenerate_apikey():
+    """Erzeugt einen neuen API-Key."""
+    new_key = 'ak_' + secrets.token_hex(32)
+    conn = get_db()
+    db_execute(conn, 'UPDATE users SET api_key=? WHERE id=?', (new_key, request.user['id']))
+    conn.commit(); conn.close()
+    audit('API-Key erneuert', request.user['id'])
+    return jsonify({'api_key': new_key, 'ok': True})
+
+
+@app.route('/api/apikey', methods=['DELETE'])
+@require_auth
+def delete_apikey():
+    """Löscht den API-Key."""
+    conn = get_db()
+    db_execute(conn, "UPDATE users SET api_key='' WHERE id=?", (request.user['id'],))
+    conn.commit(); conn.close()
+    audit('API-Key gelöscht', request.user['id'])
+    return jsonify({'ok': True})
+
+
+# ═══════════════════════════════════════════════════
+# BEFUND-VERLAUF PRO PATIENT
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/patients/<pid>/reports', methods=['GET'])
+@require_auth
+def patient_reports(pid):
+    """Gibt alle Befunde eines Patienten zurück, sortiert nach Datum."""
+    uid = request.user['id']
+    conn = get_db()
+    # Verify patient belongs to user
+    patient = db_dict(db_fetchone(conn, 'SELECT id, name FROM patients WHERE id=? AND user_id=?', (pid, uid)))
+    if not patient:
+        conn.close()
+        return jsonify({'error': 'Patient nicht gefunden'}), 404
+    rows = db_fetchall(conn, '''
+        SELECT id, species, region, mode, severity, pet_name, created_at, report_text
+        FROM reports
+        WHERE patient_id=? AND user_id=?
+        ORDER BY created_at DESC
+    ''', (pid, uid))
+    conn.close()
+    reports = []
+    for r in (rows or []):
+        entry = dict(r)
+        rt = entry.get('report_text') or ''
+        entry['preview'] = rt[:200]
+        del entry['report_text']
+        reports.append(entry)
+    return jsonify({'reports': reports, 'patient': patient})
+
+
+# ═══════════════════════════════════════════════════
+# ÖFFENTLICHE API v1 (mit X-API-Key oder Bearer, zusätzliche Endpunkte)
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/v1/patients', methods=['GET'])
+@require_auth
+@limiter.limit("60 per minute")
+def v1_list_patients():
+    """Public API: Gibt Patienten des API-Users zurück."""
+    uid = request.user['id']
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT * FROM patients WHERE user_id=? ORDER BY name ASC', (uid,))
+    conn.close()
+    return jsonify({'patients': rows or []})
+
 
 # ═══════════════════════════════════════════════════
 # ERROR HANDLER

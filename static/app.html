@@ -427,6 +427,10 @@ a{color:inherit;text-decoration:none;}
           <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           Patienten
         </button>
+        <button class="nb" data-v="team" onclick="navTo('team',this)">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          Team
+        </button>
       </div>
       <div class="sb-sec">
         <div class="sb-lbl">Account</div>
@@ -558,6 +562,7 @@ function doLogin() {
       ME=d.user;
       if(ME.role==='admin'){ window.location.href='/admin'; return; }
       showApp();
+      if (!localStorage.getItem('onb_done')) { startOnboarding(); }
     })
     .catch(function(e){ err.textContent=e.message; err.style.display='block'; })
     .finally(function(){ btn.disabled=false; btn.textContent='Anmelden'; });
@@ -751,61 +756,81 @@ function showApp() {
     });
     updateBadge(ALL_REPORTS.length);
   }).catch(function(){});
-  // Onboarding tour for new users
-  if ((ME.analyses_used||0) === 0 && !localStorage.getItem('animioo_onboarding_done')) {
-    showOnboarding();
+  // Onboarding tour for new users — triggered from doLogin() via startOnboarding()
+  // (also show for users who registered fresh)
+  if ((ME.analyses_used||0) === 0 && !localStorage.getItem('onb_done')) {
+    startOnboarding();
   }
 }
 
 // ONBOARDING TOUR
 var onbSlide = 0;
-function showOnboarding() {
+
+function startOnboarding() {
+  if (localStorage.getItem('onb_done')) return;
+  var ex = document.getElementById('onb-modal');
+  if (ex) ex.remove();
   var ov = document.createElement('div');
   ov.className = 'onb-overlay';
-  ov.id = 'onb-overlay';
+  ov.id = 'onb-modal';
   ov.innerHTML = '<div class="onb-card">'
-    // Slide 1
+    // Slide 1 — Willkommen
     +'<div class="onb-slide active" id="onb-s0">'
     +'<div class="onb-illus" style="background:var(--blue-dim);">'
-    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5"><circle cx="7.5" cy="6.5" r="2"/><circle cx="16.5" cy="6.5" r="2"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><path d="M7.5 15.5C7.5 14 9.5 12 12 12s4.5 2 4.5 3.5c0 2-1.5 4-2.5 4.5-.7.3-1.3.5-2 .5s-1.3-.2-2-.5c-1-.5-2.5-2.5-2.5-4.5z" fill="var(--blue)" opacity=".15"/></svg>'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5">'
+    +'<path d="M4.5 12.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v1a7 7 0 0 1-7 7v0a7 7 0 0 1-7-7v-1z"/>'
+    +'<path d="M12 3v4"/><circle cx="12" cy="3" r="1"/>'
+    +'<path d="M9.5 7.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v3.5h-5V7.5z"/>'
+    +'<line x1="12" y1="10" x2="12" y2="14"/><line x1="10" y1="12" x2="14" y2="12"/>'
+    +'</svg>'
     +'</div>'
-    +'<div class="onb-h">Willkommen bei Animioo!</div>'
-    +'<div class="onb-p">Die KI-gestützte Plattform für veterinärradiologische Befundung. Laden Sie Röntgenbilder hoch und erhalten Sie in Sekunden einen detaillierten radiologischen Befundbericht.</div>'
+    +'<div class="onb-h">Willkommen bei Animioo</div>'
+    +'<div class="onb-p">Die KI-Plattform für veterinärmedizinische Radiologie. Analysieren Sie Röntgenbilder in Sekunden.</div>'
     +'</div>'
-    // Slide 2
+    // Slide 2 — Bild hochladen
     +'<div class="onb-slide" id="onb-s1">'
     +'<div class="onb-illus" style="background:var(--green-dim);">'
-    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5">'
+    +'<polyline points="16 16 12 12 8 16"/>'
+    +'<line x1="12" y1="12" x2="12" y2="21"/>'
+    +'<path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>'
+    +'</svg>'
     +'</div>'
-    +'<div class="onb-h">So funktioniert es</div>'
-    +'<div class="onb-steps-list">'
-    +'<div class="onb-step-item"><span class="onb-step-num">1</span>Röntgenbild hochladen (JPG, PNG, DICOM)</div>'
-    +'<div class="onb-step-item"><span class="onb-step-num">2</span>Tierart und Körperregion auswählen</div>'
-    +'<div class="onb-step-item"><span class="onb-step-num">3</span>KI-Analyse starten — Befund in unter 45 Sekunden</div>'
-    +'<div class="onb-step-item"><span class="onb-step-num">4</span>Befund als PDF, Word oder TXT exportieren</div>'
+    +'<div class="onb-h">Röntgenbild hochladen</div>'
+    +'<div class="onb-p">JPG, PNG oder DICOM — einfach per Drag &amp; Drop oder Klick. Die KI analysiert das Bild automatisch.</div>'
     +'</div>'
-    +'</div>'
-    // Slide 3
+    // Slide 3 — Parameter wählen
     +'<div class="onb-slide" id="onb-s2">'
     +'<div class="onb-illus" style="background:var(--amber-dim);">'
-    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.5">'
+    +'<circle cx="12" cy="12" r="3"/>'
+    +'<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
+    +'</svg>'
     +'</div>'
-    +'<div class="onb-h">20 Analysen kostenlos</div>'
-    +'<div class="onb-p">Ihre ersten 20 Analysen sind völlig kostenlos — keine Kreditkarte erforderlich. Testen Sie die volle Leistungsfähigkeit der KI-Befundung mit echten Röntgenbildern aus Ihrer Praxis.</div>'
+    +'<div class="onb-h">Tierart &amp; Region wählen</div>'
+    +'<div class="onb-p">Wählen Sie Tierart, Körperregion und Analyse-Modus für präzisere Ergebnisse.</div>'
     +'</div>'
-    // Slide 4
+    // Slide 4 — Befund lesen
     +'<div class="onb-slide" id="onb-s3">'
     +'<div class="onb-illus" style="background:var(--blue-dim);">'
-    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.5">'
+    +'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
+    +'<polyline points="14 2 14 8 20 8"/>'
+    +'<line x1="16" y1="13" x2="8" y2="13"/>'
+    +'<line x1="16" y1="17" x2="8" y2="17"/>'
+    +'<polyline points="10 9 9 9 8 9"/>'
+    +'</svg>'
     +'</div>'
-    +'<div class="onb-h">Los geht es!</div>'
-    +'<div class="onb-p">Starten Sie jetzt Ihre erste Analyse. Wählen Sie die Tierart, laden Sie ein Röntgenbild hoch und lassen Sie die KI arbeiten.</div>'
+    +'<div class="onb-h">Befund in Sekunden</div>'
+    +'<div class="onb-p">Der KI-Befund erscheint sofort mit Diagnose, Differenzialdiagnosen und Therapieempfehlungen.</div>'
     +'</div>'
     // Footer
-    +'<div class="onb-footer" id="onb-footer">'
-    +'<button class="onb-skip" onclick="closeOnboarding()">Überspringen</button>'
+    +'<div class="onb-footer">'
     +'<div class="onb-dots" id="onb-dots"><div class="onb-dot active"></div><div class="onb-dot"></div><div class="onb-dot"></div><div class="onb-dot"></div></div>'
+    +'<div style="display:flex;gap:12px;align-items:center;">'
+    +'<span class="onb-skip" onclick="skipOnboarding()">Überspringen</span>'
     +'<button class="onb-btn" id="onb-btn" onclick="nextOnbSlide()">Weiter</button>'
+    +'</div>'
     +'</div>'
     +'</div>';
   document.body.appendChild(ov);
@@ -814,24 +839,26 @@ function showOnboarding() {
 
 function nextOnbSlide() {
   onbSlide++;
-  if (onbSlide >= 4) { closeOnboarding(); navTo('analyse', document.querySelector('.nb[data-v=analyse]')); return; }
+  if (onbSlide >= 4) { skipOnboarding(); return; }
   for (var i = 0; i < 4; i++) {
     var s = document.getElementById('onb-s'+i);
     if (s) s.className = 'onb-slide' + (i === onbSlide ? ' active' : '');
   }
-  // Update dots
   var dots = document.querySelectorAll('#onb-dots .onb-dot');
   dots.forEach(function(d, i){ d.className = 'onb-dot' + (i === onbSlide ? ' active' : ''); });
-  // Update button text
   var btn = document.getElementById('onb-btn');
-  if (btn) btn.textContent = onbSlide === 3 ? 'Los geht es!' : 'Weiter';
+  if (btn) btn.textContent = onbSlide === 3 ? 'Fertig' : 'Weiter';
 }
 
-function closeOnboarding() {
-  localStorage.setItem('animioo_onboarding_done', '1');
-  var ov = document.getElementById('onb-overlay');
+function skipOnboarding() {
+  localStorage.setItem('onb_done', '1');
+  var ov = document.getElementById('onb-modal');
   if (ov) ov.remove();
 }
+
+// Legacy alias kept for backward-compat
+function showOnboarding() { startOnboarding(); }
+function closeOnboarding() { skipOnboarding(); }
 
 // MOBILE MENU
 function toggleMobileMenu() {
@@ -852,10 +879,10 @@ function navTo(view, btn) {
   closeMobileMenu();
   document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('on'); });
   if(btn) btn.classList.add('on');
-  var titles = {analyse:'Neue Analyse',reports:'Meine Befunde',account:'Mein Account',upgrade:'Plan upgraden',stats:'Statistiken',patients:'Patientenkartei'};
+  var titles = {analyse:'Neue Analyse',reports:'Meine Befunde',account:'Mein Account',upgrade:'Plan upgraden',stats:'Statistiken',patients:'Patientenkartei',team:'Praxis-Team'};
   document.getElementById('ph-t').textContent = titles[view]||view;
   document.getElementById('result-ts').textContent='';
-  ({analyse:renderAnalyse,reports:renderReports,account:renderAccount,upgrade:renderUpgrade,stats:renderStats,patients:renderPatients}[view]||renderAnalyse)();
+  ({analyse:renderAnalyse,reports:renderReports,account:renderAccount,upgrade:renderUpgrade,stats:renderStats,patients:renderPatients,team:renderTeam}[view]||renderAnalyse)();
 }
 
 function updateBadge(n){ document.getElementById('nb-cnt').textContent=n||0; }
@@ -1256,6 +1283,18 @@ function renderResult(r) {
       +(r.img_b&&r.mode!=='single'?'<div style="flex:1;text-align:center;"><img src="'+r.img_b+'" style="max-width:100%;max-height:180px;object-fit:contain;border-radius:4px;"><div style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:1px;">Aufnahme B</div></div>':'')
       +'</div>';
   }
+  // Feature 2: image_data block (base64 from server)
+  var imgDataBlock = '';
+  if (r.image_data) {
+    imgDataBlock = '<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#000;text-align:center;">'
+      +'<img src="data:image/jpeg;base64,'+r.image_data+'"'
+      +' style="max-height:340px;max-width:100%;object-fit:contain;display:block;margin:0 auto;"'
+      +' alt="Röntgenbild">'
+      +'<div style="padding:6px;font-size:10px;color:var(--text3);background:var(--s2);border-top:1px solid var(--border);">'
+      +'Analysiertes Röntgenbild · '+(r.species||'')+' · '+(r.region||'')
+      +'</div>'
+      +'</div>';
+  }
   var _main=document.getElementById('an-main');
   if(!_main) return;
   _main.innerHTML='<div class="result-card">'
@@ -1263,9 +1302,13 @@ function renderResult(r) {
     +'<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+' · '+modeLabel+'</div>'
     +'<div style="font-size:20px;font-weight:800;">Radiologischer Befundbericht</div>'
     +'<div style="font-size:11px;color:var(--text3);margin-top:4px">'+fmtDate(r.created_at)+' · <span class="badge '+sevBadge+'">'+sevBadgeLbl+'</span></div></div>'
-    +'<button class="abt ab-g" onclick="exportPDF(\''+r.id+'\')">PDF exportieren</button></div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    +'<button class="abt ab-g" onclick="exportPDF(\''+r.id+'\')">PDF exportieren</button>'
+    +'<button class="abt ab-g" onclick="sendReportEmail(\''+r.id+'\')">&#x2709; Per E-Mail senden</button>'
+    +'</div></div>'
     +imgs
     +'<div class="sev-bar '+sevCls+'"><div style="flex:1"><div class="sev-lbl">DRINGLICHKEIT: '+sevLbl+'</div></div><div class="sev-track"><div class="sev-fill"></div></div></div>'
+    +imgDataBlock
     +'<div class="result-body">'+mdToHtml(r.report_text)+'</div>'
     +'<div class="disclaimer">Hinweis: KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
     +'</div>'
@@ -1278,6 +1321,17 @@ function renderResult(r) {
   CHAT_HISTORY=[];
   CHAT_REPORT=r.report_text;
   CHAT_CONTEXT={species:r.species,region:r.region,mode:r.mode,pet_name:r.pet_name||''};
+}
+
+// Feature 3: E-Mail-Befundversand
+function sendReportEmail(reportId) {
+  var email = prompt('Empfänger-E-Mail-Adresse:');
+  if (!email || !email.trim()) return;
+  email = email.trim();
+  var msg = prompt('Persönliche Nachricht (optional):') || '';
+  api('/api/reports/'+reportId+'/send-email', 'POST', {to_email: email, message: msg})
+    .then(function(){ toast('Befund wurde per E-Mail versendet \u2713'); })
+    .catch(function(e){ toast('E-Mail-Fehler: '+e.message, 'red'); });
 }
 
 // CHAT
@@ -1898,20 +1952,51 @@ function openPatient(id) {
     +'</div>'
     +'</div>';
   document.body.appendChild(ov);
-  // Befunde laden
-  api('/api/patients/'+id).then(function(d){
+  // Feature 6: Befund-Verlauf laden
+  api('/api/patients/'+id+'/reports').then(function(d){
     var el = document.getElementById('pat-reports-'+id);
     if(!el) return;
-    var reps = (d.patient||{}).reports || [];
-    if(!reps.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px;">Noch keine Befunde für diesen Patienten.</div>'; return; }
+    var reps = d.reports || [];
+    if(!reps.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px;">Noch keine Analysen für diesen Patienten.</div>'; return; }
     el.innerHTML = reps.map(function(r){
-      var sev={low:'var(--green)',mid:'var(--amber)',high:'var(--red)'}[r.severity]||'var(--text3)';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:6px;font-size:12px;">'
-        +'<div style="width:8px;height:8px;border-radius:50%;background:'+sev+';flex-shrink:0;"></div>'
-        +'<div style="flex:1;">'+escHtml(r.species||'')+' · '+escHtml(r.region||'')+' · '+fmtDate(r.created_at)+'</div>'
+      var sevCls={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
+      var sevLbl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+      var preview = (r.report_text||'').replace(/\*\*|\*|##|###/g,'').trim().slice(0,80) + (r.report_text && r.report_text.length>80?'…':'');
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">'
+        +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+fmtDate(r.created_at)+'</span>'
+        +'<span class="badge '+sevCls+'">'+sevLbl+'</span>'
+        +'</div>'
+        +'<div style="font-size:12px;color:var(--text2);margin-bottom:2px;">'+escHtml(r.species||'')+' · '+escHtml(r.region||'')+'</div>'
+        +(preview?'<div style="font-size:11px;color:var(--text3);line-height:1.5;">'+escHtml(preview)+'</div>':'')
+        +'</div>'
+        +'<button class="abt ab-g" style="font-size:11px;padding:4px 10px;flex-shrink:0;" onclick="openPatientReport(\''+r.id+'\')">Öffnen</button>'
         +'</div>';
     }).join('');
-  }).catch(function(){});
+  }).catch(function(){
+    // Fallback: try old endpoint
+    api('/api/patients/'+id).then(function(d){
+      var el = document.getElementById('pat-reports-'+id);
+      if(!el) return;
+      var reps = (d.patient||{}).reports || [];
+      if(!reps.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px;">Noch keine Analysen für diesen Patienten.</div>'; return; }
+      el.innerHTML = reps.map(function(r){
+        var sevCls={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
+        var sevLbl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">'
+          +'<div style="flex:1;">'
+          +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">'
+          +'<span style="font-size:12px;font-weight:600;">'+fmtDate(r.created_at)+'</span>'
+          +'<span class="badge '+sevCls+'">'+sevLbl+'</span>'
+          +'</div>'
+          +'<div style="font-size:12px;color:var(--text2);">'+escHtml(r.species||'')+' · '+escHtml(r.region||'')+'</div>'
+          +'</div>'
+          +'<button class="abt ab-g" style="font-size:11px;padding:4px 10px;flex-shrink:0;" onclick="openPatientReport(\''+r.id+'\')">Öffnen</button>'
+          +'</div>';
+      }).join('');
+    }).catch(function(){});
+  });
 }
 
 function usePatientForAnalysis(patId, patName, patSpecies) {
@@ -1934,6 +2019,131 @@ function deletePatientConfirm(id) {
     toast('Patient gelöscht');
     loadPatients();
   }).catch(function(e){ toast('Fehler: '+e.message,'red'); });
+}
+
+// Feature 6: open a patient's report in result view
+function openPatientReport(reportId) {
+  var existing = document.getElementById('pat-modal');
+  if (existing) existing.remove();
+  // Try to find in existing cache first
+  var r = ALL_REPORTS.find(function(x){ return x.id===reportId; }) || CACHED.find(function(x){ return x.id===reportId; });
+  if (r) {
+    navTo('reports', document.querySelector('.nb[data-v=reports]'));
+    setTimeout(function(){ openReport(reportId); }, 150);
+    return;
+  }
+  // Otherwise navigate to reports and open
+  navTo('reports', document.querySelector('.nb[data-v=reports]'));
+  setTimeout(function(){ openReport(reportId); }, 600);
+}
+
+// FEATURE 4: PRAXIS-TEAMS
+function renderTeam() {
+  var c = document.getElementById('main-content');
+  c.innerHTML = '<div style="overflow-y:auto;padding:22px;flex:1;">'
+    +'<div style="max-width:680px;margin:0 auto;">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">'
+    +'<div style="font-size:15px;font-weight:800;">Praxis-Teams</div>'
+    +'<button class="abt ab-p" onclick="createTeam()">+ Neues Team erstellen</button>'
+    +'</div>'
+    +'<div id="team-list"><div style="color:var(--text3);text-align:center;padding:40px;">Teams werden geladen...</div></div>'
+    +'</div></div>';
+  loadTeams();
+}
+
+function loadTeams() {
+  api('/api/teams').then(function(d){
+    var teams = d.teams || [];
+    var el = document.getElementById('team-list');
+    if (!el) return;
+    if (!teams.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Noch kein Team vorhanden. Erstellen Sie Ihr erstes Team.</div>';
+      return;
+    }
+    el.innerHTML = teams.map(function(t){
+      return '<div class="ac-card" style="margin-bottom:12px;">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;">'
+        +'<div>'
+        +'<div style="font-size:14px;font-weight:700;">'+escHtml(t.name||'Team')+'</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+(t.member_count||0)+' Mitglied'+(t.member_count!==1?'er':'')+'</div>'
+        +'</div>'
+        +'<button class="abt ab-g" onclick="openTeamDetail(\''+t.id+'\')">Verwalten</button>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+  }).catch(function(e){
+    var el = document.getElementById('team-list');
+    if (el) el.innerHTML = '<div style="color:var(--red);padding:20px;">'+escHtml(e.message)+'</div>';
+  });
+}
+
+function createTeam() {
+  var name = prompt('Name des neuen Teams:');
+  if (!name || !name.trim()) return;
+  api('/api/teams', 'POST', {name: name.trim()})
+    .then(function(){ toast('Team erstellt'); loadTeams(); })
+    .catch(function(e){ toast('Fehler: '+e.message, 'red'); });
+}
+
+function openTeamDetail(tid) {
+  var ex = document.getElementById('team-modal'); if (ex) ex.remove();
+  var ov = document.createElement('div');
+  ov.id = 'team-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML = '<div style="background:var(--surface);border-radius:12px;width:100%;max-width:520px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:85vh;overflow-y:auto;">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">'
+    +'<div style="font-size:16px;font-weight:800;">Team verwalten</div>'
+    +'<button onclick="document.getElementById(\'team-modal\').remove()" style="font-size:18px;color:var(--text3);cursor:pointer;background:none;border:none;">✕</button>'
+    +'</div>'
+    +'<div id="team-detail-'+tid+'"><div style="color:var(--text3);font-size:12px;text-align:center;padding:20px;">Wird geladen...</div></div>'
+    +'<div style="margin-top:16px;">'
+    +'<button class="abt ab-p" onclick="inviteTeamMember(\''+tid+'\')" style="width:100%;justify-content:center;">+ Mitglied einladen</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
+  loadTeamDetail(tid);
+}
+
+function loadTeamDetail(tid) {
+  api('/api/teams/'+tid).then(function(d){
+    var members = d.members || d.team && d.team.members || [];
+    var isOwner = d.is_owner || (d.team && d.team.is_owner);
+    var el = document.getElementById('team-detail-'+tid);
+    if (!el) return;
+    if (!members.length) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:12px;">Noch keine Mitglieder.</div>';
+      return;
+    }
+    el.innerHTML = members.map(function(m){
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">'
+        +'<div style="width:34px;height:34px;border-radius:50%;background:var(--blue-dim);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--blue);flex-shrink:0;">'+(m.name||m.email||'?').charAt(0).toUpperCase()+'</div>'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:13px;font-weight:600;">'+escHtml(m.name||m.email||'')+'</div>'
+        +'<div style="font-size:11px;color:var(--text3);">'+escHtml(m.email||'')+' · '+escHtml(m.role||'member')+'</div>'
+        +'</div>'
+        +(isOwner && m.role!=='owner' ? '<button class="abt ab-g" style="font-size:11px;padding:4px 10px;color:var(--red);" onclick="removeTeamMember(\''+tid+'\',\''+m.id+'\')">Entfernen</button>' : '')
+        +'</div>';
+    }).join('');
+  }).catch(function(e){
+    var el = document.getElementById('team-detail-'+tid);
+    if (el) el.innerHTML = '<div style="color:var(--red);font-size:12px;">'+escHtml(e.message)+'</div>';
+  });
+}
+
+function inviteTeamMember(tid) {
+  var email = prompt('E-Mail-Adresse des einzuladenden Mitglieds:');
+  if (!email || !email.trim()) return;
+  api('/api/teams/'+tid+'/members', 'POST', {email: email.trim()})
+    .then(function(){ toast('Einladung gesendet'); loadTeamDetail(tid); })
+    .catch(function(e){ toast('Fehler: '+e.message, 'red'); });
+}
+
+function removeTeamMember(tid, memberId) {
+  if (!confirm('Mitglied aus dem Team entfernen?')) return;
+  api('/api/teams/'+tid+'/members/'+memberId, 'DELETE')
+    .then(function(){ toast('Mitglied entfernt'); loadTeamDetail(tid); })
+    .catch(function(e){ toast('Fehler: '+e.message, 'red'); });
 }
 
 // ACCOUNT
@@ -1959,7 +2169,25 @@ function buildAccount() {
     +'<div id="tfa-status" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>'
     +'<div id="tfa-setup-area"></div>'
     +'</div>'
-    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 143 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
+    +'<div class="ac-card" id="api-key-card" style="margin-top:14px;">'
+    +'<div class="ac-h">&#x1F511; API-Zugang für Praxissoftware</div>'
+    +'<div class="ac-row">'
+    +'<div class="ac-lbl">Ihr API-Key</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;">'
+    +'<code id="api-key-display" style="font-size:11px;background:var(--s2);padding:4px 8px;border-radius:4px;border:1px solid var(--border);">Wird geladen...</code>'
+    +'<button class="abt ab-g" onclick="revealApiKey()" id="api-reveal-btn" style="font-size:11px;padding:4px 10px;">Anzeigen</button>'
+    +'</div>'
+    +'</div>'
+    +'<div class="ac-row">'
+    +'<div class="ac-lbl">API-Dokumentation</div>'
+    +'<div><code style="font-size:11px;color:var(--text3);">POST /api/v1/analyse &middot; GET /api/v1/reports</code></div>'
+    +'</div>'
+    +'<div style="margin-top:12px;display:flex;gap:8px;">'
+    +'<button class="abt ab-p" onclick="regenerateApiKey()" style="font-size:12px;">Neuen Key generieren</button>'
+    +'<button class="abt ab-g" onclick="deleteApiKey()" style="font-size:12px;">Key löschen</button>'
+    +'</div>'
+    +'</div>'
+    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);margin-top:14px;"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 143 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
     +'<div class="ac-card"><div class="ac-h">Datenschutz (DSGVO)</div>'
     +'<p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Gem&auml;&szlig; DSGVO haben Sie das Recht, Ihre Daten einzusehen, zu exportieren und Ihr Konto zu l&ouml;schen.</p>'
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
@@ -1983,6 +2211,53 @@ function buildAccount() {
       setupEl.innerHTML = '<button class="abt ab-p" onclick="start2FASetup()" style="margin-top:6px;">2FA aktivieren</button>';
     }
   }).catch(function(){});
+  loadApiKey();
+}
+
+// Feature 5: API Key functions
+function loadApiKey() {
+  api('/api/apikey').then(function(d){
+    var el = document.getElementById('api-key-display');
+    if (el) el.textContent = d.api_key_masked || d.api_key || '(kein Key)';
+    var btn = document.getElementById('api-reveal-btn');
+    if (btn) btn.style.display = d.api_key_masked ? '' : 'none';
+  }).catch(function(){
+    var el = document.getElementById('api-key-display');
+    if (el) el.textContent = 'Kein API-Key vorhanden';
+    var btn = document.getElementById('api-reveal-btn');
+    if (btn) btn.style.display = 'none';
+  });
+}
+
+function revealApiKey() {
+  api('/api/apikey?reveal=1').then(function(d){
+    var el = document.getElementById('api-key-display');
+    if (el) el.textContent = d.api_key || '(kein Key)';
+    var btn = document.getElementById('api-reveal-btn');
+    if (btn) btn.style.display = 'none';
+  }).catch(function(e){ toast('Fehler: '+e.message, 'red'); });
+}
+
+function regenerateApiKey() {
+  if (!confirm('Einen neuen API-Key generieren? Der alte Key wird sofort ungültig.')) return;
+  api('/api/apikey/regenerate', 'POST', {}).then(function(d){
+    var el = document.getElementById('api-key-display');
+    if (el) el.textContent = d.api_key || '(kein Key)';
+    var btn = document.getElementById('api-reveal-btn');
+    if (btn) btn.style.display = 'none';
+    toast('Neuer API-Key generiert');
+  }).catch(function(e){ toast('Fehler: '+e.message, 'red'); });
+}
+
+function deleteApiKey() {
+  if (!confirm('API-Key wirklich löschen?')) return;
+  api('/api/apikey', 'DELETE').then(function(){
+    var el = document.getElementById('api-key-display');
+    if (el) el.textContent = 'Kein API-Key vorhanden';
+    var btn = document.getElementById('api-reveal-btn');
+    if (btn) btn.style.display = 'none';
+    toast('API-Key gelöscht');
+  }).catch(function(e){ toast('Fehler: '+e.message, 'red'); });
 }
 
 // DSGVO: Daten exportieren
