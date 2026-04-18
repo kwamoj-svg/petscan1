@@ -2178,6 +2178,7 @@ Criteria:
         return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
 
     import re as _re
+    tl = text.lower()  # immer definieren — wird für Qualitätskontrolle gebraucht
     # Severity aus maschinenlesbarem Tag extrahieren (zuverlässigste Methode)
     _sev_tag = _re.search(r'##SEV:(NIEDRIG|MITTEL|HOCH|NOTFALL)##', text, _re.IGNORECASE)
     if _sev_tag:
@@ -2185,9 +2186,9 @@ Criteria:
         sev = _sev_map.get(_sev_tag.group(1).lower(), 'mid')
         # Tag aus dem angezeigten Befundtext entfernen
         text = _re.sub(r'\n?##SEV:(NIEDRIG|MITTEL|HOCH|NOTFALL)##\n?', '', text, flags=_re.IGNORECASE).strip()
+        tl = text.lower()  # nach Tag-Entfernung neu berechnen
     else:
         # Fallback: Regex-Suche im Text
-        tl = text.lower()
         _high = bool(_re.search(r'(notfall|emergency|\burgent\b)', tl) or
                      _re.search(r'dringlichkeit[^a-z]{0,20}(hoch|high|notfall)', tl) or
                      _re.search(r'\*{1,2}\s*(hoch|high|notfall)\s*\*{1,2}', tl))
