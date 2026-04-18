@@ -1230,7 +1230,12 @@ function runAnalysis() {
   })
   .then(function(data){
     completeProgress();
-    var report=Object.assign({},data,{img_a:AN.imgA?AN.imgA.url:'',img_b:AN.imgB?AN.imgB.url:''});
+    // Lokales Bild als image_data setzen → wird im Befund angezeigt + für Chat-Vision genutzt
+    var report=Object.assign({},data,{
+      img_a: AN.imgA ? AN.imgA.url : '',
+      img_b: AN.imgB ? AN.imgB.url : '',
+      image_data: AN.imgA ? AN.imgA.b64 : (data.image_data || '')
+    });
     CACHED.unshift(report);
     updateBadge(CACHED.length);
     ME.analyses_used=(ME.analyses_used||0)+1;
