@@ -22,7 +22,15 @@ from functools import wraps
 # ═══════════════════════════════════════════════════
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 86400 * 30  # 30 days for static assets
 CORS(app, supports_credentials=True)
+
+# Gzip compression for all responses
+try:
+    from flask_compress import Compress
+    Compress(app)
+except ImportError:
+    pass  # flask-compress not installed — still works without
 
 # Sentry Error-Monitoring
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
@@ -674,26 +682,34 @@ def require_admin(f):
 # ═══════════════════════════════════════════════════
 # STATIC ROUTES
 # ═══════════════════════════════════════════════════
+def _html_response(filename, cache_seconds=0):
+    resp = make_response(send_from_directory('static', filename))
+    if cache_seconds:
+        resp.headers['Cache-Control'] = f'public, max-age={cache_seconds}'
+    else:
+        resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    return resp
+
 @app.route('/')
-def index(): return send_from_directory('static','index.html')
+def index(): return _html_response('index.html', cache_seconds=3600)  # 1h — changes rarely
 
 @app.route('/app')
-def platform(): return send_from_directory('static','app.html')
+def platform(): return _html_response('app.html')  # no cache — always fresh
 
 @app.route('/admin')
-def admin_page(): return send_from_directory('static','admin.html')
+def admin_page(): return _html_response('admin.html')  # no cache
 
 @app.route('/impressum')
-def impressum(): return send_from_directory('static','impressum.html')
+def impressum(): return _html_response('impressum.html', cache_seconds=86400)
 
 @app.route('/datenschutz')
-def datenschutz(): return send_from_directory('static','datenschutz.html')
+def datenschutz(): return _html_response('datenschutz.html', cache_seconds=86400)
 
 @app.route('/agb')
-def agb(): return send_from_directory('static','agb.html')
+def agb(): return _html_response('agb.html', cache_seconds=86400)
 
 @app.route('/wissen')
-def wissen(): return send_from_directory('static','wissen.html')
+def wissen(): return _html_response('wissen.html', cache_seconds=3600)
 
 @app.route('/robots.txt')
 def robots_txt():
