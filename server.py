@@ -440,6 +440,10 @@ def init_db():
         "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'member'",
         "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS invited_by TEXT DEFAULT ''",
         "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS joined_at TEXT",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_logo TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_address TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_phone TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_website TEXT DEFAULT ''",
     ]:
         try:
             db_execute(conn, col); conn.commit()
@@ -2899,6 +2903,97 @@ def admin_reports():
     return jsonify({'reports':rows})
 
 # ═══════════════════════════════════════════════════
+# PRAXIS BRANDING
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/auth/branding', methods=['GET'])
+@require_auth
+def get_branding():
+    """Get practice branding settings for the current user."""
+    conn = get_db()
+    user = db_dict(db_fetchone(conn,
+        'SELECT name, praxis, practice_logo, practice_address, practice_phone, practice_website FROM users WHERE id=?',
+        (request.user['id'],)))
+    conn.close()
+    if not user:
+        return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+    # Don't send full logo in list endpoint — just whether it's set
+    has_logo = bool(user.get('practice_logo'))
+    return jsonify({
+        'name': user.get('name', ''),
+        'praxis': user.get('praxis', ''),
+        'practice_address': user.get('practice_address', ''),
+        'practice_phone': user.get('practice_phone', ''),
+        'practice_website': user.get('practice_website', ''),
+        'has_logo': has_logo,
+    })
+
+@app.route('/api/auth/branding', methods=['POST'])
+@require_auth
+def save_branding():
+    """Save practice branding settings."""
+    data = request.get_json() or {}
+    uid = request.user['id']
+
+    # Validate logo size if provided (max 500KB base64)
+    logo = data.get('practice_logo', None)
+    if logo is not None:
+        if len(logo) > 700_000:  # ~500KB base64
+            return jsonify({'error': 'Logo zu groß (max. 500 KB)'}), 400
+        # Compress/resize logo with Pillow if possible
+        if logo:
+            try:
+                import base64, io
+                from PIL import Image
+                raw = base64.b64decode(logo)
+                img = Image.open(io.BytesIO(raw)).convert('RGBA')
+                img.thumbnail((400, 200), Image.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, format='PNG', optimize=True)
+                logo = base64.b64encode(buf.getvalue()).decode('utf-8')
+            except Exception:
+                pass  # Keep original if resize fails
+
+    conn = get_db()
+    updates = []
+    params = []
+
+    if 'praxis' in data:
+        updates.append('praxis=?'); params.append(str(data['praxis'])[:120])
+    if 'name' in data:
+        updates.append('name=?'); params.append(str(data['name'])[:100])
+    if 'practice_address' in data:
+        updates.append('practice_address=?'); params.append(str(data['practice_address'])[:200])
+    if 'practice_phone' in data:
+        updates.append('practice_phone=?'); params.append(str(data['practice_phone'])[:50])
+    if 'practice_website' in data:
+        updates.append('practice_website=?'); params.append(str(data['practice_website'])[:100])
+    if logo is not None:
+        updates.append('practice_logo=?'); params.append(logo)
+
+    if not updates:
+        conn.close()
+        return jsonify({'ok': True})
+
+    params.append(uid)
+    db_execute(conn, f"UPDATE users SET {','.join(updates)} WHERE id=?", params)
+    conn.commit()
+    conn.close()
+    audit('branding_updated', uid, 'Practice branding settings saved')
+    return jsonify({'ok': True})
+
+@app.route('/api/auth/branding/logo', methods=['DELETE'])
+@require_auth
+def delete_logo():
+    """Remove practice logo."""
+    conn = get_db()
+    db_execute(conn, "UPDATE users SET practice_logo='' WHERE id=?", (request.user['id'],))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ═══════════════════════════════════════════════════
 # DSGVO ENDPOINTS (Art. 17, 20, Consent)
 # ═══════════════════════════════════════════════════
 
@@ -3017,9 +3112,12 @@ def contact():
 @app.route('/api/reports/<rid>/pdf')
 @require_auth
 def export_report_pdf(rid):
-    """Generate a professional PDF for a report."""
+    """Generate a branded PDF for a report."""
     conn = get_db()
     report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=?', (rid,)))
+    user   = db_dict(db_fetchone(conn,
+        'SELECT name, praxis, practice_logo, practice_address, practice_phone, practice_website FROM users WHERE id=?',
+        (request.user['id'],)))
     conn.close()
     if not report:
         return jsonify({'error': 'Befund nicht gefunden'}), 404
@@ -3031,85 +3129,189 @@ def export_report_pdf(rid):
     except ImportError:
         return jsonify({'error': 'PDF-Bibliothek (fpdf2) nicht installiert'}), 503
 
-    class AnimiooPDF(FPDF):
+    # Practice branding data
+    pb = user or {}
+    practice_name    = pb.get('praxis') or 'Animioo KI-Befundassistent'
+    practice_owner   = pb.get('name', '')
+    practice_address = pb.get('practice_address', '')
+    practice_phone   = pb.get('practice_phone', '')
+    practice_website = pb.get('practice_website', '')
+    practice_logo_b64 = pb.get('practice_logo', '')
+    has_branding = bool(pb.get('praxis') or pb.get('practice_address'))
+
+    # Write logo to temp file if present
+    logo_path = None
+    if practice_logo_b64:
+        try:
+            import base64, tempfile
+            logo_bytes = base64.b64decode(practice_logo_b64)
+            tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+            tmp.write(logo_bytes); tmp.close()
+            logo_path = tmp.name
+        except Exception:
+            logo_path = None
+
+    BLUE = (26, 86, 219)
+    NAVY = (15, 28, 53)
+    GRAY = (100, 116, 139)
+    LIGHT = (241, 245, 249)
+
+    class BrandedPDF(FPDF):
         def header(self):
-            self.set_fill_color(26, 86, 219)  # #1a56db
-            self.rect(0, 0, 210, 28, 'F')
-            self.set_font('Helvetica', 'B', 18)
-            self.set_text_color(255, 255, 255)
-            self.set_y(8)
-            self.cell(0, 10, 'Animioo KI-Befundassistent', align='C')
-            self.ln(18)
+            # ── Top bar (navy) ──
+            self.set_fill_color(*NAVY)
+            self.rect(0, 0, 210, 36, 'F')
+
+            if logo_path:
+                # Logo left, practice info right
+                try:
+                    self.image(logo_path, x=10, y=4, h=26)
+                except Exception:
+                    pass
+                # Practice name on right
+                self.set_xy(90, 6)
+                self.set_font('Helvetica', 'B', 13)
+                self.set_text_color(255, 255, 255)
+                self.cell(110, 7, practice_name[:50], align='R', ln=True)
+                if practice_owner:
+                    self.set_x(90)
+                    self.set_font('Helvetica', '', 9)
+                    self.set_text_color(180, 200, 255)
+                    self.cell(110, 5, practice_owner[:60], align='R', ln=True)
+                info_parts = [x for x in [practice_phone, practice_website] if x]
+                if info_parts:
+                    self.set_x(90)
+                    self.set_font('Helvetica', '', 8)
+                    self.set_text_color(150, 175, 220)
+                    self.cell(110, 5, '  |  '.join(info_parts)[:70], align='R', ln=True)
+            else:
+                # Centered Animioo branding (no custom logo)
+                self.set_font('Helvetica', 'B', 16)
+                self.set_text_color(255, 255, 255)
+                self.set_y(6)
+                self.cell(0, 9, practice_name, align='C', ln=True)
+                if has_branding and practice_owner:
+                    self.set_font('Helvetica', '', 9)
+                    self.set_text_color(180, 200, 255)
+                    self.cell(0, 5, practice_owner, align='C', ln=True)
+
+            # ── Address bar (light blue strip) ──
+            if practice_address and has_branding:
+                self.set_fill_color(230, 238, 255)
+                self.rect(0, 36, 210, 8, 'F')
+                self.set_xy(10, 37)
+                self.set_font('Helvetica', '', 8)
+                self.set_text_color(*BLUE)
+                self.cell(0, 6, practice_address[:100], ln=True)
+                self.ln(10)
+            else:
+                self.ln(8)
 
         def footer(self):
-            self.set_y(-15)
-            self.set_font('Helvetica', 'I', 8)
-            self.set_text_color(128, 128, 128)
-            self.cell(0, 10, 'Animioo KI-Befundassistent -- Kein Ersatz fuer tieraerztliche Diagnose.', align='C')
-            self.cell(0, 10, f'Seite {self.page_no()}/{{nb}}', align='R')
+            self.set_y(-14)
+            self.set_font('Helvetica', 'I', 7.5)
+            self.set_text_color(*GRAY)
+            disclaimer = 'Erstellt mit Animioo KI-Assistenz. Kein Ersatz fuer tieraerztliche Diagnose.'
+            self.cell(0, 5, disclaimer, align='C', ln=True)
+            self.set_y(-9)
+            self.set_font('Helvetica', '', 7.5)
+            page_txt = f'Seite {self.page_no()}/{{nb}}'
+            self.cell(0, 5, page_txt, align='R')
+            # Subtle Animioo badge bottom-left
+            self.set_x(10)
+            self.set_y(-9)
+            self.set_text_color(180, 180, 180)
+            self.cell(60, 5, 'animioo.de', align='L')
 
-    pdf = AnimiooPDF()
+    pdf = BrandedPDF()
     pdf.alias_nb_pages()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_auto_page_break(auto=True, margin=18)
 
-    # ── Report Metadata ──
-    pdf.set_y(32)
+    # ── Befund-Header Box ──
+    top_y = 50 if (practice_address and has_branding) else 44
+    pdf.set_y(top_y)
+
+    # Severity badge
+    sev_map  = {'low': ('NIEDRIG', (5, 150, 105), (236, 253, 245)),
+                'mid': ('MITTEL',  (180, 83, 9),  (255, 251, 235)),
+                'high':('HOCH',    (185, 28, 28), (254, 242, 242))}
+    sev_lbl, sev_fg, sev_bg = sev_map.get(report.get('severity', 'mid'), sev_map['mid'])
+
+    # Info box
+    pdf.set_fill_color(*LIGHT)
+    pdf.set_draw_color(203, 213, 225)
+    pdf.set_line_width(0.3)
+    pdf.rect(10, pdf.get_y(), 190, 30, 'FD')
+    pdf.set_xy(14, pdf.get_y() + 3)
+
+    # Left column: patient info
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(95, 5, 'BEFUND-INFORMATION', ln=False)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.cell(0, 5, 'DRINGLICHKEIT', ln=True)
+
+    pdf.set_xy(14, pdf.get_y())
     pdf.set_font('Helvetica', 'B', 11)
-    pdf.set_text_color(26, 86, 219)
-    pdf.cell(0, 8, 'Befund-Metadaten', ln=True)
+    pet = report.get('pet_name', '')
+    title_parts = ([pet + ' —'] if pet else []) + [report.get('species',''), '·', report.get('region','')]
+    pdf.cell(95, 6, ' '.join(p for p in title_parts if p), ln=False)
 
-    pdf.set_font('Helvetica', '', 10)
-    pdf.set_text_color(60, 60, 60)
-    meta_items = [
-        ('Datum', report.get('created_at', '')[:19].replace('T', ' ')),
-        ('Tierart', report.get('species', '')),
-        ('Region', report.get('region', '')),
-        ('Modus', report.get('mode', '')),
-        ('Dringlichkeit', {'low': 'Niedrig', 'mid': 'Mittel', 'high': 'Hoch'}.get(report.get('severity', ''), report.get('severity', ''))),
-    ]
-    if report.get('pet_name'):
-        meta_items.insert(1, ('Patient', report['pet_name']))
+    # Severity pill
+    pill_x = pdf.get_x()
+    pill_y = pdf.get_y() - 1
+    pdf.set_fill_color(*sev_bg)
+    pdf.rect(pill_x, pill_y, 40, 8, 'F')
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.set_text_color(*sev_fg)
+    pdf.set_xy(pill_x, pill_y + 1)
+    pdf.cell(40, 6, sev_lbl, align='C', ln=True)
 
-    for label, value in meta_items:
-        pdf.set_font('Helvetica', 'B', 10)
-        pdf.cell(35, 6, f'{label}:', ln=False)
-        pdf.set_font('Helvetica', '', 10)
-        pdf.cell(0, 6, str(value), ln=True)
+    pdf.set_xy(14, pdf.get_y())
+    pdf.set_font('Helvetica', '', 8.5)
+    pdf.set_text_color(*GRAY)
+    date_str = report.get('created_at', '')[:19].replace('T', ' ')
+    mode_map = {'single':'Einzelanalyse','compare':'Verlaufsanalyse','diff':'Bildvergleich','second':'Zweitmeinung'}
+    mode_str = mode_map.get(report.get('mode',''), report.get('mode',''))
+    pdf.cell(0, 5, f'Datum: {date_str}  ·  Modus: {mode_str}', ln=True)
 
-    pdf.ln(4)
-    # Separator line
-    pdf.set_draw_color(26, 86, 219)
-    pdf.set_line_width(0.5)
+    pdf.ln(6)
+
+    # ── Separator ──
+    pdf.set_draw_color(*BLUE)
+    pdf.set_line_width(0.6)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(4)
+    pdf.ln(5)
 
-    # ── Report text ──
+    # ── Befundtext ──
     pdf.set_font('Helvetica', 'B', 11)
-    pdf.set_text_color(26, 86, 219)
-    pdf.cell(0, 8, 'Befundbericht', ln=True)
+    pdf.set_text_color(*BLUE)
+    pdf.cell(0, 7, 'Befundbericht', ln=True)
+    pdf.ln(1)
 
     report_text = report.get('report_text', '')
-    # Parse markdown-style text into PDF
     pdf.set_text_color(30, 30, 30)
     for line in report_text.split('\n'):
         stripped = line.strip()
         if stripped.startswith('## '):
             pdf.ln(3)
             pdf.set_font('Helvetica', 'B', 11)
-            pdf.set_text_color(26, 86, 219)
-            pdf.multi_cell(0, 6, stripped[3:])
+            pdf.set_fill_color(239, 246, 255)
+            pdf.set_text_color(*BLUE)
+            pdf.multi_cell(0, 7, '  ' + stripped[3:], fill=True)
             pdf.set_text_color(30, 30, 30)
         elif stripped.startswith('### '):
             pdf.ln(2)
             pdf.set_font('Helvetica', 'B', 10)
+            pdf.set_text_color(*NAVY)
             pdf.multi_cell(0, 6, stripped[4:])
+            pdf.set_text_color(30, 30, 30)
         elif stripped.startswith('**') and stripped.endswith('**'):
             pdf.set_font('Helvetica', 'B', 10)
             pdf.multi_cell(0, 5, stripped.strip('*'))
             pdf.set_font('Helvetica', '', 10)
         elif stripped.startswith('|') and '|' in stripped[1:]:
-            # Table row — render as simple text
             cells = [c.strip() for c in stripped.split('|') if c.strip() and c.strip() != '---']
             if cells and not all(set(c) <= set('-| ') for c in cells):
                 pdf.set_font('Helvetica', '', 9)
@@ -3117,25 +3319,33 @@ def export_report_pdf(rid):
                 pdf.set_font('Helvetica', '', 10)
         elif stripped.startswith('- ') or stripped.startswith('* '):
             pdf.set_font('Helvetica', '', 10)
-            pdf.multi_cell(0, 5, '  ' + stripped)
+            pdf.multi_cell(0, 5, '\u2022 ' + stripped[2:])
         elif stripped.startswith('---'):
             pdf.ln(2)
-            pdf.set_draw_color(180, 180, 180)
+            pdf.set_draw_color(203, 213, 225)
             pdf.line(10, pdf.get_y(), 200, pdf.get_y())
             pdf.ln(2)
         elif stripped:
-            # Handle inline bold
             clean = stripped.replace('**', '')
             pdf.set_font('Helvetica', '', 10)
             pdf.multi_cell(0, 5, clean)
         else:
             pdf.ln(2)
 
-    # Output PDF
+    # Cleanup temp logo file
+    if logo_path:
+        try:
+            import os as _os; _os.unlink(logo_path)
+        except Exception:
+            pass
+
+    # Output
+    pet_slug = (report.get('pet_name') or report.get('species') or 'Befund').replace(' ', '-')
+    filename = f'Befund-{pet_slug}-{rid[:8]}.pdf'
     pdf_bytes = pdf.output()
     response = make_response(pdf_bytes)
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename="Animioo-Befund-{rid}.pdf"'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 
 # ═══════════════════════════════════════════════════

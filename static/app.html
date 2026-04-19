@@ -2355,22 +2355,69 @@ function renderAccount() {
 }
 function buildAccount() {
   var c=document.getElementById('main-content');
-  var pl={trial:'Trial (14 Tage)',starter:'Starter',professional:'Professional',admin:'Admin'}[ME.plan]||ME.plan;
+  var pl={trial:'Trial (14 Tage)',starter:'Starter',praxis:'Praxis',professional:'Professional',admin:'Admin'}[ME.plan]||ME.plan;
   c.innerHTML='<div style="overflow-y:auto;padding:22px;flex:1;"><div style="max-width:640px;">'
+    // KPI row
     +'<div class="kpi-g"><div class="kpi"><div class="kpi-l">Plan</div><div class="kpi-v" style="font-size:20px">'+pl+'</div></div>'
     +'<div class="kpi"><div class="kpi-l">Analysen genutzt</div><div class="kpi-v">'+(ME.analyses_used||0)+'</div><div style="font-size:11px;color:var(--text3)">von '+(ME.analyses_limit>=999999?'∞':(ME.analyses_limit||5))+' verfügbar</div></div>'
-    +'<div class="kpi"><div class="kpi-l">Befunde</div><div class="kpi-v">'+ALL_REPORTS.length+'</div></div></div>'
+    +'<div class="kpi"><div class="kpi-l">Befunde</div><div class="kpi-v">'+(REP_SERVER_TOTAL||ALL_REPORTS.length)+'</div></div></div>'
+    // Profil
     +'<div class="ac-card"><div class="ac-h">Mein Profil</div>'
     +'<div class="ac-row"><span class="ac-lbl">Name</span><span class="ac-val">'+(ME.name||'–')+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">E-Mail</span><span class="ac-val">'+ME.email+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Praxis</span><span class="ac-val">'+(ME.praxis||'–')+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Plan</span><span class="ac-val">'+pl+'</span></div></div>'
+    // ── Praxis-Branding ──
+    +'<div class="ac-card" style="margin-top:14px;" id="branding-card">'
+    +'<div class="ac-h" style="display:flex;align-items:center;gap:8px;">'
+    +'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>'
+    +'Praxis-Branding auf PDF</div>'
+    +'<p style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">Ihr Logo und Ihre Kontaktdaten erscheinen auf jedem exportierten Befund-PDF — professionell und wiedererkennbar.</p>'
+    // Logo upload area
+    +'<div style="margin-bottom:14px;">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Praxis-Logo</div>'
+    +'<div id="logo-preview" style="width:180px;height:64px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--s2);cursor:pointer;overflow:hidden;margin-bottom:8px;" onclick="document.getElementById(\'logo-file\').click()">'
+    +'<span style="font-size:12px;color:var(--text3);" id="logo-hint">Logo hochladen (PNG/JPG, max. 500 KB)</span>'
+    +'</div>'
+    +'<input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="handleLogoUpload(this)">'
+    +'<button class="abt ab-g" id="logo-del-btn" onclick="deleteLogo()" style="font-size:11px;padding:4px 10px;display:none;">Logo entfernen</button>'
+    +'</div>'
+    // Text fields
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px;">PRAXISNAME</label>'
+    +'<input id="b-praxis" class="fi" type="text" placeholder="Tierarztpraxis Dr. Mustermann" style="font-size:13px;"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px;">INHABER / ARZT</label>'
+    +'<input id="b-name" class="fi" type="text" placeholder="Dr. Max Mustermann" style="font-size:13px;"></div>'
+    +'</div>'
+    +'<div style="margin-bottom:10px;"><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px;">ADRESSE</label>'
+    +'<input id="b-address" class="fi" type="text" placeholder="Musterstraße 1, 10115 Berlin" style="font-size:13px;"></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px;">TELEFON</label>'
+    +'<input id="b-phone" class="fi" type="text" placeholder="+49 30 12345678" style="font-size:13px;"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px;">WEBSITE</label>'
+    +'<input id="b-website" class="fi" type="text" placeholder="www.tierarzt-muster.de" style="font-size:13px;"></div>'
+    +'</div>'
+    // Preview box
+    +'<div id="brand-preview" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;display:none;">'
+    +'<div style="background:#0f1c35;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;">'
+    +'<img id="prev-logo" src="" style="max-height:32px;max-width:120px;object-fit:contain;display:none;">'
+    +'<div style="text-align:right;">'
+    +'<div id="prev-praxis" style="font-size:13px;font-weight:700;color:#fff;"></div>'
+    +'<div id="prev-name" style="font-size:10px;color:rgba(180,200,255,.8);"></div>'
+    +'<div id="prev-contact" style="font-size:9px;color:rgba(150,175,220,.8);"></div>'
+    +'</div></div>'
+    +'<div id="prev-addr" style="background:#e6eeff;padding:4px 14px;font-size:9px;color:var(--blue);display:none;"></div>'
+    +'<div style="padding:8px 14px;font-size:11px;color:var(--text3);">Vorschau des PDF-Headers ↑</div>'
+    +'</div>'
+    +'<button class="abt ab-p" onclick="saveBranding()" style="width:100%;justify-content:center;">Branding speichern</button>'
+    +'</div>'
+    // 2FA
     +'<div class="ac-card" style="margin-top:14px;">'
     +'<div class="ac-h">Zwei-Faktor-Authentifizierung (2FA)</div>'
     +'<div id="tfa-status" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>'
     +'<div id="tfa-setup-area"></div>'
     +'</div>'
-    +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);margin-top:14px;"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">300+ Analysen, alle Exportformate — ab 99 €/Monat (Praxis) oder unbegrenzt ab 399 €/Monat (Professional).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
+    +(ME.plan!=='praxis'&&ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);margin-top:14px;"><div class="ac-h" style="border-color:var(--blue-mid);">Plan upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">300+ Analysen, alle Exportformate — ab 99 €/Monat (Praxis) oder unbegrenzt ab 399 €/Monat (Professional).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
     +'<div class="ac-card"><div class="ac-h">Datenschutz (DSGVO)</div>'
     +'<p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Gem&auml;&szlig; DSGVO haben Sie das Recht, Ihre Daten einzusehen, zu exportieren und Ihr Konto zu l&ouml;schen.</p>'
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
@@ -2380,6 +2427,27 @@ function buildAccount() {
     +'<p style="font-size:11px;color:var(--text3);margin-top:10px;">Fragen zum Datenschutz: <a href="mailto:support@animioo.de" style="color:var(--blue);">support@animioo.de</a> · <a href="/datenschutz" target="_blank" style="color:var(--blue);">Datenschutzerkl&auml;rung</a></p>'
     +'</div>'
     +'</div></div>';
+
+  // Load branding settings
+  api('/api/auth/branding').then(function(b){
+    if(b.praxis) document.getElementById('b-praxis').value = b.praxis;
+    if(b.name)   document.getElementById('b-name').value   = b.name;
+    if(b.practice_address) document.getElementById('b-address').value = b.practice_address;
+    if(b.practice_phone)   document.getElementById('b-phone').value   = b.practice_phone;
+    if(b.practice_website) document.getElementById('b-website').value = b.practice_website;
+    if(b.has_logo){
+      document.getElementById('logo-hint').textContent = '✓ Logo gespeichert — klicken zum Ändern';
+      document.getElementById('logo-del-btn').style.display = 'inline-flex';
+    }
+    updateBrandPreview();
+  }).catch(function(){});
+
+  // Live preview on input
+  ['b-praxis','b-name','b-address','b-phone','b-website'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener('input', updateBrandPreview);
+  });
+
   // 2FA Status laden
   api('/api/auth/me').then(function(d){
     var u = d.user || {};
@@ -2394,6 +2462,88 @@ function buildAccount() {
       setupEl.innerHTML = '<button class="abt ab-p" onclick="start2FASetup()" style="margin-top:6px;">2FA aktivieren</button>';
     }
   }).catch(function(){});
+}
+
+// ═══════════════════════════════════════
+// PRAXIS-BRANDING HELPERS
+// ═══════════════════════════════════════
+function handleLogoUpload(input) {
+  var file = input.files[0];
+  if (!file) return;
+  if (file.size > 500000) { toast('Logo zu groß (max. 500 KB)', 'amber'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    window._logoB64 = e.target.result.split(',')[1];
+    var prev = document.getElementById('logo-preview');
+    prev.innerHTML = '<img src="'+e.target.result+'" style="max-height:56px;max-width:160px;object-fit:contain;">';
+    var hint = document.getElementById('logo-hint');
+    if (hint) hint.style.display = 'none';
+    var delBtn = document.getElementById('logo-del-btn');
+    if (delBtn) delBtn.style.display = 'inline-flex';
+    // Mirror into preview header
+    var prevLogo = document.getElementById('prev-logo');
+    if (prevLogo) { prevLogo.src = e.target.result; prevLogo.style.display = 'block'; }
+    updateBrandPreview();
+  };
+  reader.readAsDataURL(file);
+}
+
+function deleteLogo() {
+  api('/api/auth/branding/logo', 'DELETE')
+    .then(function() {
+      window._logoB64 = null;
+      toast('Logo entfernt');
+      renderAccount();
+    })
+    .catch(function(e) { toast('Fehler: ' + (e.message||'Unbekannt'), 'red'); });
+}
+
+function updateBrandPreview() {
+  var praxis  = (document.getElementById('b-praxis')  || {}).value || '';
+  var name    = (document.getElementById('b-name')    || {}).value || '';
+  var address = (document.getElementById('b-address') || {}).value || '';
+  var phone   = (document.getElementById('b-phone')   || {}).value || '';
+  var website = (document.getElementById('b-website') || {}).value || '';
+  var hasAny  = praxis || name || address || phone || website || window._logoB64;
+  var box = document.getElementById('brand-preview');
+  if (!box) return;
+  box.style.display = hasAny ? 'block' : 'none';
+  var elPraxis  = document.getElementById('prev-praxis');
+  var elName    = document.getElementById('prev-name');
+  var elContact = document.getElementById('prev-contact');
+  var elAddr    = document.getElementById('prev-addr');
+  if (elPraxis)  elPraxis.textContent  = praxis;
+  if (elName)    elName.textContent    = name;
+  var contactParts = [];
+  if (phone)   contactParts.push(phone);
+  if (website) contactParts.push(website);
+  if (elContact) elContact.textContent = contactParts.join(' · ');
+  if (elAddr) {
+    elAddr.textContent  = address;
+    elAddr.style.display = address ? 'block' : 'none';
+  }
+}
+
+function saveBranding() {
+  var praxis  = (document.getElementById('b-praxis')  || {}).value || '';
+  var name    = (document.getElementById('b-name')    || {}).value || '';
+  var address = (document.getElementById('b-address') || {}).value || '';
+  var phone   = (document.getElementById('b-phone')   || {}).value || '';
+  var website = (document.getElementById('b-website') || {}).value || '';
+  var payload = { praxis: praxis, name: name, practice_address: address, practice_phone: phone, practice_website: website };
+  if (window._logoB64) payload.practice_logo = window._logoB64;
+  var btn = document.querySelector('#branding-card .ab-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Wird gespeichert…'; }
+  api('/api/auth/branding', 'POST', payload)
+    .then(function() {
+      window._logoB64 = null; // reset pending logo — now saved on server
+      toast('Branding gespeichert ✓');
+      if (btn) { btn.disabled = false; btn.textContent = 'Branding speichern'; }
+    })
+    .catch(function(e) {
+      toast('Fehler beim Speichern: ' + (e.message||'Bitte erneut versuchen'), 'red');
+      if (btn) { btn.disabled = false; btn.textContent = 'Branding speichern'; }
+    });
 }
 
 // DSGVO: Daten exportieren
