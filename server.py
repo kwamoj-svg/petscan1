@@ -774,7 +774,7 @@ def register():
     trial_end = (datetime.now()+timedelta(days=14)).isoformat()
     db_execute(conn, '''INSERT INTO users
         (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,verify_token,trial_ends_at,created_at)
-        VALUES (?,?,?,?,?,?,1,?,0,20,0,?,?,?)''',
+        VALUES (?,?,?,?,?,?,1,?,0,5,0,?,?,?)''',
         (uid,email,hash_pw(password),name or email.split('@')[0],praxis or 'Meine Praxis','trial','customer',verify_token,trial_end,now()))
 
     token = secrets.token_hex(32)
@@ -2667,7 +2667,7 @@ def stripe_webhook():
     elif event['type'] == 'customer.subscription.deleted':
         sub = event['data']['object']
         conn = get_db()
-        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=20 WHERE stripe_subscription_id=?",
+        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=5 WHERE stripe_subscription_id=?",
                      ('trial',sub['id']))
         conn.commit(); conn.close()
 
@@ -2825,7 +2825,7 @@ def admin_customers():
 def admin_create_customer():
     d = request.json or {}
     uid = 'u_'+nid()
-    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
+    limit = 999999 if d.get('plan')=='professional' else (300 if d.get('plan')=='praxis' else (50 if d.get('plan')=='starter' else 5))
     conn = get_db()
     try:
         db_execute(conn, 'INSERT INTO users (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,created_at) VALUES (?,?,?,?,?,?,1,?,0,?,1,?)',
@@ -2840,7 +2840,7 @@ def admin_create_customer():
 @require_admin
 def admin_update_customer(uid):
     d = request.json or {}
-    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
+    limit = 999999 if d.get('plan')=='professional' else (300 if d.get('plan')=='praxis' else (50 if d.get('plan')=='starter' else 5))
     conn = get_db()
     db_execute(conn, 'UPDATE users SET name=?,praxis=?,plan=?,active=?,analyses_limit=? WHERE id=?',
                  (d.get('name'),d.get('praxis'),d.get('plan'),int(d.get('active',1)),limit,uid))

@@ -723,7 +723,7 @@ function doRegister() {
       localStorage.setItem('ps_token',d.token);
       ME=d.user;
       showApp();
-      toast('Willkommen! Sie haben 20 kostenlose Analysen.');
+      toast('Willkommen! Sie haben 5 kostenlose Analysen.');
     })
     .catch(function(e){ err.textContent=e.message; err.style.display='block'; })
     .finally(function(){ btn.disabled=false; btn.textContent='14 Tage kostenlos starten'; });
