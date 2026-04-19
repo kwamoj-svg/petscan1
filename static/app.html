@@ -265,9 +265,30 @@ a{color:inherit;text-decoration:none;}
 .pag-btn:disabled{opacity:.4;cursor:not-allowed;}
 .pag-info{font-size:12px;color:var(--text3);}
 
+/* ═══ MOBILE BOTTOM NAV BAR ═══ */
+.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:56px;background:var(--surface);border-top:1px solid var(--border);z-index:400;
+  display:none;align-items:center;justify-content:space-around;padding:0 4px;
+  box-shadow:0 -2px 16px rgba(0,0,0,.08);}
+.mob-nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 10px;border-radius:var(--r);
+  font-size:10px;font-weight:600;color:var(--text3);background:none;border:none;cursor:pointer;min-width:52px;transition:color .15s;}
+.mob-nav-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;}
+.mob-nav-btn.on{color:var(--blue);}
+.mob-nav-btn.on svg{stroke:var(--blue);}
+
+/* Hamburger-Menü Button */
+.mobile-menu-btn{display:none;padding:7px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);color:var(--text2);}
+
+/* Collapsible analyse sidebar toggle */
+.an-sb-toggle{display:none;width:100%;padding:10px 14px;background:var(--s2);border:none;border-bottom:1px solid var(--border);
+  font-size:13px;font-weight:600;color:var(--text2);text-align:left;cursor:pointer;
+  align-items:center;justify-content:space-between;}
+.an-sb-toggle svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s;}
+.an-sb-toggle.open svg{transform:rotate(180deg);}
+.an-sb-body{transition:max-height .3s ease;}
+
 /* ═══ MOBILE RESPONSIVE ═══ */
 @media(max-width:768px){
-  /* Toolbar: kompakter */
+  /* Toolbar */
   .tb{padding:0 10px;height:48px;gap:6px;}
   .tb-brand{font-size:13px;gap:5px;}
   .tb-bi{width:24px;height:24px;border-radius:5px;}
@@ -276,31 +297,42 @@ a{color:inherit;text-decoration:none;}
   .tb-usage{font-size:10px;padding:3px 7px;}
   .tb-plan-badge{font-size:10px;padding:2px 7px;}
   .tb-logout{font-size:11px;padding:4px 8px;}
+  .mobile-menu-btn{display:flex;align-items:center;justify-content:center;}
+
+  /* Bottom nav visible */
+  .mob-nav{display:flex;}
+
+  /* Main content: leave room for bottom nav */
+  #as .main{padding-bottom:56px;}
 
   /* App-Layout: Sidebar ausblenden, volle Breite */
   .app-wrap{grid-template-columns:1fr !important;}
   .sb{display:none;}
-  .sb.mobile-open{display:flex;position:fixed;top:48px;left:0;bottom:0;width:260px;z-index:500;box-shadow:0 0 40px rgba(0,0,0,.3);}
+  .sb.mobile-open{display:flex;position:fixed;top:48px;left:0;bottom:56px;width:260px;z-index:500;box-shadow:0 0 40px rgba(0,0,0,.3);}
   .mobile-overlay{position:fixed;inset:0;top:48px;background:rgba(0,0,0,.4);z-index:499;display:none;}
   .mobile-overlay.show{display:block;}
 
   /* Page Header */
   .ph{padding:10px 14px;}
-  .ph-t{font-size:13px;}
+  .ph-t{font-size:14px;}
+  .ph .abt{padding:6px 10px;font-size:12px;}
 
-  /* Analyse-Layout: vertikal statt nebeneinander */
-  .an-layout{grid-template-columns:1fr !important;}
-  .an-sb{border-right:none !important;border-bottom:1px solid var(--border);max-height:none;overflow-y:visible !important;padding:10px !important;}
-  .an-main{padding:14px !important;}
+  /* Analyse-Layout: collapsible sidebar on top */
+  .an-layout{grid-template-columns:1fr !important;overflow-y:auto;}
+  .an-sb{border-right:none !important;border-bottom:1px solid var(--border);
+    max-height:0;overflow:hidden;padding:0 !important;transition:max-height .3s ease;}
+  .an-sb.expanded{max-height:600px;overflow-y:auto;padding:10px !important;}
+  .an-sb-toggle{display:flex;}
+  .an-main{padding:12px !important;overflow-y:auto;}
 
-  /* Report-Items: Export-Buttons kompakter */
-  .report-item{padding:10px 12px;gap:10px;flex-wrap:wrap;}
-  .report-item>div:last-child{width:100%;justify-content:flex-end;}
+  /* Report-Items */
+  .report-item{padding:10px 12px;gap:8px;flex-wrap:wrap;}
+  .report-item>div:last-child{width:100%;display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;}
 
   /* Result-Card */
-  .result-card{padding-bottom:20px;}
-  .result-body{padding:14px;}
-  .result-body table{font-size:11px;}
+  .result-card{padding-bottom:16px;}
+  .result-body{padding:12px;}
+  .result-body table{display:block;overflow-x:auto;white-space:nowrap;font-size:11px;}
   .result-body th,.result-body td{padding:5px 8px;}
   .sev-bar{flex-direction:column;gap:6px;align-items:flex-start;}
 
@@ -309,54 +341,41 @@ a{color:inherit;text-decoration:none;}
   .l-body{padding:18px 20px 22px;}
   .l-top{padding:20px 20px 16px;}
 
-  /* Report Modal */
-  #rep-modal{padding:10px !important;}
+  /* Report Modal: fullscreen */
+  #rep-modal{padding:0 !important;}
+  #rep-modal>div{max-width:100% !important;margin:0 !important;border-radius:0 !important;
+    position:fixed;inset:0;bottom:56px;overflow-y:auto;}
 
   /* KPI Grid */
-  .kpi-g{grid-template-columns:1fr !important;}
+  .kpi-g{grid-template-columns:1fr 1fr !important;}
   .kpi-v{font-size:20px;}
 
-  /* Toast */
-  .toast{left:10px;right:10px;bottom:10px;}
+  /* Toast: above bottom nav */
+  .toast{left:10px;right:10px;bottom:66px;}
 
   /* Upload Zone */
-  .drop-zone{min-height:100px;padding:16px;}
-  .drop-zone svg{width:28px;height:28px;}
+  .uz{min-height:80px;padding:12px;}
 
   /* Upgrade Modal */
   .upgrade-grid{grid-template-columns:1fr 1fr !important;gap:8px !important;}
-  .upgrade-card{padding:14px 10px !important;}
 
-  /* Report modal fullscreen on mobile */
-  #rep-modal>div{max-width:100% !important;margin:0 !important;border-radius:0 !important;
-    position:fixed;inset:0;overflow-y:auto;}
-
-  /* Tables: horizontal scroll in result cards */
-  .result-body table{display:block;overflow-x:auto;white-space:nowrap;}
-
-  /* Analyse sidebar: collapse image zone */
-  .an-sb .drop-zone{min-height:80px;}
-
-  /* Paginierung */
+  /* Pagination */
   .pag-wrap{flex-wrap:wrap;gap:6px;justify-content:center;}
+
+  /* Buttons: larger touch targets */
+  .abt{min-height:36px;}
 }
 
 /* Sehr kleine Bildschirme (unter 480px) */
 @media(max-width:480px){
   .tb-usage{display:none;}
   .upgrade-grid{grid-template-columns:1fr !important;}
-  .report-item>div:last-child button{padding:4px 7px !important;font-size:10px !important;}
-  .an-layout{gap:0 !important;}
+  .report-item>div:last-child button{padding:5px 8px !important;font-size:11px !important;}
   .result-body{padding:10px !important;}
-  .result-body h3{font-size:13px !important;}
   .kpi-g{grid-template-columns:1fr 1fr !important;}
-  #rep-modal .abt{padding:6px 10px !important;font-size:11px !important;}
-}
-
-/* Hamburger-Menü Button */
-.mobile-menu-btn{display:none;padding:6px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);color:var(--text2);}
-@media(max-width:768px){
-  .mobile-menu-btn{display:flex;align-items:center;justify-content:center;}
+  #rep-modal .abt{padding:7px 10px !important;font-size:11px !important;}
+  .ph-t{font-size:13px !important;}
+  .mob-nav-btn{font-size:9px;min-width:44px;}
 }
 </style>
 </head>
@@ -441,6 +460,31 @@ a{color:inherit;text-decoration:none;}
     <button onclick="resendVerify()" style="margin-left:12px;padding:5px 14px;border-radius:6px;background:#1a56db;color:#fff;font-size:12px;font-weight:700;border:none;cursor:pointer;">Best&auml;tigungs-E-Mail erneut senden</button>
   </div>
   <div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileMenu()"></div>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mob-nav" id="mob-nav">
+    <button class="mob-nav-btn on" id="mbn-analyse" onclick="navTo('analyse',null);setMobNav('analyse')">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Analyse
+    </button>
+    <button class="mob-nav-btn" id="mbn-reports" onclick="navTo('reports',null);setMobNav('reports')">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Befunde
+    </button>
+    <button class="mob-nav-btn" id="mbn-stats" onclick="navTo('stats',null);setMobNav('stats')">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Statistiken
+    </button>
+    <button class="mob-nav-btn" id="mbn-upgrade" onclick="navTo('upgrade',null);setMobNav('upgrade')">
+      <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Upgrade
+    </button>
+    <button class="mob-nav-btn" id="mbn-menu" onclick="toggleMobileMenu()">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      Menü
+    </button>
+  </nav>
+
   <div class="app-wrap">
     <div class="sb" id="app-sb">
       <div class="sb-sec">
@@ -967,9 +1011,26 @@ function closeMobileMenu() {
   if(ov) ov.classList.remove('show');
 }
 
+// Mobile bottom nav active state
+function setMobNav(view) {
+  document.querySelectorAll('.mob-nav-btn').forEach(function(b){ b.classList.remove('on'); });
+  var el = document.getElementById('mbn-'+view);
+  if(el) el.classList.add('on');
+}
+
+// Collapsible analyse sidebar (mobile)
+function toggleAnSb() {
+  var sb = document.querySelector('.an-sb');
+  var toggle = document.querySelector('.an-sb-toggle');
+  if(!sb) return;
+  var open = sb.classList.toggle('expanded');
+  if(toggle) toggle.classList.toggle('open', open);
+}
+
 // NAV
 function navTo(view, btn) {
   closeMobileMenu();
+  setMobNav(view);
   document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('on'); });
   if(btn) btn.classList.add('on');
   var titles = {analyse:'KI-Analyse',reports:'Befunde',account:'Mein Account',upgrade:'Plan upgraden',stats:'Statistiken',patients:'Patientenkartei',team:'Praxis-Team'};
@@ -984,6 +1045,7 @@ function updateBadge(n){ document.getElementById('nb-cnt').textContent=n||0; }
 function renderAnalyse() {
   var c = document.getElementById('main-content');
   c.innerHTML = '<div class="an-layout" style="flex:1;overflow:hidden;display:grid;min-height:0">'
+    + '<button class="an-sb-toggle" onclick="toggleAnSb()">Einstellungen anpassen <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>'
     + '<div class="an-sb" id="an-sb">'
     // Species
     + '<div><div class="an-lbl">Tiername / Patient</div>'
