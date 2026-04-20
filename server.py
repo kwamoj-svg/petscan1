@@ -1506,21 +1506,23 @@ PFERD — Falls Pferdebild:
 - Thorax: EIPH (Exercise-Induced Pulmonary Hemorrhage), Pleuropneumonie
 
 EXOTEN — Reptilien, Vögel, Nager:
-- Reptilien: Metabolische Knochenerkrankung (MBD → generalisierte Demineralisation, Faltfrakturen!),
-  Legenot (Retentio ovorum — Eier zählen, Größe, Position), Fremdkörper (Substrat!),
-  Pneumonie (bei Reptilien oft KEINE Luftbronchogramme!), Gicht (periartikuläre Tophi)
-- Vögel: Luftsackverdickung/-Verschattung (Aspergillose! Mykobakteriose!), Legenot,
-  Frakturen (sehr dünne Kortikalis, Medullärer Knochen bei legenden Hennen = normal!),
-  Proventrikulus-Dilatation (PDD), Hepatomegalie (Sanduhrzeichen), Keel-Bone-Frakturen
-- Nager/Kaninchen: Zahnfehlstellungen (Molarensporen, Wurzelspitzen messen!), Tympanic Bullae
-  (Otitis media → Vestibularsyndrom), Blasensteine (sehr häufig bei Meerschweinchen!),
-  Uterustumoren (Kaninchen >3J: bis 80% Uterusadenokarzinom!), Pneumonie, Thymom (Kaninchen — mediastinale Masse)
-- Frettchen: Nebennierenhyperplasie/-tumor (>3.5mm = vergrößert), Insulinom (Hypoglykämie!),
-  Milzvergrößerung (extramedulläre Hämatopoese = häufig!), Lymphom, Kardiomyopathie,
-  Fremdkörper (Frettchen fressen alles!), Nebennierenrindenerkrankung (Alopezie + NNR-Vergrößerung)
-- Schildkröten: Pneumonie (oft einseitig! Schildkröten haben keine Zwerchfell → anders als Säuger!),
-  Legenot, Blasensteine (Urat! röntgendurchlässig!), Panzerdefekte, MBD, Fremdkörper (Substrat)
-- Igel: Orale Plattenepithelkarzinome (häufigster Tumor!), Pneumonie, Herzerkrankungen, Ballon-Syndrom
+- Reptilien: MBD (Demineralisation, Faltfrakturen, "Geisterknochen"!), Legenot (Eier zählen!),
+  Fremdkörper (Substrat!), Pneumonie (KEINE Luftbronchogramme bei Reptilien — wichtig!),
+  Gicht (periartikuläre Tophi), "Rubber Jaw" (Mandibular-Fibrose bei Leguanen/Chamäleons)
+- Vögel: Luftsackverdickung/-Verschattung (Aspergillose! 9 Luftsäcke alle prüfen!),
+  PDD-Ratio: Proventrikulus:Kiellänge >0.52 = PDD (100% sensitiv!); normal <0.48
+  Medullärknochen legender Hennen = NORMAL (Kalziumspeicher — NICHT als Pathologie melden!)
+  Hepatomegalie (Sanduhrzeichen), Kielbeinfrakturen (oft unterdiagnostiziert!)
+- Nager/Kaninchen: Zahnfehlstellungen (Molarensporen, Wurzelspitzen messen!),
+  Paukenblasen normal luftgefüllt — Opazifizierung = Otitis media → Vestibularsyndrom!
+  Blasensteine Meerschweinchen sehr häufig!, Uterustumoren Kaninchen >3J (bis 80% maligne!)
+  Thymom Kaninchen: mediastinale Masse kranial
+- Frettchen: NNR >3.5mm = hyperplastisch/Tumor, VHS erhöht bei Kardiomyopathie,
+  Milzvergrößerung häufig = extramedulläre Hämatopoese (Normalbefund im Alter!),
+  Insulinom (klinisch: Hypoglykämie), Lymphom
+- Schildkröten: Pneumonie oft EINSEITIG (kein Zwerchfell → Asymmetrie möglich!),
+  Urat-Blasensteine röntgendurchlässig (nur Sono!), Panzerdefekte, MBD
+- Igel: Plattenepithelkarzinom oral (häufigster Tumor!), Ballon-Syndrom
 
 ZAHNRADIOLOGIE (Dentalröntgen):
 - Hund/Katze: Zahnwurzelabszesse (periapikale Aufhellung!), Zahnresorptionen (FORL bei Katzen —
@@ -1630,27 +1632,91 @@ befundet als ein Röntgenbild des Thorax!
 NORMWERTE & MESSSTANDARDS (KOMPLETT):
 ═══════════════════════════════════════════════════════
 
-HERZ:
-- VHS (Vertebral Heart Score): Hund 9.7 ± 0.5 (rasseabhängig!)
-  * Cavalier King Charles: 10.1-10.7, Boxer: 10.8-11.6, Labrador: 10.0-10.6
-  * Whippet: 10.5-11.3, DSH: 9.5-10.0, Dackel: 9.5-10.5, Bulldogge: 11.0-12.0
-  * Yorkshire: 9.4-9.8, Chihuahua: 9.0-10.5, Dobermann: 10.0-10.5
-- VHS Katze: <8.1 normal, 8.1-8.5 grenzwertig, >8.5 = Kardiomegalie
-- VLAS (Vertebral Left Atrial Size): Hund >2.3 = LA-Vergrößerung
-- Aortenwurzel/LA-Ratio (M-Mode Echo): normal 1:1, >1.5 = LA-Dilatation
-- Pulmonalarterie/Aorta auf VD: PA = Aorta (normal), PA > Aorta = pulmonale Hypertonie
-- Pulmonalvene/Pulmonalarterie: 1:1 normal, PV>PA = Stauung, PA>PV = Hypertonie
+HERZ — VHS & VLAS (ACVIM-Konsensus + aktuelle Studiendaten):
+- VHS-Messtechnik: rechte Seitenlage, Inspiration; Längsachse (Kardiabasis→Apex) + Querachse ab T4
+- VHS Hund allgemein: 9.7 ± 0.5 v; normal 8.4–10.7; verdächtig >10.5; Kardiomegalie ≥11.5
+- VHS rassenspezifisch (exakte Studienwerte!):
+  * Cavalier KCS: 10.0–10.08 ± 0.56 v (Kardiomegalie-Schwelle ≥11.7 v!)
+  * Labrador Retriever: 10.8 ± 0.6 v (NB: viel höher als allgemeiner Normwert!)
+  * Whippet: 11.0–11.3 ± 0.5 v
+  * Boxer: 11.6 ± 0.8 v (Bereich 10.0–13.2!)
+  * Greyhound: 10.5 ± 0.1 v
+  * Englische Bulldogge: ~12.0 v (10.6–13.4)
+  * Französische Bulldogge: ~12.7 ± 1.7 v (11.0–14.4!)
+  * Boston Terrier: 11.7 ± 1.4 v
+  * Mops: 11.25 ± 0.62 v
+  * Jack Russell: 10.8 v
+  * Chihuahua: 9.66–10.0 ± 0.6 v
+  * Miniature Schnauzer: 9.7–12.1 v (95%-Intervall)
+  * Dackel: 9.5–10.5 v; DSH: 9.7–10.7 v
+- VHS Katze: 6.7–8.1 v normal; >8.1 grenzwertig; >9.3 = CHF/Dyspnoe-Schwelle
+- VHS Kaninchen: 7.3–7.6 v; ≥8.5 verdächtig
+- VHS Frettchen: RL 5.24–5.52 v; >6.0 verdächtig
+- VLAS (Vertebral Left Atrial Size) — Messtechnik: Karina→kaudalster LA-Punkt auf RL-Bild, ab T4:
+  * Hund normal: 1.4–2.2 v; LAE ≥2.3; ACVIM B2-Kriterium ≥2.6 v (Sens. 95%, Spez. 84%!)
+  * Schwere LAE: ≥2.9 v (Sens. 83%, Spez. 86%); CHF-Prognose: >2.95 v (Spez. 85.7%)
+  * Cavalier KCS: 1.79–1.99 ± 0.25 v
+  * Katze VLAS: 1.24–2.05 v normal; >2.1 verdächtig
+- ACVIM MMVD Stadium B2-Kriterien (ALLE erforderlich):
+  * Herzgeräusch ≥3/6 + Echo LA/Ao ≥1.6 + LVIDDN ≥1.7
+  * Röntgen: VHS >10.5 oder rassenangepasst; VLAS ≥2.6 v
+- Pulmonalgefäße: kran. Lappenvene/4.Rippe >1.2 = erweitert; kaud. Lappenarterie/9.Rippe >1.0 = erweitert
+- Pulmonalarterie/Aorta auf VD: PA = Ao (normal); PA > Ao = pulm. Hypertonie/Herzwurm
+- Pulmonalvene/Pulmonalarterie: 1:1 normal; PV>PA = Stauung; PA>PV = Hypertonie
+- HKM Katze: "Valentine Heart" (VD, biatriale Vergrößerung) — aber niedrige Spezifität für HKM!
+  Katzen-CHF präsentiert öfter mit Pleuraerguss als Lungenödem (Unterschied zu Hund!)
+- PDA "Triple Knuckles Sign" (VD): Aortenbogen + A. pulmonalis + linkes Aurikel = 3 Höcker 1-3 Uhr
+- "Boot-shaped Heart" (VD, Fallot-Tetralogie): RVH + konkaves PA-Segment + verminderte Lungendurchblutung
 
 ABDOMEN:
-- Nierengröße Hund: 2.5-3.5 × L2 (Längsachse), Katze: 2.4-3.0 × L2
-- Nebenniere Hund: Breite ≤7.4mm (Phäochromozytom wenn >20mm oder asymmetrisch)
-- Dünndarmdurchmesser Hund: ≤1.6× Endplattenhöhe L5, Katze: ≤12mm oder ≤2× Endplattenhöhe L2
-- Milzdicke Hund: <Kopf letzte Rippe, Katze: kaum sichtbar (wenn sichtbar → Splenomegalie)
-- Leber: Magenachse >90° zur WS = Hepatomegalie, <45° = Mikroleber
+- Nierengröße Hund: 2.5–3.5 × L2; >3.5 = Nephromegalie; Miniature Schnauzer 3.31 ± 0.26 (höher normal!)
+- Nierengröße Katze: 2.0–3.0 × L2 (allgemein); kastriert ♂ 1.9–2.6; Intakttiere 2.1–3.2; >3.2 = Verdacht
+- Nebenniere Hund (Sono, kaudale Poldicke): 2.5–5 kg: ≤5.1 mm (L), ≤5.3 mm (R);
+  10–20 kg: ≤6.4 mm (L), ≤7.5 mm (R); 20–40 kg: ≤7.3 mm (L), ≤8.7 mm (R); >7 mm = Abklärung!
+- Nebenniere Katze: 2–5 mm; >5 mm = abklärungsbedürftig
+- Dünndarmdurchmesser Hund: ≤1.6× L5-Endplatte; 1.95× = 77% Obstruktionswahrsch.;
+  >2.07× L5 = ~90% Obstruktionswahrscheinlichkeit!
+- Dünndarmdurchmesser Katze: ≤12 mm oder <2.0× L2; >2.5× L2 = Obstruktion wahrscheinlich
+- Milzdicke Hund: <Kopf letzte Rippe; Katze: kaum sichtbar (wenn sichtbar → Splenomegalie)
+- Leber: Magenachse >90° zur WS = Hepatomegalie; <45° = Mikroleber
+  Hepatomegalie: kaudoventraler Leberrand überschreitet Rippenbogen, Magenverdrängung kaudal
+  Mikroleber: kranialer Magenverlagerung, Magenachse steil/senkrecht
 - Prostata Hund: CC-Durchmesser ≤70% Distanz Sacrum-Pecten
-- Kolon Katze: Durchmesser ≤Länge L5, Hund: ≤3× Endplattenhöhe L7
-- Blase: Wanddicke Hund <2.3mm (leer bis 3mm), Katze <1.7mm
+- Kolon Katze: Durchmesser ≤Länge L5; Hund: ≤3× Endplattenhöhe L7
+- Blase (Sono): Hund gut gefüllt <3 mm; >4 mm = Pathologie; Katze gefüllt 1–2 mm; >3 mm = Pathologie
 - Uterus: Normal nicht sichtbar! Wenn sichtbar → Pyometra/Gravidität/Stumpfpyometra
+
+UROLITHIASIS — RÖNTGENDICHTE NACH MINERALTYP:
+- Kalziumoxalat: stark röntgendicht (52% hochdicht); bosseliert/irregulär; oft multiple Nephrolithen
+- Struvit (MAP): moderat röntgendicht; oft pyramidal/glatt; typisch große solitäre Zystenolithe bei ♀
+- Kalziumphosphat: moderat–stark röntgendicht; ähnlich CaOx
+- Zystin: mild–moderat röntgendicht (94%!); glatt, rund–oval; kleine–mittlere Steine; ♂ Junghunde
+- Urat (Harnsäure/Ammoniumurat): RÖNTGENDURCHLÄSSIG bis schwach opak; Dalmatiner, Engl. Bulldogge, PSS!
+- Silikat: moderat röntgendicht; "Jack-stone"-Form; Nordamerika
+- Xanthin: RÖNTGENDURCHLÄSSIG; nach Allopurinol-Therapie!
+→ MERKE: Urat + Xanthin sind oft NUR im Ultraschall nachweisbar!
+
+BENANNTE RADIOLOGISCHE ZEICHEN (NAMED SIGNS — MUSS KENNEN!):
+- Silhouettenzeichen (Border Effacement): Zwei gleichdichte Strukturen in direktem Kontakt → gemeinsame Grenze verschwindet.
+  Rechter Herzrand + Opazität → Mittellappen oder kranialer Mediastinaltumor rechts.
+  Linker Herzrand + Opazität → Zungenlappen oder Akzessoriuslappen links.
+- Luftbronchogramm: Luftgefüllte Bronchien sichtbar in flüssigkeitsopazifiziertem Parenchym → ALVEOLÄRES Pattern!
+  Bestätigt patent Atemweg proximal der Läsion → Atelektase durch Obstruktion unwahrscheinlicher.
+- Trachealbandzeichen (Tracheal Stripe Sign): Ventrales Weichteilband an Trachea sichtbar (lateral) = Ösophagusdilatation!
+- Spine Sign: Opazität setzt sich über kaudale thorakale WS fort (lateral) = kaudale Lungenlappen-Konsolidierung.
+- "Flat Waist Sign" / Kaudale Herzeinschnürung: Verlust der normalen Konkavität zwischen LA und LV (lateral, dorsal) = LA-Vergrößerung.
+- Donut-Zeichen: Bronchus en face als Ring sichtbar = bronchiales Pattern.
+- Tramlines: Zwei parallele Linien entlang Bronchialwand = peribronchiale Verdickung.
+- Gravel Sign: Granulöse mineralisierte Masse kurz oral einer Dünndarmobstruktion = teilweise Obstruktion mit eingedicktem Inhalt.
+- Kommazeichen / String of Pearls: Komma-/sichelförmige Gasansammlungen entlang Dünndarm = Linearer Fremdkörper!
+- Target Sign / Pseudonieren-Zeichen (Sono): Konzentrische Ringe (quer) / Nierenform (längs) = Invagination!
+- Sandwich Sign: Vergrößerte Mesenterialknoten "umschließen" Mesenterialgewebe = Lymphom!
+- Codman-Dreieck: Dreieckige periostale Neubildung am Läsionsrand = AGGRESSIV! (OSA, Chondrosarkom, Osteomyelitis)
+- Sunburst/Sonnenstrahlen: Radiär abstehende Periostspikula = AGGRESSIV! (OSA, periostales OSA)
+- Mottenfraßartige/permeative Lyse: Schlecht abgegrenzte kortikale Destruktion = aggressiv maligne/infektiös
+- "Reverse D" / D-Zeichen (VD): RV-Vergrößerung → Herzsilhouette nach rechts, linke Grenze gerade = pulmonale Hypertonie
+- Halo Sign (CT): GGO-Ring um Knoten = invasive Aspergillose/hämorrhagischer Infarkt
+- Reversed Halo Sign: GGO-Areal von Konsolidierungsring umgeben = organisierende Pneumonie
 
 ATEMWEGE:
 - Trachea-Thoracic Inlet Ratio (TI): Hund >0.20 normal, <0.16 = hypoplastisch (Bulldogge: normal 0.12-0.16!)
@@ -1759,6 +1825,100 @@ DIFFERENZIERUNG GDV vs. einfache Dilatation:
 - Einfache Dilatation: Pylorus rechts, kein Kompartiment, oft selbstlimitierend
 - GDV: Pylorus links-dorsal, Kompartimentalisierung, MUSS operiert werden!
 - IMMER rechte Seitenlage-Aufnahme! (Gas im Pylorus links-dorsal = GDV-Beweis)
+- Kompartimentalisierung 89% sensitiv für 180°-GDV; nur 38% bei 360°-GDV!
+- Pneumatosis gastri (Gas in Magenwand) = Nekrose → sehr schlechte Prognose!
+
+═══════════════════════════════════════════════════════
+PLEURAERGUSS — DIFFERENZIERUNG NACH FLÜSSIGKEITSTYP:
+═══════════════════════════════════════════════════════
+
+RADIOLOGISCHE ZEICHEN:
+- Frühzeichen: Kostophrenischer Winkel abgerundet (VD/DV); feine interlobäre Fissurlinien
+- Moderat: Fissurlinien verbreitert; Lungenlappen retrahiert; geschwungene ventrale Lungenränder
+- Schwer: Herzgrenze + Zwerchfell verschleiert; Tracheal-Dorsalverlagerung
+- Sonderzeichen: "Veil Sign" = homogene Opazität im abhängigen Thoraxbereich
+
+ÄTIOLOGIE NACH LATERALITÄT + BEGLEITSYMPTOMEN:
+| Ursache | Lateralität | Kardiomegalie | Sonstige Zeichen |
+| Herzinsuffizienz (Hund/Katze) | bilateral, symmetrisch | JA | Lungenödem (Hund), VHS erhöht |
+| Pyothorax | unilateral oder lokuliert | NEIN | Pleuraverdickung, ggf. Gaseinschlüsse |
+| Chylothorax | bilateral (meist) | NEIN | Chronisch: Pleuraverdickung, runde Lungenlappen |
+| Lymphom (Katze) | bilateral | NEIN | Kranialer Mediastinaltumor! |
+| FIP | bilateral | NEIN | Oft gleichzeitig Aszites; keine Kardiomegalie |
+| Hämothorax | variabel | NEIN | Trauma/Koagulopathie; HCT-Bestimmung |
+| Lungenlappentorsion | unilateral | NEIN | Opazifizierter/rotierter Lappen; Gegenseitverlagerung |
+
+KATZE — ALTERSPEZIFISCH:
+- Jungtier: FIP (häufig!), Mediastinallymphom (Siamkatze!), Pyothorax
+- Altkatze (>10J): Herzinsuffizienz 53%, Neoplasie 20%, Pyothorax 11%, Chylothorax 5%
+- Kardiomegalie + Erguss → Herzinsuffizienz PPV 90%
+- Kraniale Mediastinalverbreiterung → Lymphom oder Thymom abklären!
+
+PNEUMOTHORAX:
+- Leichtgrad (<20% Volumen): Herzsilhouette leicht schwebend; peripheres Radioluzenzband
+- Mittelgrad (20–50%): Lungenlappen deutlich retrahiert; Gasband am Rand
+- Schwer (>50%): Lungen stark komprimiert; Schwebedes Herz
+- Spannungspneumothorax: Mediastinalshift zur Gegenseite! Zwerchfellabflachung! NOTFALL!
+- Berechnung Lichtindex: 100 – (LL³/TH³ × 100)
+
+═══════════════════════════════════════════════════════
+VOGEL-, REPTIL-, KANINCHEN-RADIOLOGIE (ERWEITERT):
+═══════════════════════════════════════════════════════
+
+VÖGEL:
+- Luftsäcke (9 gesamt): 1 unpaar Klavikulär + je 2 paarig: kran.thorakal, kaud.thorakal, abdominal
+  Alle sollen röntgendurchlässig sein! Trübung = Flüssigkeit, Entzündung, Kompression
+- Proventrikulus-Dilatations-Krankheit (PDD/Bornavirus):
+  Proventrikulus:Kiellänge-Ratio >0.52 (Sens. 100%, Spez. 100% für PDD in Studien!)
+  Normal: Ratio <0.48; equivokal: 0.48–0.52
+- Legenot: Ei-Retention im Corpus uteri/Vagina; kann Kloake nach ventral/kaudal verschieben
+- Frakturen: Kortikalis sehr dünn; Medullärknochen bei legenden Hennen = NORMAL (Mineralspeicher)!
+- Hepatomegalie: "Sanduhrform" des Herzens + Leber auf VD (Herz-Leber-Silhouette verschmilzt)
+- Kielbeinfrakturen: Häufig unterschätzt; lateral besser sichtbar
+
+KANINCHEN ZAHNRADIOLOGIE:
+- Referenzlinien (lateral): Linie 1 von proximalem Nasenbein zu Okzipitalprotuberanz
+  Kein Zahnanteil darf DORSAL dieser Linie liegen!
+  Linie 2 parallel ab hartem Gaumen durch Paukenblasen (ca. 1/3 Höhe) = normale Okklusionsebene
+- Paukenblasen: Normal luftgefüllt, dünnwandig
+  Opazifizierung = Otitis media → Vestibularsyndrom! Wandlyse = chronisch oder neoplastisch
+- DV-Ansicht: Symphysenüberlagerung Nasenbein; Oberkiefer-Schneidezähne getrennt sichtbar;
+  Jochbogen symmetrisch
+
+REPTILIEN — MBD-Graduierung (radiologisch):
+- Mild: Leichte Kortikalisverdünnung; kaum Dichtereduktion
+- Moderat: Ausgeprägte Kortikalisverdünnung; Pathologische Frakturen; Winkeldeformitäten
+- Schwer: Extremes "Geisterknochen"-Bild; multiple Frakturen/Kallusbildungen; Wirbeldeformitäten
+- Verlaufskontrolle: Kortikalis:Medullaris-Ratio; mit Behandlung Redichotomisierung!
+- "Rubber Jaw": Mandibular-/Maxillardehiszenz durch fibröse Osteopathie (Chamäleons, Leguane!)
+
+═══════════════════════════════════════════════════════
+PFERD — LAHMHEITSRÖNTGEN (ERGÄNZT):
+═══════════════════════════════════════════════════════
+
+HUFBEIN-LAMINITIS (laterale Aufnahme belastend):
+- Rotationswinkel: Normal 0–5°; moderat 10–15°; schwer >15° (20–30°); kritisch: negative Winkel
+- Sohlenstärke (P3-Spitze→distale Sohle): ≥15 mm = ausreichend; <10 mm = Perforationsgefahr!
+- Kronrand-Streckfortsatz-Distanz (CE): Normal 8–15 mm; akuter Anstieg ≥10 mm = aktives Sinken!
+- Hufwanddicke (HL-Zone proximal): ~15 mm normal; >25 mm = schwere Rotation
+
+STRAHLBEIN (Navikular) — Oxspring-Projektig (Skyline/Upright Pedal):
+| Befund | Klinische Bedeutung |
+| Synoviale Invaginationen (Distalrand) | bis 5 = normal; >5 oder irregulär = pathologisch |
+| Zystenähnliche Läsionen (Medulla) | Signifikant! Korreliert mit Klinik |
+| Medulläre Sklerose | Häufig; chronische Stressreaktion |
+| Flexor-Kortex-Erosionen | Signifikant! Tiefe-Beugesehnen-Pathologie |
+| Verknöcherungen/Enthesophyten | Assoz. mit Strahlbeinerkrankung |
+| Knochenfragmente (Distalrand) | Variabel; isoliert kann Normalvariante sein |
+
+CM/SM BEI CAVALIER KING CHARLES (CKCS) — MRT-GRADING (BVA/KC):
+- CM Grade 0: Normal, keine Malformation
+- CM Grade 1: Kleinhirn eingedrückt (nicht rund), leichtes Überfüllen
+- CM Grade 2: Kleinhirn in/durch Foramen magnum herniert → klinisch relevant!
+- SM Grade 0: Normal
+- SM Grade 1: Zentralkanalerweiterung oder Syrinx <2 mm
+- SM Grade 2: Syrinx ≥2 mm ODER Prä-Syrinx — klinisch signifikant!
+  Zuchtempfehlung: MRT ab 2,5 Jahre; optimalerweise CM0/SM0 × CM0/SM0 verpaaren
 
 ═══════════════════════════════════════════════════════
 MRT-DIFFERENZIALDIAGNOSE-TABELLE GEHIRN:
