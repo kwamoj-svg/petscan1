@@ -103,6 +103,19 @@ a{color:inherit;text-decoration:none;}
 .uz-preview{max-width:100%;max-height:60px;object-fit:contain;border-radius:4px;}
 .uz-name{font-size:10px;color:var(--green);text-align:center;word-break:break-all;}
 .uz-rm{position:absolute;top:4px;right:5px;background:var(--red-dim);border:1px solid #fecaca;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;color:var(--red);cursor:pointer;}
+/* Multi-image upload grid */
+.imgs-drop{border:1.5px dashed var(--border2);border-radius:var(--r);background:var(--s2);padding:10px;transition:all .15s;}
+.imgs-drop.drag{border-color:var(--blue);background:var(--blue-dim);}
+.imgs-grid{display:flex;flex-wrap:wrap;gap:8px;min-height:90px;}
+.img-tile{width:88px;height:88px;border:1.5px solid var(--border2);border-radius:6px;background:var(--surface);position:relative;overflow:hidden;flex-shrink:0;}
+.img-tile img{width:100%;height:100%;object-fit:cover;}
+.img-tile-num{position:absolute;bottom:2px;left:3px;font-size:8px;font-weight:800;color:#fff;text-shadow:0 0 4px #000;letter-spacing:.5px;}
+.img-tile-rm{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);border:none;border-radius:3px;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;cursor:pointer;line-height:1.5;}
+.img-tile-rm:hover{background:var(--red);}
+.img-tile-dicom{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px;font-weight:700;color:var(--blue);background:var(--blue-dim);}
+.img-tile-add{width:88px;height:88px;border:1.5px dashed var(--border2);border-radius:6px;background:var(--s2);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);gap:2px;transition:all .15s;flex-shrink:0;}
+.img-tile-add:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-dim);}
+.imgs-hint{font-size:11px;color:var(--text3);margin-top:6px;text-align:center;}
 .ctx{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text);background:var(--surface);resize:vertical;min-height:55px;line-height:1.5;}
 .ctx:focus{outline:none;border-color:var(--blue);}
 .ctx::placeholder{color:var(--text3);}
@@ -602,7 +615,7 @@ a{color:inherit;text-decoration:none;}
 
 <script>
 var ME = null;
-var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null, petName:'', focusMode:'general'};
+var AN = {species:'Hund', region:'Thorax', mode:'single', imgs:[], petName:'', focusMode:'general'};
 var CACHED = [];
 var ALL_REPORTS = [];
 
@@ -1084,19 +1097,12 @@ function renderAnalyse() {
         return '<button class="mode-btn'+(AN.mode===mv[1]?' on':'')+'" onclick="setMode(this,\''+mv[1]+'\')">'+mv[0]+'</button>';
       }).join('')
     + '</div></div>'
-    // Upload
-    + '<div><div class="an-lbl">5 · Röntgenbild hochladen</div>'
-    + '<div class="uz" id="uz-a" onclick="document.getElementById(\'fi-a\').click()" style="margin-bottom:6px">'
-    + '<input type="file" id="fi-a" accept="image/*,.dcm,.dicom">'
-    + '<span class="uz-tag">AUFNAHME A</span>'
-    + '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
-    + '<div class="uz-text">JPG, PNG, DICOM (.dcm)</div>'
-    + '</div>'
-    + '<div class="uz" id="uz-b" onclick="document.getElementById(\'fi-b\').click()">'
-    + '<input type="file" id="fi-b" accept="image/*,.dcm,.dicom">'
-    + '<span class="uz-tag">AUFNAHME B <span style="opacity:.5">(optional)</span></span>'
-    + '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
-    + '<div class="uz-text">Vergleichsaufnahme</div>'
+    // Upload — Multi-Image
+    + '<div><div class="an-lbl">5 · Röntgenbilder hochladen</div>'
+    + '<input type="file" id="fi-multi" accept="image/*,.dcm,.dicom" multiple style="display:none">'
+    + '<div class="imgs-drop" id="imgs-drop">'
+    + '<div class="imgs-grid" id="imgs-grid"></div>'
+    + '<div class="imgs-hint">Drag &amp; Drop · Klicken · <kbd style="background:var(--s3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px;">⌘V</kbd> / <kbd style="background:var(--s3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px;">Strg+V</kbd> zum Einfügen &nbsp;·&nbsp; max. 6 Aufnahmen</div>'
     + '</div></div>'
     // Context
     + '<div><div class="an-lbl">6 · Klinischer Kontext</div>'
@@ -1161,85 +1167,107 @@ function setMode(btn, val) {
   btn.classList.add('on'); AN.mode=val;
 }
 
-// UPLOADS
+// ═══════════════════════════════════════
+// MULTI-IMAGE UPLOAD
+// ═══════════════════════════════════════
 function setupUploads() {
-  ['a','b'].forEach(function(k){
-    var uz=document.getElementById('uz-'+k);
-    var fi=document.getElementById('fi-'+k);
-    if(!uz||!fi) return;
-    fi.onchange=function(e){ if(e.target.files[0]) loadImg(e.target.files[0],k); };
-    uz.ondragover=function(e){ e.preventDefault(); uz.classList.add('drag'); };
-    uz.ondragleave=function(){ uz.classList.remove('drag'); };
-    uz.ondrop=function(e){ e.preventDefault(); uz.classList.remove('drag'); if(e.dataTransfer.files[0]) loadImg(e.dataTransfer.files[0],k); };
-  });
+  var fi   = document.getElementById('fi-multi');
+  var drop = document.getElementById('imgs-drop');
+  if (fi) {
+    fi.onchange = function(e) {
+      Array.from(e.target.files).forEach(function(f){ loadImg(f); });
+      fi.value = '';
+    };
+  }
+  if (drop) {
+    drop.ondragover  = function(e){ e.preventDefault(); drop.classList.add('drag'); };
+    drop.ondragleave = function(){ drop.classList.remove('drag'); };
+    drop.ondrop = function(e){
+      e.preventDefault(); drop.classList.remove('drag');
+      Array.from(e.dataTransfer.files).forEach(function(f){ loadImg(f); });
+    };
+    drop.onclick = function(e){
+      // Only trigger file picker if clicking on the drop zone itself or the hint — not on a tile
+      if (e.target === drop || e.target.classList.contains('imgs-hint') || e.target.closest('.imgs-hint')) {
+        if (AN.imgs.length < 6) document.getElementById('fi-multi').click();
+      }
+    };
+  }
+  renderImgGrid();
 }
 
-function loadImg(file, k) {
-  if(file.size>50*1024*1024){ toast('Datei zu groß — max 50MB','red'); return; }
-  if(!file.type.startsWith('image/') && !file.name.match(/\.(dcm|dicom)$/i)) {
-    toast('Bitte JPG, PNG oder DICOM hochladen','red'); return;
+function renderImgGrid() {
+  var grid = document.getElementById('imgs-grid');
+  if (!grid) return;
+  var MAX = 6;
+  grid.innerHTML = AN.imgs.map(function(img, i){
+    var thumb = img.isDicom
+      ? '<div class="img-tile-dicom"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--blue)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg><span>DICOM</span></div>'
+      : '<img src="'+img.url+'" alt="">';
+    return '<div class="img-tile" title="'+img.name+'">'
+      + thumb
+      + '<div class="img-tile-num">'+(i+1)+'</div>'
+      + '<button class="img-tile-rm" onclick="removeImgByIdx('+i+',event)">✕</button>'
+      + '</div>';
+  }).join('')
+  + (AN.imgs.length < MAX
+    ? '<div class="img-tile-add" onclick="document.getElementById(\'fi-multi\').click()" title="Weiteres Bild hinzufügen">'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>'
+      + '<span style="font-size:9px;font-weight:700;letter-spacing:.3px;">HINZUFÜGEN</span>'
+      + '</div>'
+    : '');
+}
+
+function loadImg(file) {
+  if (AN.imgs.length >= 6) { toast('Maximal 6 Aufnahmen möglich', 'amber'); return; }
+  if (file.size > 50*1024*1024) { toast('Datei zu groß — max 50 MB', 'red'); return; }
+  if (!file.type.startsWith('image/') && !file.name.match(/\.(dcm|dicom)$/i)) {
+    toast('Bitte JPG, PNG oder DICOM hochladen', 'red'); return;
   }
-  // DICOM-Erkennung
   var isDicom = file.name.toLowerCase().endsWith('.dcm') || file.name.toLowerCase().endsWith('.dicom') || file.type === 'application/dicom';
   if (isDicom) {
-    // DICOM als base64 senden, Server konvertiert
     var reader = new FileReader();
     reader.onload = function(e) {
       var b64 = e.target.result.split(',')[1] || e.target.result;
-      var dataUrl = 'data:application/dicom;base64,' + b64;
-      if(k==='a') AN.imgA={url:dataUrl, b64:b64, name:file.name, isDicom:true};
-      else AN.imgB={url:dataUrl, b64:b64, name:file.name, isDicom:true};
-      var uz=document.getElementById('uz-'+k);
-      uz.className='uz loaded';
-      uz.innerHTML='<span class="uz-tag lt" style="background:var(--blue-dim);color:var(--blue);">DICOM — '+file.name+'</span>'
-        +'<div style="font-size:11px;color:var(--blue);margin-top:4px;">DICOM wird beim Upload konvertiert</div>'
-        +'<button class="uz-rm" onclick="removeImg(\''+k+'\',event)">✕</button>';
+      AN.imgs.push({ url: 'data:application/dicom;base64,' + b64, b64: b64, name: file.name, isDicom: true });
+      renderImgGrid();
+      toast('DICOM ' + AN.imgs.length + ' geladen');
     };
     reader.readAsDataURL(file);
-    return; // Normal processing überspringen
+    return;
   }
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    var img=new Image();
-    img.onload=function(){
-      var canvas=document.createElement('canvas');
-      var w=img.naturalWidth, h=img.naturalHeight;
-      // Höhere Auflösung für bessere Diagnostik — Röntgenbilder brauchen Details!
-      var maxDim=2048;
-      if(w>maxDim||h>maxDim){
-        if(w>h){ h=Math.round(h*maxDim/w); w=maxDim; }
-        else{ w=Math.round(w*maxDim/h); h=maxDim; }
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var w = img.naturalWidth, h = img.naturalHeight;
+      var maxDim = 2048;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
       }
-      canvas.width=w; canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      var url=canvas.toDataURL('image/jpeg',0.95);
-      if(k==='a') AN.imgA={url:url,b64:url.split(',')[1],name:file.name};
-      else AN.imgB={url:url,b64:url.split(',')[1],name:file.name};
-      var uz=document.getElementById('uz-'+k);
-      uz.className='uz loaded'; uz.onclick=null;
-      uz.innerHTML='<span class="uz-tag lt">AUFNAHME '+k.toUpperCase()+' — GELADEN</span>'
-        +'<img class="uz-preview" src="'+url+'"><div class="uz-name">'+file.name+'</div>'
-        +'<button class="uz-rm" onclick="removeImg(\''+k+'\',event)">✕</button>';
-      toast('Aufnahme '+k.toUpperCase()+' geladen');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var url = canvas.toDataURL('image/jpeg', 0.95);
+      AN.imgs.push({ url: url, b64: url.split(',')[1], name: file.name });
+      renderImgGrid();
+      toast('Aufnahme ' + AN.imgs.length + ' geladen');
     };
-    img.onerror=function(){ toast('Bild konnte nicht geladen werden','red'); };
-    img.src=ev.target.result;
+    img.onerror = function(){ toast('Bild konnte nicht geladen werden', 'red'); };
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-function removeImg(k,e) {
-  e.stopPropagation();
-  if(k==='a') AN.imgA=null; else AN.imgB=null;
-  var uz=document.getElementById('uz-'+k);
-  uz.className='uz';
-  uz.innerHTML='<input type="file" id="fi-'+k+'" accept="image/*,.dcm,.dicom">'
-    +'<span class="uz-tag">AUFNAHME '+k.toUpperCase()+(k==='b'?' <span style="opacity:.5">(optional)</span>':'')+'</span>'
-    +'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--text3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
-    +'<div class="uz-text">'+(k==='a'?'JPG, PNG, DICOM (.dcm)':'Vergleichsaufnahme')+'</div>';
-  uz.onclick=function(){ document.getElementById('fi-'+k).click(); };
-  setupUploads();
+function removeImgByIdx(idx, e) {
+  if (e) e.stopPropagation();
+  AN.imgs.splice(idx, 1);
+  renderImgGrid();
 }
+
+// Legacy alias — kept for backward compat (compare/second-opinion flows)
+function removeImg(k, e) { removeImgByIdx(k === 'a' ? 0 : 1, e); }
 
 // RUN ANALYSIS
 function setFocus(type, btn) {
@@ -1367,8 +1395,7 @@ function closeProgressModal() {
 }
 
 function runAnalysis() {
-  if(!AN.imgA){ toast('Bitte Aufnahme A hochladen','red'); return; }
-  if(AN.mode!=='single'&&!AN.imgB){ toast('Bitte auch Aufnahme B hochladen','amber'); return; }
+  if(!AN.imgs.length){ toast('Bitte mindestens ein Röntgenbild hochladen','red'); return; }
   var btn=document.getElementById('run-btn');
   btn.disabled=true; btn.classList.add('busy');
   showProgressModal();
@@ -1385,16 +1412,17 @@ function runAnalysis() {
     context:ctx?ctx.value.trim():'',
     focus_mode:AN.focusMode,
     focus_text:focusTxt&&AN.focusMode==='specific'?focusTxt.value.trim():'',
-    img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:'',
-    is_dicom: AN.imgA && AN.imgA.isDicom ? true : false
+    img_a:AN.imgs[0].b64, img_b:AN.imgs[1]?AN.imgs[1].b64:'',
+    extra_imgs:AN.imgs.slice(2).map(function(im){return im.b64;}),
+    is_dicom: AN.imgs[0] && AN.imgs[0].isDicom ? true : false
   })
   .then(function(data){
     completeProgress();
     // Lokales Bild als image_data setzen → wird im Befund angezeigt + für Chat-Vision genutzt
     var report=Object.assign({},data,{
-      img_a: AN.imgA ? AN.imgA.url : '',
-      img_b: AN.imgB ? AN.imgB.url : '',
-      image_data: AN.imgA ? AN.imgA.b64 : (data.image_data || '')
+      img_a: AN.imgs[0] ? AN.imgs[0].url : '',
+      img_b: AN.imgs[1] ? AN.imgs[1].url : '',
+      image_data: AN.imgs[0] ? AN.imgs[0].b64 : (data.image_data || '')
     });
     CACHED.unshift(report);
     updateBadge(CACHED.length);
@@ -1757,25 +1785,11 @@ function useImageForCompare(reportId) {
     AN.region = r.region || 'Thorax';
     AN.mode = 'compare';
     AN.petName = r.pet_name || '';
-    AN.imgA = { b64: imgData, url: 'data:image/jpeg;base64,' + imgData };
-    AN.imgB = null;
+    AN.imgs = [{ b64: imgData, url: 'data:image/jpeg;base64,' + imgData, name: (r.pet_name||r.species||'Aufnahme A') }];
     navTo('analyse', document.querySelector('.nb'));
     setTimeout(function(){
-      var uzA = document.getElementById('uz-a');
-      if(uzA){
-        uzA.className = 'uz has';
-        uzA.onclick = null;
-        uzA.innerHTML = '<span class="uz-tag">AUFNAHME A — VORHERIGES BILD</span>'
-          + '<img class="uz-preview" src="' + AN.imgA.url + '">'
-          + '<div class="uz-name" style="color:var(--blue);font-weight:600;">Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
-          + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
-      }
-      var uzB = document.getElementById('uz-b');
-      if(uzB){ uzB.style.borderColor = 'var(--blue)'; uzB.style.background = 'var(--blue-dim)'; }
-      // Set mode selector to compare
-      var modeSelect = document.querySelector('select[onchange*="AN.mode"]') || document.getElementById('mode-select');
-      if(modeSelect) { modeSelect.value = 'compare'; AN.mode = 'compare'; }
-      toast('Bild geladen — jetzt neues Bild als Aufnahme B hochladen', 'blue');
+      renderImgGrid();
+      toast('Bild geladen — jetzt zweites Bild hochladen für Verlaufsvergleich', 'blue');
     }, 150);
   }
 
@@ -1805,19 +1819,10 @@ function useImageForSecondOpinion(reportId) {
     AN.region = r.region || 'Thorax';
     AN.mode = 'second';
     AN.petName = r.pet_name || '';
-    AN.imgA = { b64: imgData, url: 'data:image/jpeg;base64,' + imgData };
-    AN.imgB = null;
+    AN.imgs = [{ b64: imgData, url: 'data:image/jpeg;base64,' + imgData, name: (r.pet_name||r.species||'Zweitmeinung') }];
     navTo('analyse', document.querySelector('.nb'));
     setTimeout(function(){
-      var uzA = document.getElementById('uz-a');
-      if(uzA){
-        uzA.className = 'uz has';
-        uzA.onclick = null;
-        uzA.innerHTML = '<span class="uz-tag">AUFNAHME — ZWEITMEINUNG</span>'
-          + '<img class="uz-preview" src="' + AN.imgA.url + '">'
-          + '<div class="uz-name" style="color:var(--blue);font-weight:600;">Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
-          + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
-      }
+      renderImgGrid();
       // Set mode to second opinion
       var modeSelect = document.querySelector('select[onchange*="AN.mode"]') || document.getElementById('mode-select');
       if(modeSelect) { modeSelect.value = 'second'; AN.mode = 'second'; }
@@ -2897,6 +2902,27 @@ function toast(msg,type) {
   clearTimeout(t._tid);
   t._tid=setTimeout(function(){ t.classList.remove('show'); },3000);
 }
+
+// ── Globaler Paste-Handler (Strg+V / ⌘V) ──
+document.addEventListener('paste', function(e) {
+  // Nur aktiv wenn Analyse-Bereich sichtbar ist
+  if (!document.getElementById('imgs-drop')) return;
+  // Nicht auslösen wenn User in einem Textfeld tippt
+  var tag = (document.activeElement||{}).tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  var items = (e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData) || {}).items || [];
+  var added = 0;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type && items[i].type.indexOf('image') !== -1) {
+      var file = items[i].getAsFile();
+      if (file) { loadImg(file); added++; }
+    }
+  }
+  if (added > 0) {
+    e.preventDefault();
+    toast(added > 1 ? added + ' Bilder eingefügt' : 'Bild eingefügt');
+  }
+});
 </script>
 
 <!-- DSGVO COOKIE BANNER -->

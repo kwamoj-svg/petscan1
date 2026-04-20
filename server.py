@@ -1303,6 +1303,7 @@ def analyse():
     focus_text = d.get('focus_text','').strip()
     img_a      = d.get('img_a','')
     img_b      = d.get('img_b','')
+    extra_imgs = [x for x in (d.get('extra_imgs') or []) if x][:4]  # max 4 extra (6 total)
     patient_id = d.get('patient_id','').strip()
     # patient_id validieren — muss dem User gehören
     if patient_id:
@@ -2014,12 +2015,17 @@ Wähle die Schwere anhand dieser Kriterien:
 
     msgs = [
         {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_a}},
-        {'type':'text','text':'Aufnahme A:'}
+        {'type':'text','text':'Aufnahme 1:'}
     ]
-    if img_b and mode != 'single':
+    if img_b:
         msgs += [
             {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_b}},
-            {'type':'text','text':'Aufnahme B:'}
+            {'type':'text','text':'Aufnahme 2:'}
+        ]
+    for _ei, _eb64 in enumerate(extra_imgs):
+        msgs += [
+            {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':_eb64}},
+            {'type':'text','text':f'Aufnahme {_ei+3}:'}
         ]
     prompt = prompts.get(mode, prompts['single'])
     if ctx: prompt += f'\n\nKlinischer Kontext vom Tierarzt: {ctx}'
@@ -2126,7 +2132,7 @@ Criteria:
                 })
             else:
                 # Prompt-Texte überspringen (bereits im System-Prompt)
-                if m['text'] not in ('Aufnahme A:', 'Aufnahme B:'):
+                if not m['text'].startswith('Aufnahme '):
                     oai_content.append({'type': 'text', 'text': m['text']})
 
         # ── PHASE 1: Freie Bildbeobachtung (kein Format-Zwang) ──
