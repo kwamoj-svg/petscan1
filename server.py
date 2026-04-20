@@ -3278,7 +3278,7 @@ def export_report_pdf(rid):
     pdf.set_font('Helvetica', '', 8.5)
     pdf.set_text_color(*GRAY)
     date_str = report.get('created_at', '')[:19].replace('T', ' ')
-    mode_map = {'single':'Einzelanalyse','compare':'Verlaufsanalyse','diff':'Bildvergleich','second':'Zweitmeinung'}
+    mode_map = {'single':'Einzelanalyse','compare':'Verlaufsanalyse','diff':'Bildvergleich','second':'Krit. Prüfung'}
     mode_str = mode_map.get(report.get('mode',''), report.get('mode',''))
     pdf.cell(0, 5, f'Datum: {date_str}  ·  Modus: {mode_str}', ln=True)
 

@@ -1093,10 +1093,12 @@ function renderAnalyse() {
     + '</div></div>'
     // Mode
     + '<div><div class="an-lbl">4 · Analyse-Modus</div><div class="mode-g">'
-    + [['Einzelbild','single'],['Verlauf','compare'],['Vergleich','diff'],['Zweitmeinung','second']].map(function(mv){
-        return '<button class="mode-btn'+(AN.mode===mv[1]?' on':'')+'" onclick="setMode(this,\''+mv[1]+'\')">'+mv[0]+'</button>';
+    + [['Einzelbild','single'],['Verlauf','compare'],['Vergleich','diff'],['Krit. Prüfung','second']].map(function(mv){
+        return '<button class="mode-btn'+(AN.mode===mv[1]?' on':'')+'" onclick="setMode(this,\''+mv[1]+'\')" title="'+({'single':'Standard-Befund: vollständige Analyse eines Bildes','compare':'Verlauf: 2 Bilder zeitlich vergleichen (Vorher / Nachher)','diff':'Vergleich: 2 Projektionen / Ansichten gegenüberstellen','second':'Kritische Prüfung: KI sucht gezielt nach übersehenen Pathologien und hinterfragt offensichtliche Diagnosen'}[mv[1]])+'">'+mv[0]+'</button>';
       }).join('')
-    + '</div></div>'
+    + '</div>'
+    + '<div id="mode-desc" style="font-size:11px;color:var(--text3);margin-top:5px;padding:5px 8px;background:var(--s2);border-radius:5px;border-left:2px solid var(--blue);display:none;"></div>'
+    + '</div>'
     // Upload — Multi-Image
     + '<div><div class="an-lbl">5 · Röntgenbilder hochladen</div>'
     + '<input type="file" id="fi-multi" accept="image/*,.dcm,.dicom" multiple style="display:none">'
@@ -1162,11 +1164,19 @@ function setRg(btn, val, label) {
   var ch = document.getElementById('rg-chosen');
   if(ch) ch.textContent = label || val;
 }
+var _MODE_DESC = {
+  single:  '1 Bild · Vollständige Befundung aller sichtbaren Strukturen',
+  compare: '2 Bilder · KI vergleicht Aufnahme 1 (früher) mit Aufnahme 2 (aktuell) und beschreibt alle Veränderungen',
+  diff:    '2 Bilder · Systematische Gegenüberstellung zweier Projektionen oder Ansichten',
+  second:  '1 Bild · KI hinterfragt bestehende Diagnosen, sucht gezielt nach übersehenen Pathologien — ideal wenn ein Kollege bereits eine Meinung geäußert hat'
+};
 function setMode(btn, val) {
   document.querySelectorAll('.mode-btn').forEach(function(b){ b.classList.remove('on'); });
   btn.classList.add('on'); AN.mode=val;
-  renderImgGrid();      // Tiles mit mode-spezifischen Labels neu zeichnen
-  _updateImgsHint();    // Hinweistext aktualisieren
+  var desc = document.getElementById('mode-desc');
+  if (desc) { desc.textContent = _MODE_DESC[val] || ''; desc.style.display = 'block'; }
+  renderImgGrid();
+  _updateImgsHint();
 }
 
 function _updateImgsHint() {
@@ -1503,7 +1513,7 @@ function runAnalysis() {
 
 // RENDER RESULT
 function renderResult(r) {
-  var modeLabel={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+  var modeLabel={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Krit. Prüfung'}[r.mode]||r.mode;
   var sevCls={low:'sev-low',mid:'sev-mid',high:'sev-high'}[r.severity]||'sev-mid';
   var sevLbl={low:'NIEDRIG — Routinebefund',mid:'MITTEL — Zeitnahe Kontrolle',high:'HOCH — Sofortiger Handlungsbedarf'}[r.severity]||'MITTEL';
   var sevBadge={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
@@ -1660,7 +1670,7 @@ function filterReps(q) {
 
   el.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">'+filtered.length+' Befund'+(filtered.length!==1?'e':'')+' gefunden</div>'
     +pageItems.map(function(r){
-      var ml={single:'Einzelanalyse',compare:'Verlauf',diff:'Vergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+      var ml={single:'Einzelanalyse',compare:'Verlauf',diff:'Vergleich',second:'Krit. Prüfung'}[r.mode]||r.mode;
       var sb={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
       var sl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
       var thumbId = 'thumb-'+r.id;
@@ -1738,7 +1748,7 @@ function loadMoreReps() {
 function openReport(id) {
   var r=ALL_REPORTS.find(function(x){return x.id===id;})||CACHED.find(function(x){return x.id===id;});
   if(!r){ toast('Befund nicht gefunden','amber'); return; }
-  var modeLabel={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+  var modeLabel={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Krit. Prüfung'}[r.mode]||r.mode;
   var sevCls={low:'sev-low',mid:'sev-mid',high:'sev-high'}[r.severity]||'sev-mid';
   var sevLbl={low:'NIEDRIG — Routinebefund',mid:'MITTEL — Zeitnahe Kontrolle',high:'HOCH — Sofortiger Handlungsbedarf'}[r.severity]||'MITTEL';
   var sevBadge={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
@@ -2794,7 +2804,7 @@ function exportPDF(id) {
 function exportPDFFallback(id) {
   var r=CACHED.find(function(x){return x.id===id;})||ALL_REPORTS.find(function(x){return x.id===id;});
   if(!r){ toast('Befund nicht gefunden','amber'); return; }
-  var ml={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+  var ml={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Krit. Prüfung'}[r.mode]||r.mode;
   var sc={low:'#ecfdf5',mid:'#fffbeb',high:'#fef2f2'}[r.severity]||'#fffbeb';
   var bc={low:'#a7f3d0',mid:'#fde68a',high:'#fecaca'}[r.severity]||'#fde68a';
   var stxt={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
@@ -2844,7 +2854,7 @@ function exportPDFFallback(id) {
 function exportWord(id) {
   var r=CACHED.find(function(x){return x.id===id;})||ALL_REPORTS.find(function(x){return x.id===id;});
   if(!r){ toast('Befund nicht gefunden','amber'); return; }
-  var ml={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
+  var ml={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Krit. Prüfung'}[r.mode]||r.mode;
   var st={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm}h1{font-size:16pt}h2{font-size:13pt;border-bottom:1px solid #ccc;margin:14px 0 8px;padding-bottom:4px}h3{font-size:12pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 10px}th{background:#0f1c35;color:#fff}</style></head><body>'
     +'<h1>Animioo Befundbericht</h1>'
