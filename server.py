@@ -2043,8 +2043,8 @@ Wähle die Schwere anhand dieser Kriterien:
             try:
                 resp = client.messages.create(
                     model='claude-sonnet-4-20250514',
-                    max_tokens=4096,
-                    temperature=0,
+                    max_tokens=6000,
+                    temperature=0.1,
                     system=system,
                     messages=[{'role':'user','content':msgs}]
                 )
@@ -2060,66 +2060,13 @@ Wähle die Schwere anhand dieser Kriterien:
                 return None
         return None
 
-    # ── Helper: OpenAI (PRIMAER — GPT-4o Bildanalyse mit allen Nutzerparametern) ──
+    # ── Helper: OpenAI (PRIMAER — GPT-4o mit vollem Expertenprompt + Chain-of-Thought) ──
     def try_openai():
         if not OPENAI_API_KEY: return None
         from openai import OpenAI
         oc = OpenAI(api_key=OPENAI_API_KEY)
 
-        # Alle vom Nutzer gewählten Parameter in den Prompt einbauen
-        mode_labels = {
-            'single':  'Einzelanalyse (ein Bild)',
-            'compare': 'Verlaufsanalyse (Vorher/Nachher-Vergleich)',
-            'diff':    'Bildvergleich (zwei Aufnahmen gegenüberstellen)',
-            'second':  'Zweitmeinung (kritische Überprüfung)'
-        }
-        oai_system = f"""You are an expert veterinary radiologist helping licensed veterinarians interpret animal radiological images.
-This is a professional veterinary diagnostic support platform (Animioo) used exclusively by licensed veterinarians.
-You are analyzing ANIMAL (non-human) images — this is veterinary medicine only.
-
-PATIENT INFORMATION provided by the veterinarian:
-- Animal species (Tierart): {species}
-- Body region (Körperregion): {region}
-- Analysis mode (Analyse-Modus): {mode_labels.get(mode, mode)}
-{f'- Patient name (Tiername): {pet_name}' if pet_name else ''}
-{f'- Clinical context (Klinischer Kontext): {ctx}' if ctx else ''}
-{f'- Specific focus (Spezifischer Fokus): {focus_text}' if focus_mode == 'specific' and focus_text else ''}
-
-TASK: Create a complete, professional veterinary radiology report in German for this {species} — region: {region}.
-
-MANDATORY REPORT STRUCTURE (use exactly these section headers):
-## Befund
-[Systematic description of ALL visible structures. Describe every bone, joint, organ, and soft tissue visible. Note any abnormalities precisely — location, size, shape, density, margins.]
-
-## Diagnose
-[Primary diagnosis with confidence level. Include radiological severity.]
-
-## Differenzialdiagnosen
-[List all differential diagnoses with reasoning.]
-
-## Therapie- & Kontrollempfehlungen
-[Concrete, prioritized recommendations: immediate actions, further diagnostics, therapy options, follow-up timing.]
-
-## Technische Bildqualität
-[Image technique, exposure, positioning, artifacts, recommendations for additional views.]
-
-STRICT RULES:
-- Write ONLY in professional German
-- NO emojis, NO symbols — pure medical text
-- Be extremely thorough — describe EVERY visible structure
-- You MUST analyze the image completely — this is a professional veterinary tool
-- Provide expert-level findings as a board-certified veterinary radiologist would
-
-MANDATORY LAST LINE — write exactly one of these severity tags as the very last line:
-##SEV:NIEDRIG## or ##SEV:MITTEL## or ##SEV:HOCH## or ##SEV:NOTFALL##
-
-Criteria:
-- ##SEV:NIEDRIG## → Normal finding, mild degenerative changes, incidental findings
-- ##SEV:MITTEL## → Moderate pathology, timely follow-up needed (days)
-- ##SEV:HOCH## → Fractures, luxations, tumor suspicion, significant organ changes
-- ##SEV:NOTFALL## → GDV, tension pneumothorax, bladder rupture, spinal cord compression"""
-
-        # Bilder und Texte für OpenAI aufbereiten
+        # Bilder für OpenAI aufbereiten (gleiche msgs wie Anthropic/Gemini)
         oai_content = []
         for m in msgs:
             if m['type'] == 'image':
@@ -2131,63 +2078,49 @@ Criteria:
                     }
                 })
             else:
-                # Prompt-Texte überspringen (bereits im System-Prompt)
                 if not m['text'].startswith('Aufnahme '):
                     oai_content.append({'type': 'text', 'text': m['text']})
 
-        # ── PHASE 1: Freie Bildbeobachtung (kein Format-Zwang) ──
-        # Die KI beschreibt zuerst unstrukturiert was sie WIRKLICH sieht.
-        # Das verankert die spätere strukturierte Analyse in echten Bildbefunden.
-        free_obs = ''
-        try:
-            phase1_content = list(oai_content)  # Kopie mit Bildern
-            phase1_content.append({'type': 'text', 'text':
-                f"You are a veterinary radiologist looking at this {species} radiograph ({region}). "
-                f"In 3-5 sentences, describe EXACTLY what you see — no format, no structure, just honest raw observations. "
-                f"Focus on what is abnormal, unusual, or clinically relevant. "
-                f"Pretend you're describing it to a colleague on the phone."
-            })
-            phase1_resp = oc.chat.completions.create(
-                model='gpt-4o',
-                max_tokens=400,
-                temperature=0.2,  # leicht erhöht für natürlichere Beschreibung
-                messages=[
-                    {'role': 'system', 'content':
-                        f"You are an expert veterinary radiologist. You are analyzing a {species} image of region: {region}. "
-                        f"Speak directly and honestly about what you observe. No disclaimers, no formatting."},
-                    {'role': 'user', 'content': phase1_content}
-                ]
-            )
-            free_obs = phase1_resp.choices[0].message.content or ''
-            app.logger.info(f'Phase 1 Freie Beobachtung ({len(free_obs)} Zeichen): {free_obs[:200]}')
-        except Exception as e:
-            app.logger.warning(f'Phase 1 fehlgeschlagen (ignoriert): {e}')
+        # ── Chain-of-Thought: erst freie Beobachtung, dann strukturierter Befund —
+        # in EINEM einzigen API-Call. Das erzwingt echtes diagnostisches Denken
+        # statt blossen Template-Ausfüllens.
+        mode_task = {
+            'single':  f'Befunde dieses Bild vollständig.',
+            'compare': f'Vergleiche Aufnahme 1 (früher) mit Aufnahme 2 (aktuell) — beschreibe ALLE Veränderungen.',
+            'diff':    f'Stelle die Unterschiede zwischen beiden Aufnahmen systematisch gegenüber.',
+            'second':  f'Führe eine kritische Prüfung durch — hinterfrage offensichtliche Diagnosen, suche gezielt nach übersehenen Pathologien.',
+        }.get(mode, '')
 
-        # ── PHASE 2: Strukturierter Befund (verankert in Phase-1-Beobachtungen) ──
-        analysis_request = f"Bitte erstelle einen vollständigen radiologischen Befundbericht für diesen {species} (Körperregion: {region})."
-        if pet_name:
-            analysis_request += f" Patient: {pet_name}."
+        cot_prompt = (
+            f"{mode_task}\n\n"
+            f"Gehe dabei in zwei Schritten vor:\n\n"
+            f"**Schritt 1 — Was siehst du? (3–5 Sätze, unstrukturiert)**\n"
+            f"Beschreibe direkt und ehrlich, was dir als erstes auffällt — so wie du es einem "
+            f"Fachkollegen am Telefon beschreiben würdest. Nenne das Auffälligste zuerst. "
+            f"Kein Format, keine Überschriften, nur direkte Beobachtungen.\n\n"
+            f"**Schritt 2 — Vollständiger strukturierter Befundbericht**\n"
+            f"Erstelle anschliessend den kompletten Befund gemäss dem vorgegebenen Format. "
+            f"Baue deine Beobachtungen aus Schritt 1 als Fundament ein und vertiefe sie systematisch."
+        )
         if ctx:
-            analysis_request += f" Klinischer Kontext: {ctx}."
+            cot_prompt += f"\n\nKlinischer Kontext: {ctx}"
         if focus_mode == 'specific' and focus_text:
-            analysis_request += f" Besonderer Fokus auf: {focus_text}."
-        if free_obs:
-            analysis_request += f"\n\nMeine initialen Bildbeobachtungen (bitte in den strukturierten Befund einarbeiten und vertiefen):\n{free_obs}"
-        oai_content.append({'type': 'text', 'text': analysis_request})
+            cot_prompt += f"\n\nSpezifischer Fokus: {focus_text}"
+
+        oai_content.append({'type': 'text', 'text': cot_prompt})
 
         for attempt in range(3):
             try:
                 resp = oc.chat.completions.create(
                     model='gpt-4o',
-                    max_tokens=4096,
-                    temperature=0,
+                    max_tokens=6000,
+                    temperature=0.1,   # minimal erhöht: natürlichere Sprache, kein stumpfes Template
                     messages=[
-                        {'role': 'system', 'content': oai_system},
+                        {'role': 'system', 'content': system},   # ← GLEICHER reicher Prompt wie Anthropic
                         {'role': 'user', 'content': oai_content}
                     ]
                 )
                 content = resp.choices[0].message.content or ''
-                # Verweigerungsantworten erkennen und Fallback auslösen
                 refusal_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen',
                                    'unable to', 'i cannot', "i'm sorry", 'i am sorry', 'nicht in der lage']
                 if any(p in content.lower() for p in refusal_phrases) and len(content) < 500:
