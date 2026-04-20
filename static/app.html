@@ -1165,6 +1165,19 @@ function setRg(btn, val, label) {
 function setMode(btn, val) {
   document.querySelectorAll('.mode-btn').forEach(function(b){ b.classList.remove('on'); });
   btn.classList.add('on'); AN.mode=val;
+  renderImgGrid();      // Tiles mit mode-spezifischen Labels neu zeichnen
+  _updateImgsHint();    // Hinweistext aktualisieren
+}
+
+function _updateImgsHint() {
+  var hint = document.querySelector('.imgs-hint');
+  if (!hint) return;
+  var isCompare = AN.mode === 'compare' || AN.mode === 'diff';
+  if (isCompare) {
+    hint.innerHTML = 'Laden Sie <strong>mind. 2 Aufnahmen</strong> hoch &nbsp;·&nbsp; Aufnahme 1 = früher &nbsp;·&nbsp; Aufnahme 2 = aktuell';
+  } else {
+    hint.innerHTML = 'Drag &amp; Drop &nbsp;·&nbsp; Klicken &nbsp;·&nbsp; <kbd style="background:var(--s3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px;">⌘V</kbd> / <kbd style="background:var(--s3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px;">Strg+V</kbd> &nbsp;·&nbsp; max. 6 Aufnahmen';
+  }
 }
 
 // ═══════════════════════════════════════
@@ -1194,23 +1207,46 @@ function setupUploads() {
     };
   }
   renderImgGrid();
+  _updateImgsHint();
 }
 
 function renderImgGrid() {
   var grid = document.getElementById('imgs-grid');
   if (!grid) return;
   var MAX = 6;
+  var isCompare = AN.mode === 'compare' || AN.mode === 'diff';
+  var modeLabels = {
+    compare: ['VORHER', 'NACHHER'],
+    diff:    ['AUFNAHME A', 'AUFNAHME B'],
+    second:  ['ORIGINAL'],
+    single:  []
+  };
+  var labels = modeLabels[AN.mode] || [];
+
   grid.innerHTML = AN.imgs.map(function(img, i){
     var thumb = img.isDicom
       ? '<div class="img-tile-dicom"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--blue)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg><span>DICOM</span></div>'
       : '<img src="'+img.url+'" alt="">';
+    // Mode-Label auf den ersten 2 Tiles (Vergleich/Verlauf)
+    var modeLabel = labels[i]
+      ? '<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(15,28,53,.75);font-size:8px;font-weight:800;color:#fff;text-align:center;padding:2px 0;letter-spacing:.5px;">'+labels[i]+'</div>'
+      : '<div class="img-tile-num">'+(i+1)+'</div>';
+    // Highlight-Rahmen auf Tile 2 in Vergleichsmodi wenn noch leer (Platzhalter)
     return '<div class="img-tile" title="'+img.name+'">'
       + thumb
-      + '<div class="img-tile-num">'+(i+1)+'</div>'
+      + modeLabel
       + '<button class="img-tile-rm" onclick="removeImgByIdx('+i+',event)">✕</button>'
       + '</div>';
   }).join('')
-  + (AN.imgs.length < MAX
+  // Platzhalter-Tile für "fehlende" Aufnahme B im Vergleichsmodus
+  + (isCompare && AN.imgs.length === 1
+    ? '<div class="img-tile" style="border-style:dashed;border-color:var(--blue);background:var(--blue-dim);cursor:pointer;" onclick="document.getElementById(\'fi-multi\').click()" title="2. Aufnahme hochladen">'
+      + '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:4px;color:var(--blue);">'
+      + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>'
+      + '<span style="font-size:8px;font-weight:800;letter-spacing:.5px;">'+labels[1]+'</span>'
+      + '</div></div>'
+    : '')
+  + (AN.imgs.length < MAX && !(isCompare && AN.imgs.length === 1)
     ? '<div class="img-tile-add" onclick="document.getElementById(\'fi-multi\').click()" title="Weiteres Bild hinzufügen">'
       + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>'
       + '<span style="font-size:9px;font-weight:700;letter-spacing:.3px;">HINZUFÜGEN</span>'
@@ -1396,6 +1432,9 @@ function closeProgressModal() {
 
 function runAnalysis() {
   if(!AN.imgs.length){ toast('Bitte mindestens ein Röntgenbild hochladen','red'); return; }
+  if((AN.mode==='compare'||AN.mode==='diff') && AN.imgs.length < 2){
+    toast('Für den Verlaugsvergleich bitte 2 Aufnahmen hochladen','amber'); return;
+  }
   var btn=document.getElementById('run-btn');
   btn.disabled=true; btn.classList.add('busy');
   showProgressModal();
