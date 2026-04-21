@@ -207,14 +207,12 @@ a{color:inherit;text-decoration:none;}
 .prog-bar-wrap{height:8px;background:var(--s2);border-radius:8px;overflow:hidden;margin-bottom:20px;border:1px solid var(--border);}
 .prog-bar-fill{height:100%;background:linear-gradient(90deg,var(--blue),#3b82f6,var(--blue2));border-radius:8px;transition:width .8s ease-out;width:0%;}
 .prog-steps{display:flex;flex-direction:column;gap:6px;}
-.prog-step{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r);font-size:12.5px;color:var(--text3);transition:all .3s ease;opacity:.4;}
+.prog-step{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r);font-size:12.5px;color:var(--text3);transition:color .2s,background .2s,opacity .2s;opacity:.4;}
 .prog-step.active{color:var(--blue);font-weight:600;background:var(--blue-dim);opacity:1;}
 .prog-step.done{color:var(--green);opacity:.7;}
 .prog-step svg{width:18px;height:18px;flex-shrink:0;}
 .prog-step .prog-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--blue-mid);border-top-color:var(--blue);animation:spin .7s linear infinite;flex-shrink:0;margin-left:auto;}
 .prog-error{text-align:center;padding:14px;color:var(--red);font-size:13px;font-weight:600;}
-@keyframes progFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.prog-step.active{animation:progFadeIn .35s ease;}
 
 /* ═══ ONBOARDING MODAL ═══ */
 .onb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -957,28 +955,30 @@ function showProgressModal() {
   var ov = document.createElement('div');
   ov.className = 'prog-overlay';
   ov.id = 'prog-overlay';
-  // Hund – saubere geometrische Formen, Kopf rechts, Schwanz links
-  var animalSvg = '<svg viewBox="0 0 66 42" width="52" height="33" fill="var(--blue)" opacity=".85">'
-    // Schwanz (geschwungene Linie, hinten/links, zeigt nach oben)
-    +'<path d="M3 21 Q0 12 3 6 Q6 2 9 6 Q10 11 6 18" fill="none" stroke="var(--blue)" stroke-width="3.5" stroke-linecap="round" stroke-opacity=".85"/>'
-    // Körper: RECHTECK (kein Oval) → klar kein Nilpferd
-    +'<rect x="9" y="22" width="30" height="13" rx="6"/>'
-    // Schlappohren (links vom Kopf, hängt nach hinten)
-    +'<ellipse cx="39" cy="12" rx="7" ry="10"/>'
-    // Kopf (Kreis, vorne rechts, leicht höher als Körper)
-    +'<circle cx="49" cy="15" r="11"/>'
-    // Schnauze (längliches Oval, zeigt nach rechts)
-    +'<ellipse cx="59" cy="19" rx="6" ry="4.5"/>'
+  // Hund – klare Formen: Rechteck-Körper, runder Kopf, Schlappohren, Schnauze, Beine
+  var animalSvg = '<svg viewBox="0 0 72 50" width="54" height="38" fill="var(--blue)" opacity=".85">'
+    // Schwanz (Kurve nach oben links)
+    +'<path d="M10 24 Q4 14 6 6 Q9 1 13 5 Q14 10 9 18" fill="none" stroke="var(--blue)" stroke-width="3.5" stroke-linecap="round"/>'
+    // Körper — HORIZONTALES RECHTECK (nicht oval = kein Nilpferd)
+    +'<rect x="8" y="24" width="34" height="14" rx="7"/>'
+    // Hals
+    +'<rect x="40" y="21" width="12" height="14" rx="5"/>'
+    // Schlappohren — links vom Kopf, hängt nach unten
+    +'<ellipse cx="42" cy="14" rx="7" ry="10"/>'
+    // Kopf — runder Kreis, vorne rechts, höher als Körper
+    +'<circle cx="52" cy="18" r="11"/>'
+    // Schnauze — kleines Oval das nach rechts zeigt
+    +'<ellipse cx="62" cy="22" rx="7" ry="4.5"/>'
     // Nase
-    +'<circle cx="63" cy="18" r="2" opacity=".4"/>'
-    // Auge (weißer Punkt)
-    +'<circle cx="52" cy="11" r="3" fill="white"/>'
+    +'<circle cx="67" cy="21" r="2" opacity=".4"/>'
+    // Auge — weißer Punkt
+    +'<circle cx="55" cy="14" r="3" fill="white"/>'
     // Vorderbeine
-    +'<rect x="32" y="31" width="5" height="11" rx="2.5"/>'
-    +'<rect x="39" y="31" width="5" height="11" rx="2.5"/>'
+    +'<rect x="34" y="34" width="5" height="13" rx="2.5"/>'
+    +'<rect x="41" y="34" width="5" height="13" rx="2.5"/>'
     // Hinterbeine
-    +'<rect x="11" y="31" width="5" height="11" rx="2.5"/>'
-    +'<rect x="18" y="31" width="5" height="11" rx="2.5"/>'
+    +'<rect x="10" y="34" width="5" height="13" rx="2.5"/>'
+    +'<rect x="17" y="34" width="5" height="13" rx="2.5"/>'
     +'</svg>';
   var stepsHtml = PROG_STEPS.map(function(s, i){
     return '<div class="prog-step" id="prog-s'+i+'">'
@@ -1016,11 +1016,13 @@ function advanceProgStep(idx) {
     var prev = document.getElementById('prog-s'+j);
     if (prev) { prev.className = 'prog-step done'; }
   }
-  // Mark current active
+  // Mark current active — remove any old spinner first
   var cur = document.getElementById('prog-s'+idx);
   if (cur) {
     cur.className = 'prog-step active';
-    cur.innerHTML += '<div class="prog-spin"></div>';
+    var oldSpin = cur.querySelector('.prog-spin');
+    if (oldSpin) oldSpin.remove();
+    cur.appendChild(Object.assign(document.createElement('div'), {className:'prog-spin'}));
   }
   // Update bar
   bar.style.width = PROG_STEPS[idx].pct + '%';

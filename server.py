@@ -1487,7 +1487,7 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
 
             obs_resp = oc.chat.completions.create(
                 model='gpt-4o',
-                max_tokens=2000,
+                max_tokens=600,   # kurz halten → schnell (3-5s statt 15s)
                 temperature=0.2,
                 messages=[{'role':'user','content':obs_content}]
             )
