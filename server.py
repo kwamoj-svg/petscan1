@@ -1474,16 +1474,20 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
             # ── SCHRITT 1: Freie Bildbeobachtung (kein Format-Zwang) ──
             # Exakt so wie der User ChatGPT direkt fragt: "was siehst du?"
             obs_content = []
+            # Klinischer Kontext kommt VOR dem Bild → Modell liest Bild mit Fragestellung im Kopf
+            ctx_intro = f"Tierart: {species} | Region: {region}"
+            if ctx:
+                ctx_intro += f"\n\nKlinische Angaben vom Tierarzt:\n{ctx}"
+            obs_content.append({'type':'text','text':(
+                f"Du bist ein erfahrener Veterinärradiologe.\n\n"
+                f"{ctx_intro}\n\n"
+                f"Schaue dir das folgende veterinärmedizinische Bild genau an. "
+                f"Beschreibe ehrlich und konkret was du siehst — wie wenn du einem Kollegen am Telefon erklärst was auf dem Bild ist. "
+                f"Keine Struktur, keine Abschnitte. Einfach: Was siehst du? Was fällt auf? Was ist normal, was auffällig?"
+            )})
             for m in msgs:
                 if m['type'] == 'image':
                     obs_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
-            obs_content.append({'type':'text','text':(
-                f"Du bist ein erfahrener Veterinärradiologe. "
-                f"Schaue dir dieses veterinärmedizinische Bild genau an. "
-                f"Beschreibe ausführlich und ehrlich was du siehst — wie wenn du einem Kollegen am Telefon erklärst was auf dem Bild ist. "
-                f"Keine Struktur, keine Abschnitte, einfach: was siehst du? Was fällt dir auf? Was ist normal, was ist auffällig? "
-                f"Sei so konkret wie möglich. Tierart: {species}, Region: {region}."
-            )})
 
             obs_resp = oc.chat.completions.create(
                 model='gpt-4o',
