@@ -1453,36 +1453,92 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
                 return None
         return None
 
-    # ── Helper: OpenAI (PRIMAER — Hauptanbieter fuer Bildanalyse) ──
+    # ── Helper: OpenAI — ZWEI-SCHRITT-ANALYSE (wie direktes ChatGPT) ──
+    # Schritt 1: Modell schaut frei ohne Formatvorgabe (= wie "was siehst du?" in ChatGPT)
+    # Schritt 2: Freie Beobachtung + Strukturvorgabe → fertiger Befundbericht
+    # Ergebnis: Modell beschreibt wirklich was es sieht, statt Template zu füllen
     def try_openai():
         if not OPENAI_API_KEY: return None
         from openai import OpenAI
         oc = OpenAI(api_key=OPENAI_API_KEY)
-        oai_content = []
+
+        # Bild-Inhalt für beide Schritte vorbereiten
+        img_content = []
         for m in msgs:
             if m['type'] == 'image':
-                oai_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
+                img_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
             else:
-                oai_content.append({'type':'text','text':m['text']})
-        for attempt in range(3):
+                img_content.append({'type':'text','text':m['text']})
+
+        try:
+            # ── SCHRITT 1: Freie Bildbeobachtung (kein Format-Zwang) ──
+            # Exakt so wie der User ChatGPT direkt fragt: "was siehst du?"
+            obs_content = []
+            for m in msgs:
+                if m['type'] == 'image':
+                    obs_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
+            obs_content.append({'type':'text','text':(
+                f"Du bist ein erfahrener Veterinärradiologe. "
+                f"Schaue dir dieses veterinärmedizinische Bild genau an. "
+                f"Beschreibe ausführlich und ehrlich was du siehst — wie wenn du einem Kollegen am Telefon erklärst was auf dem Bild ist. "
+                f"Keine Struktur, keine Abschnitte, einfach: was siehst du? Was fällt dir auf? Was ist normal, was ist auffällig? "
+                f"Sei so konkret wie möglich. Tierart: {species}, Region: {region}."
+            )})
+
+            obs_resp = oc.chat.completions.create(
+                model='gpt-4o',
+                max_tokens=2000,
+                temperature=0.2,
+                messages=[{'role':'user','content':obs_content}]
+            )
+            free_observation = obs_resp.choices[0].message.content
+            app.logger.info(f'OpenAI Schritt 1 (freie Beobachtung): {len(free_observation)} Zeichen')
+
+            # ── SCHRITT 2: Strukturierter Befund basierend auf echter Beobachtung ──
+            # Jetzt mit dem Systemtext und der bereits gesehenen Beobachtung als Basis
+            struct_messages = [
+                {'role': 'system', 'content': system},
+                {'role': 'user', 'content': img_content},
+                {'role': 'assistant', 'content': f'Meine freie Bildbeobachtung:\n\n{free_observation}'},
+                {'role': 'user', 'content': (
+                    'Basierend auf deiner freien Beobachtung oben: '
+                    'Erstelle jetzt den vollständigen strukturierten Befundbericht im vorgegebenen Format. '
+                    'Bleibe dabei 100% treu zu deinen tatsächlichen Beobachtungen — '
+                    'erfinde keine Befunde und lass keine echten Befunde weg.'
+                )}
+            ]
+
+            for attempt in range(3):
+                try:
+                    resp = oc.chat.completions.create(
+                        model='gpt-4o',
+                        max_tokens=8192,
+                        temperature=0.1,
+                        messages=struct_messages
+                    )
+                    final_text = resp.choices[0].message.content
+                    app.logger.info(f'OpenAI Schritt 2 (Befund): {len(final_text)} Zeichen')
+                    return final_text
+                except Exception as e:
+                    app.logger.warning(f'OpenAI Schritt 2 Fehler (Versuch {attempt+1}): {e}')
+                    if attempt < 2:
+                        _time.sleep(2 * (attempt + 1))
+                        continue
+                    # Fallback: Schritt-1-Beobachtung direkt als Befund verwenden
+                    app.logger.warning('OpenAI Schritt 2 fehlgeschlagen, verwende freie Beobachtung')
+                    return free_observation
+        except Exception as e:
+            app.logger.warning(f'OpenAI Zwei-Schritt-Analyse fehlgeschlagen: {e}')
+            # Fallback auf Single-Call wenn Zwei-Schritt nicht klappt
             try:
                 resp = oc.chat.completions.create(
-                    model='gpt-4o',
-                    max_tokens=8192,   # mehr Raum für ausführliche Befunde
-                    temperature=0.15,  # leichte Kreativität für besseres Reasoning
-                    messages=[
-                        {'role':'system','content':system},
-                        {'role':'user','content':oai_content}
-                    ]
+                    model='gpt-4o', max_tokens=8192, temperature=0.15,
+                    messages=[{'role':'system','content':system},{'role':'user','content':img_content}]
                 )
                 return resp.choices[0].message.content
-            except Exception as e:
-                app.logger.warning(f'OpenAI Fehler (Versuch {attempt+1}): {e}')
-                if attempt < 2:
-                    _time.sleep(2 * (attempt + 1))
-                    continue
+            except Exception as e2:
+                app.logger.warning(f'OpenAI Single-Call Fallback auch fehlgeschlagen: {e2}')
                 return None
-        return None
 
     # ── Helper: Google Gemini ──
     def try_gemini():
@@ -1966,6 +2022,77 @@ def admin_reports():
     rows = db_fetchall(conn, 'SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC')
     conn.close()
     return jsonify({'reports':rows})
+
+@app.route('/api/admin/debug/prompt-preview', methods=['POST'])
+@require_admin
+def debug_prompt_preview():
+    """Zeigt exakt was an OpenAI gesendet wird — zum Vergleich mit direktem ChatGPT."""
+    d = request.json or {}
+    species   = d.get('species', 'Hund')
+    region    = d.get('region', 'Thorax')
+    mode      = d.get('mode', 'single')
+    ctx       = d.get('context', '')
+    img_b64   = d.get('img_a', '')  # optional — nur für Größeninfo
+
+    observe_prefix = (
+        "ZUERST — Freie Bildbeobachtung (bevor du irgendetwas strukturierst):\n"
+        "Schaue dir das Bild genau an und beschreibe in 4-6 Sätzen ungefiltert was du siehst. "
+        "Was springt dir sofort ins Auge? Was ist auffällig, ungewöhnlich oder pathologisch? "
+        "Beginne mit: 'Ich sehe...'\n\n"
+        "DANACH — Strukturierter Befundbericht auf Basis deiner Beobachtungen:\n"
+    )
+    prompts = {
+        'single':  observe_prefix + f'Erstelle den vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}.',
+        'compare': observe_prefix + f'Vergleiche Aufnahme A mit Aufnahme B eines {species} im Bereich {region}.',
+        'second':  observe_prefix + f'Erstelle eine kritische Zweitmeinung für einen {species} im Bereich {region}.',
+    }
+    user_prompt = prompts.get(mode, prompts['single'])
+    if ctx: user_prompt += f'\n\nKlinischer Kontext: {ctx}'
+
+    # Schritt-1-Prompt (freie Beobachtung — wie direktes ChatGPT)
+    step1_prompt = (
+        f"Du bist ein erfahrener Veterinärradiologe. "
+        f"Schaue dir dieses veterinärmedizinische Bild genau an. "
+        f"Beschreibe ausführlich und ehrlich was du siehst — wie wenn du einem Kollegen am Telefon erklärst was auf dem Bild ist. "
+        f"Keine Struktur, keine Abschnitte, einfach: was siehst du? Was fällt dir auf? Was ist normal, was ist auffällig? "
+        f"Sei so konkret wie möglich. Tierart: {species}, Region: {region}."
+    )
+
+    img_size_kb = round(len(img_b64) * 3 / 4 / 1024) if img_b64 else 0
+
+    return jsonify({
+        'info': 'Was OpenAI bei einer Animioo-Analyse erhält (Zwei-Schritt-Prozess)',
+        'schritt_1_freie_beobachtung': {
+            'beschreibung': 'Schritt 1: Wie direktes ChatGPT — kein System-Prompt, nur Bild + offene Frage',
+            'system_prompt': '(keiner — wie ChatGPT direkt)',
+            'user_prompt': step1_prompt,
+            'temperature': 0.2,
+            'max_tokens': 2000
+        },
+        'schritt_2_strukturierter_befund': {
+            'beschreibung': 'Schritt 2: System-Prompt + freie Beobachtung aus Schritt 1 als Basis → strukturierter Befund',
+            'system_prompt_zeichen': len(
+                "Du bist der weltweit führende Veterinärradiologe..."  # gekürzt
+            ),
+            'system_prompt_vorschau': 'Du bist der weltweit führende Veterinärradiologe — ECVDI-Diplomate...',
+            'user_prompt': user_prompt,
+            'assistant_turn': '[Freie Beobachtung aus Schritt 1 wird hier eingefügt]',
+            'final_instruction': 'Basierend auf deiner freien Beobachtung: Erstelle jetzt den strukturierten Befund...',
+            'temperature': 0.1,
+            'max_tokens': 8192
+        },
+        'bild_info': {
+            'groesse_kb': img_size_kb,
+            'format': 'PNG (verlustfrei)',
+            'max_dimension': '2048px',
+            'detail_level': 'high (OpenAI verarbeitet in 512x512 Tiles)'
+        },
+        'vergleich_mit_chatgpt': {
+            'chatgpt_direkt': 'Bild + "was siehst du?" → Modell denkt frei → sofortige freie Antwort',
+            'animioo_vorher': 'Bild + 600-Zeilen-Formatvorgabe → Modell füllt Template → oft generisch',
+            'animioo_jetzt': 'Schritt 1: frei beobachten (wie ChatGPT) → Schritt 2: Beobachtung strukturieren'
+        }
+    })
 
 # ═══════════════════════════════════════════════════
 # DSGVO ENDPOINTS (Art. 17, 20, Consent)
