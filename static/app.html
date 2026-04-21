@@ -458,6 +458,95 @@ var ALL_REPORTS = [];
 
 var ALL_SPECIES = ['Hund','Katze','Pferd','Rind','Schwein','Schaf','Ziege','Kaninchen','Meerschweinchen','Hamster','Ratte','Maus','Frettchen','Vogel','Papagei','Wellensittich','Kanarienvogel','Taube','Huhn','Ente','Gans','Truthahn','Gecko','Schildkröte','Schlange','Leguan','Bartagame','Fisch','Koi','Lama','Alpaka','Esel','Maultier','Hirsch','Wildschwein','Fuchs','Sonstige'];
 
+// ── Dynamische Placeholder je Tierart + Region ──
+// Format: "Alter, Rasse, Symptome/Dauer, Verdacht, relevante Vorbefunde"
+var CTX_HINTS = {
+  // HUND
+  'Hund:Thorax':       '8J, Labrador, Husten + Dyspnoe seit 3W, Herzgeräusch Gr.IV/VI, Synkope letzte Woche',
+  'Hund:Abdomen':      '5J, DSH, Erbrechen + Apathie 2T, Bauch gespannt, GDV-Verdacht / Milztumor?',
+  'Hund:Extremitäten': '3J, Rottweiler, Lahmheit VL Gr.3/5 seit 4T, Schwellung Ellbogen, ED-Verdacht',
+  'Hund:Wirbelsäule':  '6J, Dackel, akute Paraparese HG, Schmerz bei Rückenberührung, IVDD Typ I?',
+  'Hund:Schädel':      '10J, Mischling, Schmerzen beim Fressen, Foetor, Nasenausfluss links',
+  'Hund:Dental':       '7J, Beagle, Zahn 108 Abszess-V., Schwellung unter dem Auge, FORL?',
+  'Hund:Becken':       '2J, Golden Retriever, Lahmheit HG bds., Norberg-Winkel messen, HD-Screening',
+  'Hund:Hüfte':        '9J, Großer Münsterländer, HD bekannt, Verlaufskontrolle nach 6M, jetzt deutlich schlechter',
+  'Hund:Schulter':     '1.5J, Border Collie, Lahmheit VL, Schmerz bei Ext./Flex. Schulter, OCD-Verdacht',
+  'Hund:Knie':         '4J, Labrador, akute Lahmheit HR nach Sprung, Schublade positiv, Kreuzbandriss?',
+  'Hund:Lunge':        '12J, Boxer, Husten 6W, Gewichtsverlust 3kg, Metastasen-Suche (Milztumor bekannt)',
+  'Hund:Herz':         '9J, Cavalier, Mitralklappeninsuffizienz bekannt, jetzt Belastungsintoleranz, VHS messen',
+  'Hund:Nieren':       '11J, DSH, PU/PD, Gewichtsverlust, Nierenversagen V., Nierenvergrößerung?',
+  'Hund:Blase':        '6J, Dalmatiner, Strangurie, Hämaturie, Urolithiasis, Steine röntgendicht?',
+  'Hund:Nasenhöhle':   '7J, Golden Retriever, chronischer Nasenausfluss einseitig, Epistaxis, Aspergillose/Tumor?',
+  // KATZE
+  'Katze:Thorax':      '6J, EKH, Dyspnoe akut, gedämpfte Atemgeräusche, Pleuraerguss/HCM-Verdacht',
+  'Katze:Abdomen':     '4J, BKH, Erbrechen 5T, kein Kot seit 3T, Obstipation/Megakolon vs. Fremdkörper',
+  'Katze:Wirbelsäule': '8J, Perser, Hintergliedmaßenschwäche, Ataxie, Diskopathie vs. FCE',
+  'Katze:Dental':      '5J, EKH, FORL Verdacht Zahn 308/408, Fressunlust, Schmerzen beim Kauen',
+  'Katze:Extremitäten':'3J, EKH, Fraktur VL nach Auto-Unfall, offene Wunde vorhanden',
+  'Katze:Herz':        '7J, Maine Coon, HCM bekannt, jetzt Dyspnoe, Tachykardie 240/min, VHS messen',
+  'Katze:Nieren':      '14J, EKH, CNE Stadium IIIb, GFR-Kontrolle, Nierengröße im Verlauf',
+  'Katze:Blase':       '5J, EKH männl., Strangurie, kein Urin seit 8h, Harnröhrenverschluss?',
+  'Katze:Schädel':     '9J, Perser, Schlagkopf nach Fensterfall, Kieferfraktur-Verdacht',
+  // PFERD
+  'Pferd:Extremitäten':'12J, Hannoveraner, Lahmheit VL Gr.3/5, Hufrolle betroffen V., DDFT-Schaden?',
+  'Pferd:Wirbelsäule': '8J, Warmblut, Rückenprobleme, Kissing Spines Verdacht, Sensitivität über Th10-16',
+  'Pferd:Schädel':     '15J, Pony, Zahnprobleme, Backe geschwollen, Wurzelabszess Prämolar',
+  'Pferd:Becken':      '6J, Vollblut, nach Rennen Beckenschiefstand, Sakrumfraktur-Verdacht',
+  'Pferd:Abdomen':     '10J, Warmblut, Kolik rezidivierend, Enterolithiasis?, Sand im Dickdarm?',
+  // KANINCHEN / KLEINNAGER
+  'Kaninchen:Schädel': '3J, Zwergkaninchen, Schiefhals akut, Otitis media?, Vestibularsyndrom',
+  'Kaninchen:Abdomen': '5J, Widderkaninchen, Inappetenz, aufgetriebener Bauch, GI-Stase vs. Uterustumor',
+  'Kaninchen:Dental':  '4J, Löwenkopf, Molarensporen, Gewichtsverlust, Hypersalivation',
+  'Kaninchen:Thorax':  '6J, Rex, Dyspnoe, Thymom-Verdacht, mediastinale Verschattung?',
+  'Meerschweinchen:Abdomen':'3J, Meerschweinchen, Strangurie, Blasensteine-Verdacht (Struvit/Oxalat)',
+  'Meerschweinchen:Dental':'2J, Meerschweinchen, Gewichtsverlust, Malokklusionen, Backenzähne',
+  'Hamster:Abdomen':   '1.5J, Syrischer Hamster, Geschwulst Flankengegend, Drüsentumor vs. Abszess',
+  'Ratte:Thorax':      '2J, Ratte, Dyspnoe, Rasselgeräusche, Mykoplasmen-Pneumonie?, Tumor?',
+  // FRETTCHEN
+  'Frettchen:Abdomen': '4J, Frettchen weibl., Vulvaschwellung, Nebennierentumor? Ovarialrest?',
+  'Frettchen:Thorax':  '5J, Frettchen, Husten + Dyspnoe, Lymphom vs. Kardiomyopathie',
+  // VÖGEL
+  'Vogel:Abdomen':     '3J, Wellensittich weibl., Bauch aufgetrieben, Legenot (Ei tastbar), Peritonitis?',
+  'Vogel:Thorax':      '5J, Graupapagei, Dyspnoe, pfeifende Atemgeräusche, Aspergillose-Verdacht',
+  'Vogel:Extremitäten':'2J, Nymphensittich, Fraktur Tibiotarsus nach Sturz, offene vs. geschlossene Fraktur',
+  'Papagei:Abdomen':   '8J, Amazone, Gewichtsverlust, PDD-Verdacht, Proventriculus-Dilatation?',
+  'Huhn:Abdomen':      '2J, Legehenne, Ei-Peritonitis-Verdacht, Aszites, multiple Follikel?',
+  // REPTILIEN
+  'Gecko:Abdomen':     '3J, Leopardgecko, Anorexie, aufgetriebener Bauch, Legenot vs. Parasiten vs. MBD',
+  'Gecko:Extremitäten':'2J, Leopardgecko, Fraktur Tibia, MBD-Verdacht, Demineralisierung?',
+  'Schildkröte:Abdomen':'15J, Griechische Landschildkröte, Legenot, Ei seit 3T retiniert, Kloake geschwollen',
+  'Schildkröte:Thorax':'10J, Rotwangen-Schmuckschildkröte, Dyspnoe, schwimmschief, Pneumonie?',
+  'Schlange:Abdomen':  '5J, Königspython, Anorexie 3M, Schwellung Körpermitte, Tumor vs. Parasiten vs. Obstipation',
+  'Leguan:Abdomen':    '4J, Grüner Leguan, MBD-Verdacht, generalisierte Schwäche, Frakturen möglich',
+  'Bartagame:Abdomen': '3J, Bartagame, Anorexie, Obstipation, Follikelstau? Legenot?',
+  'Bartagame:Extremitäten':'2J, Bartagame, Fraktur HG, MBD, weiche Knochen, Kalziummangel',
+  // GROSSTIERE
+  'Rind:Abdomen':      '4J, Holstein, Milchrückgang, Vagusindiges-V., Pansen-Atonie, Fremdkörper-GIT?',
+  'Rind:Extremitäten': '5J, Fleckvieh, hochgradige Lahmheit HR, Klauenrehe, Koronarbandbruch?',
+  'Schwein:Abdomen':   '6M, Mastschwein, plötzlicher Tod im Bestand, Magenulkus vs. Torsio ventriculi',
+  'Schaf:Thorax':      '3J, Merinoschaf, Husten, Nasenausfluss, CAE-Verdacht, Pneumonie',
+  // LAMA / ALPAKA
+  'Lama:Thorax':       '5J, Alpaka, Husten, Gewichtsverlust, TB-Verdacht, Lungenpathologie',
+  'Lama:Extremitäten': '8J, Lama, Lahmheit VL, Zehenfehlstellung, Arthritis',
+};
+
+function getCtxHint(species, region) {
+  var key = species + ':' + region;
+  if (CTX_HINTS[key]) return CTX_HINTS[key];
+  // Fallback: nur Tierart
+  var fallbacks = Object.keys(CTX_HINTS).filter(function(k){ return k.split(':')[0]===species; });
+  if (fallbacks.length) return CTX_HINTS[fallbacks[0]].replace(fallbacks[0].split(':')[1], region);
+  // Generischer Fallback
+  return 'Alter, Rasse/Typ · Hauptsymptom + Dauer · Verdachtsdiagnose · relevante Vorbefunde/Labor';
+}
+
+function updateCtxPlaceholder() {
+  var el = document.getElementById('ctx');
+  if (!el) return;
+  var hint = getCtxHint(AN.species, AN.region);
+  el.placeholder = 'Klinische Angaben — je mehr, desto besser der Befund:\nz.B. ' + hint;
+}
+
 var ALL_REGIONS = [['Thorax / Lunge','Thorax'],['Abdomen','Abdomen'],['Extremitäten','Extremitäten'],['Wirbelsäule','Wirbelsäule'],['Schädel / Dental','Schädel'],['Becken / Hüfte','Becken'],['Ganzkörper','Ganzkörper'],['Herz','Herz'],['Lunge','Lunge'],['Nieren','Nieren'],['Leber','Leber'],['Milz','Milz'],['Magen','Magen'],['Darm','Darm'],['Blase','Blase'],['Hüfte','Hüfte'],['Knie','Knie'],['Pfote / Fuß','Pfote'],['Schulter','Schulter'],['Ellbogen','Ellbogen'],['Karpus','Karpus'],['Tarsus','Tarsus'],['Rippen','Rippen'],['Sternum','Sternum'],['Nasenhöhle','Nasenhöhle'],['Ohren','Ohren'],['Zähne / Dental','Dental'],['Gelenke','Gelenke']];
 
 // INIT
@@ -811,8 +900,18 @@ function renderAnalyse() {
     + '<div class="uz-text">Vergleichsaufnahme</div>'
     + '</div></div>'
     // Context
-    + '<div><div class="an-lbl">6 · Klinischer Kontext</div>'
-    + '<textarea class="ctx" id="ctx" placeholder="Anamnese, Symptome, Vordiagnosen …"></textarea></div>'
+    + '<div>'
+    + '<div class="an-lbl" style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<span>6 · Klinische Angaben</span>'
+    + '<span style="font-size:10px;font-weight:500;color:var(--blue);background:var(--blue-dim);padding:2px 6px;border-radius:4px;">Je mehr → besserer Befund</span>'
+    + '</div>'
+    + '<textarea class="ctx" id="ctx" placeholder="Klinische Angaben — je mehr, desto besser der Befund:\nz.B. Alter, Rasse · Symptome + Dauer · Verdacht · Vorbefunde"></textarea>'
+    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5;">Rasse · Alter · Symptome · Dauer · Vordiagnose · Laborwerte</div>'
+    + '</div>'
+    + '<div style="margin-top:8px;">'
+    + '<div class="an-lbl">7 · Klinische Frage <span style="font-weight:400;color:var(--text3)">(optional)</span></div>'
+    + '<textarea class="ctx" id="ctx-question" placeholder="Was soll die KI konkret beantworten?\nz.B. Fraktur ausschließen · Metastasen-Suche · Herzgröße beurteilen · Fremdkörper?" style="min-height:50px;"></textarea>'
+    + '</div>'
     // Button
     + '<button class="run-btn" id="run-btn" onclick="runAnalysis()">'
     + '<div class="run-spin"></div><span>Radiologische Analyse starten</span></button>'
@@ -849,6 +948,7 @@ function selectSp(val) {
   var inp=document.getElementById('sp-inp'); if(inp) inp.value=val;
   var ch=document.getElementById('sp-chosen'); if(ch) ch.textContent=val;
   var list=document.getElementById('sp-list'); if(list) list.style.display='none';
+  updateCtxPlaceholder();
 }
 
 // Region search
@@ -861,6 +961,7 @@ function filterRg(q) {
 function setRg(btn, val) {
   document.querySelectorAll('#rg-list .rg-btn').forEach(function(b){ b.classList.remove('on'); });
   btn.classList.add('on'); AN.region=val;
+  updateCtxPlaceholder();
 }
 function setMode(btn, val) {
   document.querySelectorAll('.mode-btn').forEach(function(b){ b.classList.remove('on'); });
@@ -1079,11 +1180,17 @@ function runAnalysis() {
   btn.disabled=true; btn.classList.add('busy');
   showProgressModal();
   var ctx=document.getElementById('ctx');
+  var ctxQ=document.getElementById('ctx-question');
   var focusTxt=document.getElementById('focus-text');
+  // Kombiniere klinische Angaben + klinische Frage zu einem vollständigen Kontext
+  var ctxVal = ctx ? ctx.value.trim() : '';
+  var ctxQVal = ctxQ ? ctxQ.value.trim() : '';
+  var fullContext = ctxVal;
+  if (ctxQVal) fullContext += (fullContext ? '\n\nKlinische Frage: ' : 'Klinische Frage: ') + ctxQVal;
   api('/api/analyse','POST',{
     species:AN.species, region:AN.region, mode:AN.mode,
     pet_name:AN.petName.trim(),
-    context:ctx?ctx.value.trim():'',
+    context:fullContext,
     focus_mode:AN.focusMode,
     focus_text:focusTxt&&AN.focusMode==='specific'?focusTxt.value.trim():'',
     img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:''
