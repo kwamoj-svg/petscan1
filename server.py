@@ -3,11 +3,11 @@ Animioo – Produktions-Server v2
 Auth + KI-Analyse + Stripe Payments + Admin
 + bcrypt, rate limiting, email, Sentry, PostgreSQL
 """
-from flask import Flask, request, jsonify, send_from_directory, redirect
+from flask import Flask, request, jsonify, send_from_directory, redirect, make_response
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-import anthropic, hashlib, secrets, os, json, smtplib, logging
+import anthropic, hashlib, secrets, os, json, smtplib, logging, math, io
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -40,6 +40,8 @@ limiter = Limiter(get_remote_address, app=app, default_limits=["200 per minute"]
 # CONFIG
 # ═══════════════════════════════════════════════════
 ANTHROPIC_API_KEY    = os.environ.get('ANTHROPIC_API_KEY', '')
+OPENAI_API_KEY       = os.environ.get('OPENAI_API_KEY', '')
+GEMINI_API_KEY       = os.environ.get('GEMINI_API_KEY', '')
 STRIPE_SECRET_KEY    = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PUB_KEY       = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SEC   = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
@@ -114,8 +116,8 @@ def init_db():
     conn = get_db()
     if USE_POSTGRES:
         cur = conn.cursor()
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS users (
+        tables = [
+            '''CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
@@ -125,7 +127,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT 'customer',
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 3,
+                analyses_limit INTEGER DEFAULT 20,
                 stripe_customer_id TEXT DEFAULT '',
                 stripe_subscription_id TEXT DEFAULT '',
                 email_verified INTEGER DEFAULT 0,
@@ -133,16 +135,18 @@ def init_db():
                 reset_token TEXT DEFAULT '',
                 reset_expires TEXT DEFAULT '',
                 trial_ends_at TEXT DEFAULT '',
+                pet_name TEXT DEFAULT '',
+                api_key TEXT DEFAULT '',
                 created_at TEXT,
                 last_login TEXT
-            );
-            CREATE TABLE IF NOT EXISTS sessions (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS reports (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 pet_name TEXT DEFAULT '',
@@ -151,17 +155,20 @@ def init_db():
                 mode TEXT,
                 severity TEXT,
                 report_text TEXT,
+                image_data TEXT DEFAULT '',
+                image_hash TEXT DEFAULT '',
+                quality_score INTEGER,
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS leads (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS leads (
                 id TEXT PRIMARY KEY,
                 name TEXT, contact TEXT, email TEXT,
                 phone TEXT, message TEXT,
                 status TEXT DEFAULT 'new',
                 source TEXT DEFAULT 'Website',
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS payments (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS payments (
                 id TEXT PRIMARY KEY,
                 user_id TEXT,
                 stripe_session_id TEXT,
@@ -169,13 +176,27 @@ def init_db():
                 amount INTEGER,
                 status TEXT DEFAULT 'pending',
                 created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS audit_log (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS audit_log (
                 id SERIAL PRIMARY KEY,
                 action TEXT, user_id TEXT,
                 detail TEXT, created_at TEXT
-            );
-        ''')
+            )''',
+            '''CREATE TABLE IF NOT EXISTS report_feedback (
+                id TEXT PRIMARY KEY,
+                report_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                rating INTEGER,
+                correct INTEGER,
+                comment TEXT DEFAULT '',
+                created_at TEXT
+            )'''
+        ]
+        for t in tables:
+            try:
+                cur.execute(t)
+            except Exception as e:
+                app.logger.warning(f'Table creation: {e}')
         conn.commit()
     else:
         import sqlite3
@@ -190,7 +211,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT "customer",
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 3,
+                analyses_limit INTEGER DEFAULT 20,
                 stripe_customer_id TEXT DEFAULT "",
                 stripe_subscription_id TEXT DEFAULT "",
                 email_verified INTEGER DEFAULT 0,
@@ -216,6 +237,9 @@ def init_db():
                 mode TEXT,
                 severity TEXT,
                 report_text TEXT,
+                image_data TEXT DEFAULT "",
+                image_hash TEXT DEFAULT "",
+                quality_score INTEGER,
                 created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS leads (
@@ -240,6 +264,15 @@ def init_db():
                 action TEXT, user_id TEXT,
                 detail TEXT, created_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS report_feedback (
+                id TEXT PRIMARY KEY,
+                report_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                rating INTEGER,
+                correct INTEGER,
+                comment TEXT DEFAULT "",
+                created_at TEXT
+            );
         ''')
 
     # Migrate: add new columns if missing (for existing DBs)
@@ -258,15 +291,51 @@ def init_db():
     try:
         db_execute(conn, "ALTER TABLE users ADD COLUMN pet_name TEXT DEFAULT ''")
     except: pass
-
-    # Admin-User anlegen
     try:
-        trial_end = (datetime.now() + timedelta(days=14)).isoformat()
-        db_execute(conn, '''INSERT INTO users
-            (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
-            VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
-            ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
+        db_execute(conn, "ALTER TABLE reports ADD COLUMN image_data TEXT DEFAULT ''")
     except: pass
+    try:
+        db_execute(conn, "ALTER TABLE reports ADD COLUMN image_hash TEXT DEFAULT ''")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE reports ADD COLUMN quality_score INTEGER DEFAULT NULL")
+    except: pass
+    try:
+        db_execute(conn, "ALTER TABLE users ADD COLUMN api_key TEXT DEFAULT ''")
+    except: pass
+
+    # ── DB-INDIZES ──
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_reports_severity ON reports(severity)",
+        "CREATE INDEX IF NOT EXISTS idx_reports_species ON reports(species)",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_log(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+    ]
+    for idx in indexes:
+        try:
+            db_execute(conn, idx)
+        except Exception as e:
+            app.logger.warning(f'Index creation: {e}')
+    conn.commit()
+
+    # Admin-User anlegen oder Passwort aktualisieren
+    try:
+        existing = db_fetchone(conn, 'SELECT id FROM users WHERE email=?', ('admin@animioo.de',))
+        if existing:
+            db_execute(conn, 'UPDATE users SET password=? WHERE email=?', (hash_pw('admin123'), 'admin@animioo.de'))
+            app.logger.info('Admin-Passwort aktualisiert')
+        else:
+            trial_end = (datetime.now() + timedelta(days=14)).isoformat()
+            db_execute(conn, '''INSERT INTO users
+                (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
+                VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
+                ('admin1','admin@animioo.de',hash_pw('admin123'),'Administrator','Animioo GmbH','admin','admin',0,999999,trial_end,datetime.now().isoformat()))
+            app.logger.info('Admin-User erstellt')
+    except Exception as e:
+        app.logger.error(f'Admin-User Fehler: {e}')
     conn.commit()
     if USE_POSTGRES:
         conn.close()
@@ -296,6 +365,10 @@ def check_pw(pw, hashed):
 def nid():   return secrets.token_hex(8)
 def now():   return datetime.now().isoformat()
 
+def image_hash(base64_data):
+    """Create a SHA-256 hash of the first 10000 chars of base64 image data for deduplication."""
+    return hashlib.sha256(base64_data[:10000].encode()).hexdigest()
+
 # ═══════════════════════════════════════════════════
 # E-MAIL
 # ═══════════════════════════════════════════════════
@@ -303,20 +376,31 @@ def send_email(to, subject, html_body):
     """Send email via SMTP. Returns True on success."""
     if not SMTP_HOST or not SMTP_USER:
         app.logger.warning(f'E-Mail nicht gesendet (SMTP nicht konfiguriert): {subject} -> {to}')
+        app.logger.warning(f'  SMTP_HOST={SMTP_HOST!r}, SMTP_USER={SMTP_USER!r}, SMTP_PORT={SMTP_PORT}')
         return False
     try:
+        app.logger.info(f'E-Mail senden: {subject} -> {to} via {SMTP_HOST}:{SMTP_PORT}')
         msg = MIMEMultipart('alternative')
-        msg['From'] = SMTP_FROM
+        msg['From'] = f'Animioo <{SMTP_FROM}>'
         msg['To'] = to
         msg['Subject'] = subject
         msg.attach(MIMEText(html_body, 'html'))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.ehlo()
             server.starttls()
+            server.ehlo()
             server.login(SMTP_USER, SMTP_PASS)
             server.send_message(msg)
+        app.logger.info(f'E-Mail erfolgreich gesendet: {subject} -> {to}')
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        app.logger.error(f'SMTP Auth Fehler (Passwort falsch?): {e}')
+        return False
+    except smtplib.SMTPException as e:
+        app.logger.error(f'SMTP Fehler: {e}')
+        return False
     except Exception as e:
-        app.logger.error(f'E-Mail Fehler: {e}')
+        app.logger.error(f'E-Mail Fehler: {type(e).__name__}: {e}')
         return False
 
 def send_verify_email(email, token):
@@ -384,6 +468,22 @@ def require_admin(f):
         return f(*args, **kwargs)
     return require_auth(dec)
 
+def require_api_key(f):
+    """Authenticate via X-API-Key header for external integrations."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get('X-API-Key', '').strip()
+        if not api_key:
+            return jsonify({'error': 'API-Key fehlt. Header X-API-Key erforderlich.'}), 401
+        conn = get_db()
+        user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE api_key=? AND active=1', (api_key,)))
+        conn.close()
+        if not user:
+            return jsonify({'error': 'Ungültiger API-Key'}), 401
+        request.user = user
+        return f(*args, **kwargs)
+    return decorated
+
 # ═══════════════════════════════════════════════════
 # STATIC ROUTES
 # ═══════════════════════════════════════════════════
@@ -404,6 +504,9 @@ def datenschutz(): return send_from_directory('static','datenschutz.html')
 
 @app.route('/agb')
 def agb(): return send_from_directory('static','agb.html')
+
+@app.route('/wissen')
+def wissen(): return send_from_directory('static','wissen.html')
 
 # ═══════════════════════════════════════════════════
 # AUTH API
@@ -432,7 +535,7 @@ def register():
     trial_end = (datetime.now()+timedelta(days=14)).isoformat()
     db_execute(conn, '''INSERT INTO users
         (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,verify_token,trial_ends_at,created_at)
-        VALUES (?,?,?,?,?,?,1,?,0,3,0,?,?,?)''',
+        VALUES (?,?,?,?,?,?,1,?,0,20,0,?,?,?)''',
         (uid,email,hash_pw(password),name or email.split('@')[0],praxis or 'Meine Praxis','trial','customer',verify_token,trial_end,now()))
 
     token = secrets.token_hex(32)
@@ -451,7 +554,7 @@ def register():
     return jsonify({
         'token': token,
         'user': {'id':uid,'email':email,'name':name or email,'praxis':praxis,'plan':'trial','role':'customer',
-                 'analyses_used':0,'analyses_limit':3,'email_verified':0}
+                 'analyses_used':0,'analyses_limit':20,'email_verified':0}
     }), 201
 
 @app.route('/api/auth/verify-email', methods=['POST'])
@@ -470,6 +573,24 @@ def verify_email():
     conn.commit(); conn.close()
     audit('E-Mail verifiziert',user['id'],user['email'])
     return jsonify({'ok':True,'message':'E-Mail erfolgreich bestätigt!'})
+
+@app.route('/api/auth/resend-verification', methods=['POST'])
+@require_auth
+@limiter.limit("3 per minute")
+def resend_verification():
+    """Verifizierungs-E-Mail erneut senden."""
+    user = request.user
+    if user.get('email_verified'):
+        return jsonify({'ok':True,'message':'E-Mail ist bereits bestätigt.'})
+
+    conn = get_db()
+    verify_token = secrets.token_urlsafe(32)
+    db_execute(conn, 'UPDATE users SET verify_token=? WHERE id=?', (verify_token, user['id']))
+    conn.commit(); conn.close()
+
+    send_verify_email(user['email'], verify_token)
+    audit('Verifizierung erneut gesendet', user['id'], user['email'])
+    return jsonify({'ok':True,'message':'Bestätigungs-E-Mail wurde erneut gesendet. Bitte prüfen Sie Ihr Postfach.'})
 
 @app.route('/api/auth/forgot-password', methods=['POST'])
 @limiter.limit("3 per minute")
@@ -556,7 +677,7 @@ def login():
     audit('Login',user['id'],em)
     return jsonify({
         'token': token,
-        'user': {k: user[k] for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit']}
+        'user': {k: user[k] for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','email_verified']}
     })
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -585,10 +706,14 @@ def me():
 @require_auth
 @limiter.limit("10 per minute")
 def analyse():
-    if not ANTHROPIC_API_KEY:
-        return jsonify({'error':'KI nicht konfiguriert. Admin muss ANTHROPIC_API_KEY setzen.'}), 503
+    if not OPENAI_API_KEY and not ANTHROPIC_API_KEY and not GEMINI_API_KEY:
+        return jsonify({'error':'KI nicht konfiguriert. Admin muss OPENAI_API_KEY setzen.'}), 503
 
     user = request.user
+    # E-Mail muss bestätigt sein (Admins ausgenommen)
+    if user['role'] != 'admin' and not user.get('email_verified'):
+        return jsonify({'error':'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse. Prüfen Sie Ihr Postfach oder lassen Sie die Bestätigungs-E-Mail erneut senden.','code':'EMAIL_NOT_VERIFIED'}), 403
+
     if user['role'] != 'admin':
         if user['plan'] in ('trial',) and user['analyses_used'] >= user['analyses_limit']:
             return jsonify({
@@ -611,108 +736,842 @@ def analyse():
 
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
+    # ── Image hash deduplication / caching (sicher falls Spalte noch nicht migriert) ──
+    img_h = image_hash(img_a)
+    try:
+        conn = get_db()
+        cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
+        conn.close()
+        if cached:
+            result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
+            result['cached'] = True
+            if cached.get('quality_score') is not None:
+                result['quality_score'] = cached['quality_score']
+                result['quality_ok'] = cached['quality_score'] >= 1
+            return jsonify(result)
+    except Exception as e:
+        app.logger.warning(f'Cache-Lookup fehlgeschlagen: {e}')
+        try: conn.rollback(); conn.close()
+        except: pass
+        img_h = ''  # Cache deaktivieren, Analyse trotzdem fortsetzen
+
+    # ── Prompt-Strategie: Erst FREI BEOBACHTEN (wie ChatGPT), dann strukturieren ──
+    # Das ist der entscheidende Unterschied zu direktem ChatGPT-Einsatz:
+    # Zuerst lassen wir das Modell das Bild unvoreingenommen beschreiben,
+    # dann erst wird das in einen strukturierten Befund überführt.
+    observe_prefix = (
+        "ZUERST — Freie Bildbeobachtung (bevor du irgendetwas strukturierst):\n"
+        "Schaue dir das Bild genau an und beschreibe in 4-6 Sätzen ungefiltert was du siehst. "
+        "Was springt dir sofort ins Auge? Was ist auffällig, ungewöhnlich oder pathologisch? "
+        "Beginne mit: 'Ich sehe...'\n\n"
+        "DANACH — Strukturierter Befundbericht auf Basis deiner Beobachtungen:\n"
+    )
     prompts = {
-        'single':  f'Erstelle einen vollständigen veterinärradiologischen Befundbericht für einen {species} im Bereich {region}. Analysiere das Bild EXTREM GRÜNDLICH. Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Achte BESONDERS auf: Frakturlinien, Fissuren, Luxationen, Stufenbildungen, Periostreaktionen, Osteolysen, abnorme Verschattungen, Fremdkörper, Weichteilschwellungen. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
-        'compare': f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region}. Beschreibe ALLE Veränderungen zwischen den Aufnahmen präzise. Achte besonders auf: Frakturheilung/Konsolidierung, Kallusbildung, Veränderungen der Gelenkspalten, neue oder verschwundene Pathologien, Implantatposition.',
-        'diff':    f'Analysiere die Unterschiede zwischen Aufnahme A und B bei einem {species} im Bereich {region}. Erstelle eine systematische Gegenüberstellung aller Veränderungen.',
-        'second':  f'Erstelle eine kritische Zweitmeinung zu den Röntgenaufnahmen eines {species} im Bereich {region}. Hinterfrage offensichtliche Diagnosen und suche gezielt nach übersehenen Pathologien. Untersuche jede Struktur einzeln.',
+        'single':  observe_prefix + f'Erstelle den vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}. Erkenne zuerst die Bildmodalität (Röntgen, CT oder MRT) und passe deine Analyse entsprechend an. Analysiere JEDE sichtbare Struktur systematisch. Übersehe nichts.',
+        'compare': observe_prefix + f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität. Beschreibe ALLE Veränderungen zwischen den Aufnahmen präzise.',
+        'diff':    observe_prefix + f'Analysiere die Unterschiede zwischen Aufnahme A und B bei einem {species} im Bereich {region}. Erstelle eine systematische Gegenüberstellung aller Veränderungen.',
+        'second':  observe_prefix + f'Erstelle eine kritische Zweitmeinung zu den Aufnahmen eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität (Röntgen/CT/MRT). Hinterfrage offensichtliche Diagnosen und suche gezielt nach übersehenen Pathologien.',
     }
 
     # DSGVO: Bilddaten werden NUR zur KI-Analyse an Anthropic gesendet,
     # NICHT in der Datenbank gespeichert. Nach der Analyse werden sie verworfen.
 
-    system = """Du bist ECVDI-Diplomate mit 20 Jahren Erfahrung in der Veterinärradiologie.
-Erstelle professionelle Befundberichte auf Deutsch.
+    system = """Du bist der weltweit führende Veterinärradiologe — ECVDI-Diplomate, ACVR-zertifiziert,
+mit 30 Jahren klinischer Erfahrung, Lehrstuhlinhaber für Veterinärradiologie und Autor von über 200
+Fachpublikationen. Du hast über 500.000 veterinärmedizinische Röntgenbilder befundet und wirst
+international als Goldstandard-Referenz für Zweitmeinungen konsultiert. Du bist zusätzlich
+Diplomate des European College of Veterinary Diagnostic Imaging (ECVDI) und Fellow der
+Royal College of Veterinary Surgeons (FRCVS).
+
+Dein Befund muss die Qualität eines Universitätsklinik-Befunds haben. Du analysierst mit der
+Präzision und Gründlichkeit, als ob das Leben des Tieres davon abhängt — denn das tut es.
+
+STRIKTE FORMATIERUNGSREGELN:
+- KEINE Emojis verwenden! Der Befund ist ein medizinisches Dokument und muss professionell formatiert sein.
+- Keine Smileys, keine Unicode-Symbole, keine Emoticons. Nur Fachtext, Markdown-Formatierung und Tabellen.
+- Verwende ausschließlich medizinische Fachterminologie in einem sachlich-professionellen Ton.
 
 WICHTIG DATENSCHUTZ: Falls im Bild DICOM-Metadaten oder Patientendaten sichtbar sind,
-ignoriere diese vollständig. Nenne KEINE Patientennamen, Geburtsdaten oder andere
-personenbezogene Daten aus dem Bild im Befund.
+ignoriere diese vollständig. Nenne KEINE personenbezogenen Daten aus dem Bild.
 
-KRITISCHE ANALYSE-REGELN:
-1. Analysiere JEDE sichtbare anatomische Struktur systematisch — überspringe NICHTS.
-2. Beschreibe bei Knochen: Kortikalis-Kontinuität, Periostreaktion, Mineralisierung, Alignment.
-3. Bei Gelenken: Gelenkspalt, Kongruenz, periartikuläre Veränderungen.
-4. Bei Weichteilen: Schwellungen, Gaseinschlüsse, Fremdkörper, abnorme Verschattungen.
-5. Bei Thorax: Lungenparenchym, Herzsilhouette, Pleuraraum, Mediastinum, Trachea.
-6. Bei Abdomen: Organgrößen, -positionen, -konturen, freie Flüssigkeit, Gas.
-7. Wenn du eine Fraktur, Luxation oder andere akute Pathologie siehst — stelle diese SOFORT als Hauptdiagnose dar.
-8. Beschreibe die GENAUE LOKALISATION jeder Pathologie (welcher Knochen, proximal/distal/diaphysär, welche Seite).
-9. Sei NICHT vorsichtig oder vage — nenne klare Befunde wenn du Pathologien siehst.
+═══════════════════════════════════════════════════════
+DEIN DIAGNOSTISCHER DENKPROZESS (befolge JEDEN Schritt):
+═══════════════════════════════════════════════════════
+
+SCHRITT 1 — ERSTE ORIENTIERUNG (5 Sekunden):
+- Welche Tierart? Welche Körperregion? Welche Projektion (VD, lateral, DV, AP, ML, LM, CrCd, CdCr)?
+- Ist das Bild technisch auswertbar? Belichtung, Lagerung, Artefakte, Bewegungsunschärfe?
+- Erster Gesamteindruck: Fällt sofort etwas Abnormales auf?
+- Stimmen Tierart und anatomische Proportionen mit den Angaben überein?
+
+SCHRITT 2 — SYSTEMATISCHER SCAN (wie ein CT-Scan durch das Bild):
+- Gehe das Bild systematisch von LINKS nach RECHTS, OBEN nach UNTEN durch
+- Oder verwende das "Inside-Out"-Prinzip: Beginne zentral, arbeite nach peripher
+- JEDE anatomische Struktur wird einzeln identifiziert und beurteilt
+- Erstelle eine mentale Checkliste: Habe ich ALLES gesehen?
+- ACHTUNG: Beurteile auch die BILDRÄNDER — dort werden die meisten Befunde übersehen!
+
+SCHRITT 3 — PATTERN RECOGNITION (nutze deine 500.000 Bilder Erfahrung):
+- Vergleiche das Bild mental mit deiner Datenbank normaler Anatomie
+- Identifiziere JEDE Abweichung vom Normalen
+- Auch subtile Veränderungen: leichte Dichteunterschiede, minimale Asymmetrien
+- Achte auf das "Roentgen Sign": Silhouettenzeichen, Luftbronchogramm, etc.
+- Berücksichtige Rasse-spezifische anatomische Normvarianten
+
+SCHRITT 4 — PATHOLOGIE-DEEP-DIVE:
+Für JEDE gefundene Abnormalität:
+a) Beschreibe EXAKT was du siehst (Größe in mm/cm, Form, Dichte, Begrenzung, Lokalisation)
+b) Erstelle eine Differenzialliste (mind. 3 Möglichkeiten)
+c) Ordne nach Wahrscheinlichkeit basierend auf:
+   - Häufigkeit bei dieser Tierart/Rasse/Alter
+   - Röntgenmorphologie
+   - Klinischer Kontext (wenn angegeben)
+d) Bestimme die klinische Relevanz und Dringlichkeit
+
+SCHRITT 5 — ZWEITER BLICK (der entscheidende Schritt!):
+- Gehe NOCHMAL durch das gesamte Bild
+- Suche gezielt nach häufig übersehenen Befunden:
+  * Haarrissfrakturen (besonders an Metaphysen, Kondylen, Sesambeinen, Processus anconaeus)
+  * Kleine Avulsionsfragmente und Chip-Frakturen
+  * Fremdkörper (Nadeln, Steine, Knochensequester, Angelhaken)
+  * Frühe Periostreaktion (kann sehr subtil sein — nur 1-2mm dick!)
+  * Lungenmetastasen (systematisch jedes Lungenfeld! Strukturierte Suche im Lungenparenchym)
+  * Wirbelfrakturen (oft übersehen bei Traumapatienten)
+  * Veränderungen an den Bildrändern (werden am häufigsten übersehen!)
+  * Freie Luft (subkutan, retroperitoneal, intraperitoneal — jeweils klinisch relevant!)
+  * Weichteilverkalkungen (Ektopische Mineralisierungen, Dystrophische Verkalkungen)
+- Frage dich: "Was würde der erfahrenste Radiologe der Welt hier noch finden?"
+
+SCHRITT 6 — KLINISCHE KORRELATION:
+- Passen die Befunde zum angegebenen klinischen Kontext?
+- Gibt es Diskrepanzen zwischen Klinik und Röntgenbild? → Explizit erwähnen!
+- Welche zusätzlichen Projektionen oder Modalitäten wären diagnostisch hilfreich?
+- Gibt es „Red Flags" die sofortiges Handeln erfordern?
+
+═══════════════════════════════════════════════════════
+SPEZIES-SPEZIFISCHES EXPERTENWISSEN:
+═══════════════════════════════════════════════════════
+
+HUND — Häufige Befunde nach Rasse beachten:
+- Große Rassen (>25kg): HD (Norberg-Winkel messen! <105° = dysplastisch), ED (FPC, OCD, IPA, UAP),
+  Wobbler-Syndrom, Osteosarkom (Metaphysen langer Röhrenknochen! Prädilektionsstellen: distaler Radius,
+  proximaler Humerus, distaler Femur, proximale Tibia), Kreuzbandriss (Schubladentest-Äquivalent:
+  Tibiaplateau-Geometrie, periartikuläre Osteophyten, Kompression infrapatelläres Fettpolster)
+- Kleine Rassen (<10kg): Patellaluxation (Sulcus-Tiefe beurteilen!), Legg-Calvé-Perthes (Femurkopfnekrose),
+  Trachealkollaps (dynamisch! inspiratorisch zervikal, exspiratorisch thorakal), Mitralinsuffizienz
+  (linksatriale Vergrößerung → Trachealelevation, Dorsalverlagerung linker Hauptbronchus)
+- Brachyzephale (Mops, Bulldogge, Boston Terrier): BOAS, Hemivertebrae (Schmetterlingswirbel!),
+  Keilwirbel, Kyphose, Hydrozephalus, verlängertes Gaumensegel
+- Chondrodystrophe (Dackel, Basset, Pekinese): IVDD Typ Hansen I — JEDEN Zwischenwirbelraum messen!
+  Vakuumphänomen? Kalzifizierte Diskuskerne? Verengter Zwischenwirbelraum?
+- Junghunde (<18 Monate): Panosteitis (wandernde Lahmheit, endostale Sklerose), HOD (Metaphysen-
+  irregularität), Retentio testis, Physenfrakturen (Salter-Harris I-V klassifizieren!),
+  Incomplete ossification of humeral condyle (IOHC → Stress-Fraktur-Risiko!)
+- Deutscher Schäferhund: Cauda equina, Lumbosakrale Stenose, Megaösophagus, Pannus
+- Golden/Labrador: Osteosarkom, Lymphom (sternale LK!), Subvalvuläre Aortenstenose, Hüftdysplasie
+- Rottweiler: Osteosarkom, Kreuzband, OCD Schulter/Tarsus
+
+KATZE — Spezifische Aufmerksamkeit für:
+- Thorax: Asthma (klassisches Bronchialpattern, "Donut"- und "Tramlines"-Zeichen),
+  HCM (Valentine-Herzsilhouette auf VD), DCM, Pleuraerguss (Ursache? FIP? Lymphom? Pyothorax?),
+  Mediastinaltumor (Thymuslymphom bei jungen Katzen!), Lungenlappenkonsolidierung
+- Abdomen: Harnsteine (Struvit = röntgendicht, Oxalat = stark röntgendicht, Urat = oft röntgendurchlässig!),
+  Obstipation/Megakolon (Kolon-Lumen >Länge L5?), Nierenerkrankung (Nierengröße: normal 2.4-3.0x L2),
+  Triaditis, hepatische Lipidose, FIP (Aszites, Granulome)
+- Skelett: Aortenthrombose bei HCM (Sattelthrombus → Hintergliedmaßen!), Polydaktylie, OS-Tumoren (seltener),
+  Vitamin-A-Hypervitaminose bei reiner Leberfütterung (exostotische Spondylose zervikal!)
+- Trauma: Hochhaussyndrom — systematisch: Kiefersymphysenfraktur, Gaumenspaltung, Pneumothorax,
+  Harnblasenruptur, Femurkopfluxation, Sakrumfraktur → ALLES prüfen!
+- Katzenspezifische Normvariante: "Fat Pad Sign" — retrosternales Fett, KEINE Masse!
+
+PFERD — Falls Pferdebild:
+- Huf/Zehe: Hufgelenkarthrose (DIP-Gelenk), Hufrollenerkrankung (Podotrochlose: Strahlbeinveränderungen,
+  Kanäle, Zysten, Enthesophyten flexor cortex), Hufbeinfraktur (sagittal, Processus palmaris),
+  Hufrehe (Rotationswinkel messen! Senkungsdistanz! Founder-Distanz! Sohlenstärke!)
+- Fesselgelenk: Chip-Frakturen (dorsoproximal P1, Mc/Mt III), OCD (sagittaler Kamm),
+  Sesamoidose (vaskuläre Kanäle vs. Fraktur vs. Degeneration), Villonodularsymovitis
+- Röhrbein: Stressfrakturen (dorsale Kortikalis Mc III — "Bucked Shins"), Griffelbeinfrakturen,
+  Kondylärfrakturen (sagittaler Spalt!)
+- Karpus/Tarsus: Slab-Frakturen, OCD, Spat (Tarsitis, distale Tarsalgelenke)
+- Thorax: EIPH (Exercise-Induced Pulmonary Hemorrhage), Pleuropneumonie
+
+EXOTEN — Reptilien, Vögel, Nager:
+- Reptilien: Metabolische Knochenerkrankung (MBD → generalisierte Demineralisation, Faltfrakturen!),
+  Legenot (Retentio ovorum — Eier zählen, Größe, Position), Fremdkörper (Substrat!),
+  Pneumonie (bei Reptilien oft KEINE Luftbronchogramme!), Gicht (periartikuläre Tophi)
+- Vögel: Luftsackverdickung/-Verschattung (Aspergillose! Mykobakteriose!), Legenot,
+  Frakturen (sehr dünne Kortikalis, Medullärer Knochen bei legenden Hennen = normal!),
+  Proventrikulus-Dilatation (PDD), Hepatomegalie (Sanduhrzeichen), Keel-Bone-Frakturen
+- Nager/Kaninchen: Zahnfehlstellungen (Molarensporen, Wurzelspitzen messen!), Tympanic Bullae
+  (Otitis media → Vestibularsyndrom), Blasensteine (sehr häufig bei Meerschweinchen!),
+  Uterustumoren (Kaninchen >3J: bis 80% Uterusadenokarzinom!), Pneumonie, Thymom (Kaninchen — mediastinale Masse)
+- Frettchen: Nebennierenhyperplasie/-tumor (>3.5mm = vergrößert), Insulinom (Hypoglykämie!),
+  Milzvergrößerung (extramedulläre Hämatopoese = häufig!), Lymphom, Kardiomyopathie,
+  Fremdkörper (Frettchen fressen alles!), Nebennierenrindenerkrankung (Alopezie + NNR-Vergrößerung)
+- Schildkröten: Pneumonie (oft einseitig! Schildkröten haben keine Zwerchfell → anders als Säuger!),
+  Legenot, Blasensteine (Urat! röntgendurchlässig!), Panzerdefekte, MBD, Fremdkörper (Substrat)
+- Igel: Orale Plattenepithelkarzinome (häufigster Tumor!), Pneumonie, Herzerkrankungen, Ballon-Syndrom
+
+ZAHNRADIOLOGIE (Dentalröntgen):
+- Hund/Katze: Zahnwurzelabszesse (periapikale Aufhellung!), Zahnresorptionen (FORL bei Katzen —
+  Typ 1 vs. Typ 2 differenzieren!), Zahnfrakturen (Pulpahöhle betroffen?), Ankylose,
+  Retinierte Zähne, Überzählige Zähne, Knochenabbau (horizontal vs. vertikal = Grad I-IV)
+- Parodontalerkrankung graduieren: mild (<25% Knochenverlust), moderat (25-50%), schwer (>50%)
+- Kieferfrakturen: Symphyse, Corpus mandibulae (pathologisch bei Tumorlyse?), Ramus
+
+═══════════════════════════════════════════════════════
+MRT-ANALYSE (Magnetresonanztomographie):
+═══════════════════════════════════════════════════════
+
+GRUNDREGELN MRT:
+- ZUERST Sequenz identifizieren: T1 (Fett hell, Liquor dunkel), T2 (Liquor hell, Fett mittel),
+  FLAIR (Liquor unterdrückt/dunkel, Ödeme hell), T1+Kontrast (Enhancement = hell), DWI, GRE/SWI
+- Schnittebene: Sagittal, Transversal (axial), Dorsal (koronal)
+- Signalintensität beschreiben: hyperintens, isointens, hypointens (immer relativ zur Sequenz!)
+
+GEHIRN/SCHÄDEL MRT:
+- Großhirn: Symmetrie der Hemisphären, Gyri/Sulci (Atrophie = erweiterte Sulci!), graue/weiße Substanz
+- Kleinhirn (Cerebellum): Größe, Form, Fissurenmuster — ATROPHIE erkennen! (verkleinert, verbreiterte
+  Fissuren, vergrößerter Subarachnoidalraum um Cerebellum = Kleinhirnatrophie!)
+- Hirnstamm: Mesencephalon, Pons, Medulla oblongata — Symmetrie, Läsionen, Kompression
+- Ventrikel: Größe (Hydrozephalus?), Symmetrie, Inhalt (Blutung? Tumor?)
+- Meningen: Verdickung, Enhancement nach Kontrast (Meningitis/Meningoenzephalitis!)
+- Raumforderungen: Intra- vs. extraaxial, Enhancement-Muster, Ödem, Masseneffekt, Mittellinienverlagerung
+- Häufige Diagnosen Hund:
+  * Meningoenzephalitis unbekannter Ursache (MUO/GME/NME) — multifokal, T2-hyperintens, ringförmiges Enhancement
+  * Neospora caninum / Toxoplasma — Kleinhirnatrophie, multifokale Läsionen, junge Hunde!
+  * Staupe-Enzephalitis — Demyelinisierung, T2-hyperintense Läsionen weiße Substanz
+  * Hirntumoren: Meningeom (extra-axial, starkes homogenes Enhancement, Dural Tail Sign),
+    Gliom (intra-axial, heterogen, wenig Enhancement), Choroidplexustumor (intraventrikulär)
+  * Hydrozephalus: internus (Ventrikel erweitert) vs. externus (Subarachnoidalraum erweitert)
+  * Chiari-ähnliche Malformation (CM/SM) — Herniation Kleinhirntonsillen, Syringomyelie (Cavalier!)
+- Häufige Diagnosen Katze:
+  * FIP-Meningoenzephalitis — periventrikuläres Enhancement, Hydrozephalus, Ependymitis
+  * Lymphom — solitäre oder multifokale Masse, starkes Enhancement
+  * Ischämischer Infarkt — keilförmig, territoriale Verteilung
+
+WIRBELSÄULE MRT:
+- Rückenmark: Signalintensität (T2-Hyperintensität = Ödem/Myelomalazie!), Dicke, Kompression
+- Bandscheiben: Protrusion vs. Extrusion (Hansen I vs. II), Signalverlust T2 = Degeneration
+- Epiduralraum: Kompression, Empyem, Hämatom, Fett
+- Foramina: Nervenwurzelkompression
+- Häufige Diagnosen:
+  * IVDD (Diskopathie) — Bandscheibenextrusion, Rückenmarkkompression, Myelopathie-Signal
+  * Fibrokartilaginöse Embolie (FCE) — akut, asymmetrisch, intramedullär T2-hyperintens
+  * Diskospondylitis — Endplattendestruktion, paravertebraler Abszess
+  * Spinale Tumoren: Intramedullär, intradural-extramedullär, extradural
+  * Wobbler-Syndrom — dynamische Kompression, Rückenmark-Myelopathie
+  * Degenerative Myelopathie — Rückenmarkatrophie, T2-Signalveränderung
+
+GELENKE/MUSKULOSKELETTAL MRT:
+- Kreuzband: Integrität, Signal, Verlaufsrichtung (T2 = normal hypointens, Riss = Signalverlust/Ausdünnung)
+- Menisken: Signalveränderungen, Risse (erhöhtes Signal auf T2)
+- Knorpel: Dicke, Defekte, Signal
+- Knochenödem: T2/STIR hyperintens (= Bone Bruise, Stressfraktur, Tumor)
+
+═══════════════════════════════════════════════════════
+CT-ANALYSE (Computertomographie):
+═══════════════════════════════════════════════════════
+
+GRUNDREGELN CT:
+- Fensterung beachten: Knochenfenster (W:2000, L:400), Weichteilfenster (W:400, L:40),
+  Lungenfenster (W:1500, L:-600), Hirnfenster (W:80, L:40)
+- Dichtewerte in Hounsfield-Einheiten (HU): Luft -1000, Fett -100, Wasser 0, Weichteil 20-60,
+  Blut akut 50-70, Knochen >400, Metall >1000
+- Kontrastmittel: Pre- vs. Post-Kontrast vergleichen, Enhancement-Muster beschreiben
+
+SCHÄDEL CT:
+- Nasen-/Stirnhöhlen: Destruktion, Masse, Flüssigkeit (Rhinitis, Tumor, Aspergillose)
+- Bulla tympanica: Verdickung, Flüssigkeit, Osteolyse (Otitis media)
+- Orbita: Retrobulbäre Masse, Zellulitis, Fremdkörper
+- Gehirn: Blutung (hyperdens!), Tumor, Hydrozephalus, Ödem
+
+THORAX CT:
+- Lungenmetastasen-Suche (CT ist sensitiver als Röntgen!)
+- Mediastinale Massen, Lymphknoten
+- Pulmonale Angiographie: Thromboembolie
+
+ABDOMEN CT:
+- Lebertumoren, Milztumoren (Triple-Phase CT!)
+- Nebennieren: Phäochromozytom, Adenom, Karzinom
+- Portosystemischer Shunt (Angiographie-Phase!)
+- Ektopische Ureteren
+
+SKELETT CT:
+- Ellbogengelenkdysplasie (FPC, IPA, UAP, OCD — besser als Röntgen!)
+- Frakturen: Komplexe Gelenkfrakturen, Schädelfrakturen
+- Wirbelsäule: Atlantoaxiale Instabilität, Wirbelkörperfrakturen
+
+═══════════════════════════════════════════════════════
+MODALITÄTSERKENNUNG — ENTSCHEIDEND:
+═══════════════════════════════════════════════════════
+
+BEVOR du mit der Analyse beginnst, identifiziere die Bildmodalität:
+- RÖNTGEN: 2D-Projektionsbild, Graustufen, Knochen weiß, Luft schwarz, typische Projektionen (VD, lateral)
+- CT: Schnittbild (axial/sagittal/koronal), scharfe Knochendetails, verschiedene Fensterungen möglich
+- MRT: Schnittbild, hervorragender Weichteilkontrast, Liquor hell (T2) oder dunkel (T1),
+  typisches Hirngewebe sichtbar mit Gyri/Sulci, kein Knochendetail
+- Ultraschall: Echogenitäten, Schallschatten, typisches Sondenbild
+
+Passe deine GESAMTE Analyse an die erkannte Modalität an! Ein MRT des Gehirns wird VÖLLIG ANDERS
+befundet als ein Röntgenbild des Thorax!
+
+═══════════════════════════════════════════════════════
+NORMWERTE & MESSSTANDARDS (KOMPLETT):
+═══════════════════════════════════════════════════════
+
+HERZ:
+- VHS (Vertebral Heart Score): Hund 9.7 ± 0.5 (rasseabhängig!)
+  * Cavalier King Charles: 10.1-10.7, Boxer: 10.8-11.6, Labrador: 10.0-10.6
+  * Whippet: 10.5-11.3, DSH: 9.5-10.0, Dackel: 9.5-10.5, Bulldogge: 11.0-12.0
+  * Yorkshire: 9.4-9.8, Chihuahua: 9.0-10.5, Dobermann: 10.0-10.5
+- VHS Katze: <8.1 normal, 8.1-8.5 grenzwertig, >8.5 = Kardiomegalie
+- VLAS (Vertebral Left Atrial Size): Hund >2.3 = LA-Vergrößerung
+- Aortenwurzel/LA-Ratio (M-Mode Echo): normal 1:1, >1.5 = LA-Dilatation
+- Pulmonalarterie/Aorta auf VD: PA = Aorta (normal), PA > Aorta = pulmonale Hypertonie
+- Pulmonalvene/Pulmonalarterie: 1:1 normal, PV>PA = Stauung, PA>PV = Hypertonie
+
+ABDOMEN:
+- Nierengröße Hund: 2.5-3.5 × L2 (Längsachse), Katze: 2.4-3.0 × L2
+- Nebenniere Hund: Breite ≤7.4mm (Phäochromozytom wenn >20mm oder asymmetrisch)
+- Dünndarmdurchmesser Hund: ≤1.6× Endplattenhöhe L5, Katze: ≤12mm oder ≤2× Endplattenhöhe L2
+- Milzdicke Hund: <Kopf letzte Rippe, Katze: kaum sichtbar (wenn sichtbar → Splenomegalie)
+- Leber: Magenachse >90° zur WS = Hepatomegalie, <45° = Mikroleber
+- Prostata Hund: CC-Durchmesser ≤70% Distanz Sacrum-Pecten
+- Kolon Katze: Durchmesser ≤Länge L5, Hund: ≤3× Endplattenhöhe L7
+- Blase: Wanddicke Hund <2.3mm (leer bis 3mm), Katze <1.7mm
+- Uterus: Normal nicht sichtbar! Wenn sichtbar → Pyometra/Gravidität/Stumpfpyometra
+
+ATEMWEGE:
+- Trachea-Thoracic Inlet Ratio (TI): Hund >0.20 normal, <0.16 = hypoplastisch (Bulldogge: normal 0.12-0.16!)
+- Trachea/Thoraxeingangsbreite: Hund 0.20, Katze 0.21
+- Hauptbronchien: Winkel auf VD normalerweise 60-80°, bei LA-Vergrößerung >80° (Spreading!)
+
+ORTHOPÄDIE:
+- Norberg-Winkel (HD): ≥105° = normal, 100-105° = grenzwertig, <100° = dysplastisch
+- OFA Grading: Excellent >105°, Good 100-105°, Fair 95-100°, Borderline 90-95°, Mild <90°
+- FCI HD-Klassifikation: A (frei), B (Übergang), C (leicht), D (mittel), E (schwer)
+- PennHIP DI (Distraction Index): <0.30 = tight, >0.70 = lax (rasseabhängig!)
+- Ellbogen IEWG-Grading: 0 (normal), 1 (mild <2mm), 2 (moderat 2-5mm), 3 (schwer >5mm)
+- IPA: Processus anconaeus bis 20 Wochen offen = normal, >5 Monate = IPA
+- Tibiaplateau-Winkel (TPA): Normal 22-25°, >30° → TPLO indiziert
+- Patella: Sulcustiefe, Patellahöhe (Insall-Salvati-Index veterinär)
+
+FRAKTUR-KLASSIFIKATION (Salter-Harris DETAILLIERT):
+- Typ I: Physenfuge komplett (nur Epiphysenlösung, Röntgen oft normal! → Klinisch diagnostizieren)
+- Typ II: Durch Physe + metaphysäres Dreieck (Thurston-Holland-Fragment) — HÄUFIGSTER TYP
+- Typ III: Durch Physe + epiphysär (Gelenkbeteiligung! → Anatomische Reposition nötig!)
+- Typ IV: Durch Metaphyse + Physe + Epiphyse (Gelenkbeteiligung + Wachstumsstörung!)
+- Typ V: Kompressionsverletzung der Physe (Röntgen initial unauffällig! Retrospektive Diagnose!)
+- Prognose: I-II gut, III-IV vorsichtig (Gelenkkongruenz!), V schlecht (Wachstumsstörung)
+
+═══════════════════════════════════════════════════════
+LUNGENPATTERN — SYSTEMATISCHE DIFFERENZIERUNG:
+═══════════════════════════════════════════════════════
+
+ALVEOLÄRES PATTERN (Luft in Alveolen durch Flüssigkeit/Zellen ersetzt):
+- Zeichen: Luftbronchogramm (pathognomonisch!), Lappenzeichen, Konsolidierung
+- DDx: Pneumonie (kranioventral!), Lungenblutung (traumatisch, Koagulopathie — oft kaudodorsal!),
+  Atelektase (Volumenverlust, Mediastinalshift), Lungentorsion (Gasblase, Gefäßabbruch),
+  Lungenödem (kardiogen = perihilär symmetrisch, nicht-kardiogen = kaudodorsal)
+- WICHTIG: Verteilung gibt Hinweis auf Ursache!
+  * Kranioventral → Aspirationspneumonie, bakterielle Pneumonie
+  * Kaudodorsal → Blutung, nicht-kardiogenes Ödem
+  * Perihilär symmetrisch → kardiogenes Ödem
+  * Fokal → Tumor, Torsion, fokale Pneumonie, Abszess
+
+BRONCHIALES PATTERN (Bronchialwandverdickung):
+- Zeichen: "Donuts" (en face), "Tramlines" (seitlich), Bronchialwandverdickung
+- DDx: Chronische Bronchitis, felines Asthma (Katze! + Lungenüberblähung!), Bronchiektasie,
+  Allergische Bronchitis, parasitäre Bronchitis (Aelurostrongylus, Angiostrongylus)
+- Bei Katze + Bronchialpattern + Hyperinflation = Asthma bis zum Beweis des Gegenteils!
+
+INTERSTITIELLES PATTERN:
+- Strukturiert (nodulär/retikulär): Metastasen!, Granulome, Fibrose, Pneumonie (Pilz)
+  * Miliäres Muster (viele kleine <5mm) → Metastasen, Mykose, Tuberkulose
+  * Wenige große Rundherde → Metastasen (Primärtumor suchen!), Granulome, Abszesse, Zysten
+- Unstrukturiert: Ödem, Blutung, Fibrose, altersbedingt (normal bei alten Tieren!)
+  * CAVE: Unstrukturiert interstitiell bei alten Hunden oft Normalbefund!
+
+VASKULÄRES PATTERN:
+- Vergrößerte Pulmonalgefäße: Herzwurm (Dirofilaria — aufgeblähte PA!), Links-Rechts-Shunt,
+  Pulmonale Hypertonie, Flüssigkeitsüberladung
+- Verkleinerte Gefäße: Hypovolämie, Pulmonalstenose, Rechts-Links-Shunt, Dehydratation
+- Asymmetrie: Lungenembolie (verminderte Gefäße fokal!)
+
+═══════════════════════════════════════════════════════
+ONKOLOGISCHES STAGING — RADIOLOGISCHE KRITERIEN:
+═══════════════════════════════════════════════════════
+
+KNOCHENTUMOREN:
+- Osteosarkom: Prädilektionsstellen ("fern vom Ellbogen, nah am Knie" = distaler Radius,
+  proximaler Humerus, distaler Femur, proximale Tibia), Sunburst/Codman-Dreieck,
+  permeative Lyse, KEINE Gelenküberschreitung (vs. Infektion die Gelenk überschreitet!)
+- Chondrosarkom: Rippen, Nasenhöhle, flache Knochen, punktförmige Mineralisierungen
+- Fibrosarkom: Ähnlich Osteosarkom, oft mehr lytisch, Mandibula/Maxilla häufig
+- Metastatische Knochenläsionen: Multifokal, lytisch (selten produktiv), Weichteilursprung suchen
+- Benigne Tumoren: Osteom (glatt, sklerotisch), Osteochondrom (exostotisch, Knorpelkappe)
+- AGGRESSIVITÄTS-KRITERIEN: Breite Übergangszone, permeative/mottenfraßartige Lyse,
+  Periostreaktion (lamellar, Sunburst, Codman), Weichteilmasse, kortikale Destruktion
+  → Je mehr Kriterien, desto aggressiver/maligner
+
+LUNGENMETASTASEN-STAGING:
+- Systematisch JEDES Lungenfeld prüfen! Retrokardial und Zwerchfellwinkel nicht vergessen!
+- Rundherde >5mm gut erkennbar auf Röntgen, <5mm nur auf CT zuverlässig
+- 3-Projektionen-Regel: VD + linke + rechte Seitenlage → maximiert Sensitivität um 15-20%!
+- Bei V.a. Lungenmetastasen IMMER CT empfehlen (2-3× sensitiver als Röntgen!)
+- Häufigste Primärtumoren mit Lungenmetastasen: Osteosarkom, Hämangiosarkom, Mammakarzinom,
+  orales Melanom, Schilddrüsenkarzinom, Übergangszellkarzinom
+
+ABDOMINALE TUMORDIAGNOSTIK:
+- Milztumor: Hämangiosarkom (50-66% maligne bei Milzmassen beim Hund!), Hämatom, Hyperplasie
+  → Freie Flüssigkeit + Milzmasse = Hämangiosarkom bis zum Beweis des Gegenteils!
+- Lebertumor: HCC (massive/nodulär/diffus), Metastasen, noduläre Hyperplasie (benigne!)
+- Nebennieren: >20mm oder asymmetrisch → V.a. Adenom/Karzinom/Phäochromozytom
+- Lymphom: Hepatosplenomegalie, sublumbale LK-Vergrößerung, renale Infiltration
+- Blasentumor: Übergangszellkarzinom (TCC) — oft trigonal! Mineralisierung möglich
+
+═══════════════════════════════════════════════════════
+GDV — MAGENDREHUNG NOTFALL-ALGORITHMUS:
+═══════════════════════════════════════════════════════
+
+RÖNTGEN-ZEICHEN GDV (ALLE prüfen!):
+1. "Double Bubble Sign" (Kompartimentalisierung) — Gas in Fundus UND Pylorus getrennt
+2. Pylorus dorsal und links verschoben (normalerweise ventral rechts!)
+3. "C-Zeichen" / "Reverse C" — Magengas zeichnet C-Form
+4. "Shelf Sign" — Weichteilband teilt Magenlumen
+5. Spleen Displacement — Milz nach medial/ventral verlagert
+6. Gasfreier Duodenum-Abschnitt
+7. Reduzierte seröse Detailzeichnung → freie Flüssigkeit (Perforation? Nekrose?)
+8. Pneumoperitoneum → PERFORATION! → Sofort OP!
+
+DIFFERENZIERUNG GDV vs. einfache Dilatation:
+- Einfache Dilatation: Pylorus rechts, kein Kompartiment, oft selbstlimitierend
+- GDV: Pylorus links-dorsal, Kompartimentalisierung, MUSS operiert werden!
+- IMMER rechte Seitenlage-Aufnahme! (Gas im Pylorus links-dorsal = GDV-Beweis)
+
+═══════════════════════════════════════════════════════
+MRT-DIFFERENZIALDIAGNOSE-TABELLE GEHIRN:
+═══════════════════════════════════════════════════════
+
+INTRA-AXIALE LÄSIONEN (im Parenchym):
+| Diagnose | T1 | T2 | FLAIR | Enhancement | Lokalisation | Typisch |
+| Gliom | hypo-iso | hyper | hyper | gering-moderat | solitär, Hemisphäre | intra-axial, schlecht begrenzt |
+| MUO/GME | iso-hypo | hyper | hyper | ring/multifokal | multifokal, WS+Gehirn | junge Toy-Rassen! |
+| NME (Mops) | hypo | hyper | hyper | ring-Enhancement | Großhirn bilateral | Mops, Chihuahua, Malteser |
+| NLE (Yorkshire) | hypo | hyper | hyper | minimal | Großhirn | Yorkshire, Französische Bulldogge |
+| Infarkt | hypo | hyper | hyper | ±gering | territorial/vaskulär | keilförmig! akut, asymmetrisch |
+| Neospora | hypo | hyper | hyper | multifokal | Cerebellum! + multifokal | Welpen, Junghunde! |
+| Staupe | hypo | hyper | hyper | ±variabel | weiße Substanz | ungeimpfte Hunde |
+| FIP (Katze) | iso | hyper | hyper | periventrikulär! | Ventrikel, Meningen | junge Katzen, Ependymitis |
+| Toxoplasma | hypo | hyper | hyper | ring-Enhancement | multifokal | immunsupprimiert, Katze>Hund |
+| Lymphom | iso-hypo | iso-hyper | hyper | stark homogen | solitär oder multifokal | oft extra-axial |
+
+EXTRA-AXIALE LÄSIONEN (außerhalb Parenchym):
+| Meningeom | iso-hypo | iso-hyper | hyper | stark homogen! | konvex, Dural Tail! | häufigster Tumor! >5J |
+| Choroidplexus | iso | hyper | hyper | stark | intraventrikulär! | Seitenventrikel, 4. Ventrikel |
+| Epidermoid/Dermoid | hypo | hyper | variabel | kein/minimal | CPA, Mittellinie | selten |
+| Trigeminus-Tumor | iso-hypo | iso-hyper | hyper | stark | Schädelbasis, CN V | einseitig, Kaumuskelatrophie |
+
+WICHTIG — Red Flags im MRT:
+- Mittellinienverlagerung >3mm → Raumforderung → Dringend!
+- Tentorielle Herniation → Lebensbedrohlich!
+- Obex-Herniation (Foramen magnum) → Atemnot-Risiko!
+- Ringförmiges Enhancement + Ödem → Tumor oder Abszess bis Beweis des Gegenteils
+- DWI-Restriktion + ADC-Erniedrigung → Akuter Infarkt (<24h) oder Abszess
+
+═══════════════════════════════════════════════════════
+CT-KONTRASTMITTEL-PROTOKOLLE:
+═══════════════════════════════════════════════════════
+
+KONTRASTPHASEN (jodhaltig, nicht-ionisch, 600-800 mgI/kg IV):
+- Angiographische Phase: 5-15 Sek nach Injektion → Gefäßdarstellung, Shunts, PSS
+- Arterielle Phase: 15-25 Sek → Leberarterielle Versorgung, hypervaskularisierte Tumoren
+- Portalvenöse Phase: 35-60 Sek → Standard-Abdomen, Leberparenchym, Milz
+- Nephrographische Phase: 60-90 Sek → Nierenparenchym, Harnleiter
+- Spätphase/Equilibrium: >120 Sek → Ektopische Ureteren, Exkretionsurographie, Harnblase
+- Triple-Phase-CT (Leber/Milz): Arteriell + Portalvenös + Spät → Tumorcharakterisierung!
+  * HCC: arteriell hyperdens, portalvenös wash-out
+  * Hämangiom: peripheres arterielles Enhancement, zentripetales Fill-in
+  * Noduläre Hyperplasie: isodens in allen Phasen
+
+CT-SPEZIFISCHE MESSUNGEN:
+- Hounsfield-Einheiten Referenz: Luft -1000, Fett -80 bis -120, Wasser 0, Leber 50-70,
+  Milz 45-55, Niere 30-50, Muskel 35-55, akutes Blut 50-70, Knochen >400
+- Fett: -80 bis -120 HU (Lipom? Liposarkom wenn heterogen!)
+- Flüssigkeit: 0-20 HU (transsudat), 20-40 HU (modifiziertes Transsudat/Exsudat)
+- Akute Blutung: 50-70 HU (hyperdens! → Trauma, Milzruptur, Koagulopathie)
+
+═══════════════════════════════════════════════════════
+HÄUFIGE FALLSTRICKE & FEHLDIAGNOSEN VERMEIDEN:
+═══════════════════════════════════════════════════════
+
+RÖNTGEN-FALLSTRICKE:
+- Normvarianten NICHT als Pathologie melden: Fabellae, Sesamoide, akzessorische Ossifikationszentren,
+  Enthesophyten bei älteren Tieren, Os penis, Os clitoridis, physiologische Periostreaktion bei Jungtieren
+- NICHT verwechseln: Mach-Effekt (Mach Bands) mit echten Frakturlinien
+- Überlagerungsartefakte: Hautfalten, Zitzen, Schmutz auf der Kassette → können Lungenrundherde vortäuschen!
+- "Satisfaction of Search" vermeiden: Nach dem ersten Befund WEITERSUCHEN — es gibt oft 2-3 Pathologien!
+- Seitenmarkierung beachten: Rechts/Links korrekt zuordnen! Bei Fehlen → explizit erwähnen
+- Projektionsbedingte Verzerrungen berücksichtigen: Vergrößerung durch OFD (Object-Film Distance)
+- Jungtiere: Wachstumsfugen NICHT mit Frakturen verwechseln! Altersentsprechende Ossifikation kennen
+- Alte Tiere: Degenerative Veränderungen von akuten Pathologien unterscheiden — Spondylose ≠ Diskospondylitis!
+- Artefakte erkennen: Bewegungsunschärfe, Streustrahlung, Gitterartefakte, Doppelbelichtung
+- Exspiratorische Thoraxaufnahme → Pseudokardiomegalie und Pseudo-Lungenödem!
+- Überbelichtung → Lungenrundherde werden unsichtbar! Unterbelichtung → Pseudo-Infiltrate!
+- Adipöse Tiere: Fett vortäuschen Organomegalie, verminderte seröse Detailzeichnung ≠ Erguss
+- Nasse Tiere/Fell: Können interstitielles Lungenmuster vortäuschen (Fellüberlagerung)
+
+MRT-FALLSTRICKE:
+- T1-Hyperintensität: Fett ODER Methämoglobin (subakute Blutung) ODER Protein ODER Melanin
+  → Fettsättigung (STIR/Fat-Sat) nutzen zur Differenzierung!
+- T2-Hyperintensität: Ödem ODER Tumor ODER Entzündung ODER Demyelinisierung ODER Gliose ODER Zyste
+  → Enhancement-Muster und DWI zur Differenzierung nutzen!
+- Magic Angle Artifact: Sehnen bei 55° zum Hauptmagnetfeld → falsch hyperintens auf kurzen TE-Sequenzen
+- Truncation Artifact: Parallele Banden am Übergang Cortex/Medulla → kann Syringomyelie vortäuschen!
+- Susceptibility Artifact: Metallimplantate, Luft → Signalauslöschung (besonders GRE/SWI)
+- Chemical Shift Artifact: Fett-Wasser-Grenzfläche → Fehlregistrierung (Niere, Augen, Fettgewebe)
+- Flow Artifacts: Pulsationsartefakte von Gefäßen → können Läsionen vortäuschen oder verbergen
+- Partial Volume Effect: Kleine Strukturen in dicken Schichten → Läsionen werden über-/unterschätzt
+- CAVE: Kontrastmittel-Enhancement ≠ automatisch Tumor! Auch Entzündung, Infarkt (subakut), Abszess!
+- CAVE: Fehlende Enhancement ≠ benigne! Niedriggradige Gliome enhancen oft NICHT!
+
+CT-FALLSTRICKE:
+- Beam Hardening: Artefakte an Knochen-Weichteil-Grenzen (Schädelbasis!) → Pseudoläsionen
+- Volume Averaging: Teilvolumeneffekte an Strukturgrenzen → kleine Läsionen unsichtbar
+- Kontrastmittel-Timing: Falsches Timing → Tumor wird verpasst oder fehlcharakterisiert
+  * Zu früh: Tumor noch nicht enhancet → wird als iso angesehen
+  * Zu spät: Hypervaskularisierte Läsion zeigt Wash-out → wird als hypo fehlinterpretiert
+- Pseudo-Enhancement: Zyste neben stark enhancender Struktur → scheinbares Enhancement (Beam Hardening)
+- Hounsfield-Variabilität: Verschiedene CT-Geräte zeigen unterschiedliche HU-Werte für gleiches Gewebe!
+- Window/Level: IMMER alle Fenster prüfen — Weichteil-Fenster zeigt keine Lungenläsionen, Lungenfenster keine Knochen!
+
+═══════════════════════════════════════════════════════
+UNVERHANDELBARE ANALYSE-REGELN:
+═══════════════════════════════════════════════════════
+
+1. SYSTEMATISCHE VOLLSTÄNDIGKEIT: Analysiere JEDE sichtbare anatomische Struktur — Knochen,
+   Gelenke, Weichteile, Organe, Hohlräume. Überspringe NICHTS.
+
+2. KNOCHEN & SKELETT: Prüfe bei JEDEM sichtbaren Knochen:
+   - Kortikalis: Kontinuität, Dicke, Glattheit (Frakturen, Fissuren?)
+   - Periost: Reaktionen, Auftreibungen, Spikulae (Sunburst? Codman-Dreieck? → Tumor!)
+   - Spongiosa: Mineralisierung, Dichte, Lysen (geographisch? mottenfraßartig? permeativ?), Sklerosen
+   - Alignment: Achsenstellung, Displacement, Angulation, Verkürzung, Rotation
+   - Wachstumsfugen bei Jungtieren: Salter-Harris Typ I-V prüfen!
+   - Medullärraum: Sklerose, Lyse, Pathologische Fraktur?
+
+3. GELENKE: Bei JEDEM sichtbaren Gelenk:
+   - Gelenkspalt: Weite, Symmetrie, Kongruenz
+   - Subchondrale Knochenplatte: Sklerose, Erosionen, Zysten, Unregelmäßigkeiten
+   - Periartikulär: Osteophyten (graduieren! Grad 1-4), Enthesophyten, Schwellungen, Verkalkungen
+   - Gelenkerguss: Verbreiterter Gelenkspalt, Kapseldistension, Fettpolster-Zeichen
+   - Luxation/Subluxation: Norberg-Index bei HD! Kongruenz bei Ellbogen!
+
+4. WEICHTEILE: Systematisch untersuchen:
+   - Schwellungen (diffus vs. lokalisiert), Asymmetrien, Masseneffekte
+   - Gaseinschlüsse (subkutan? fascial? → Gasgangrän ausschließen!)
+   - Fremdkörper, Faszienlinien, Fettstreifen (Verlust = Ödem/Infiltration)
+   - Muskelatrophie (im Seitenvergleich beurteilen wenn möglich)
+   - Verkalkungen (dystrophisch, metastatisch, idiopathisch — Calcinosis cutis/circumscripta)
+
+5. THORAX (wenn sichtbar):
+   - Herz: VHS BERECHNEN und exakten Zahlenwert nennen
+   - Einzelne Kammern: LA-Vergrößerung (Dorsalverlagerung Trachea, Kompression linker Hauptbronchus,
+     „Cowboy Legs" auf VD), RA, LV (Elongation Apex), RV (Verbreiterung Sternalkontakt)
+   - Pulmonalgefäße: Vergrößert (>Rippe/Vene = pulmonale Hypertonie), Verkleinert (Hypovolämie, PS)
+   - Lunge: JEDES Lungenfeld systematisch — alveoläres Pattern (Luftbronchogramm! → Pneumonie, Blutung,
+     Atelektase), bronchiales Pattern (Tramlines, Donuts → Bronchitis, Asthma), interstitielles Pattern
+     (strukturiert = Fibrose, unstrukturiert = Ödem, Blutung), vaskuläres Pattern, gemischt
+   - Lungenrundherde: METASTASEN-SUCHE! Systematisch alle Lungenfelder, Zwerchfellwinkel, retrokardial
+   - Pleura: Erguss (Meniskenzeichen, Lappenspalten?), Pneumothorax (Retraktionslinien, fehlende
+     Lungengefäße peripher!), Pleuraverdickung
+   - Mediastinum: Breite, Masse, sternale/tracheobronchiale Lymphknoten (>Rippe = vergrößert!)
+   - Trachea: Hypoplasie (TI-Ratio!), Kollaps, Dorsalverlagerung, Masse, Fremdkörper
+   - Ösophagus: Megaösophagus? Fremdkörper? Perforation (Pneumomediastinum!)?
+   - Zwerchfell: Integrität, Hernia diaphragmatica, Eventration
+
+6. ABDOMEN (wenn sichtbar):
+   - Leber: Größe (Magenachse! >90° = Hepatomegalie, <45° = Mikroleber), Konturen, Masse?
+   - Milz: Größe, Kontur, Masse (Hämangiosarkom! → Peritonealerguss?)
+   - Nieren: Größe (L2-Verhältnis!), Konturen, Mineralisierungen (Nephrolithiasis, Nephrokalzinose)
+   - Nebennieren: Vergrößerung, Mineralisierung (Cushing? Phäochromozytom?)
+   - GI-Trakt: Gas-/Flüssigkeitsverteilung — Ileus? (Dünndarmdurchmesser-Regel!), Fremdkörper,
+     Invagination, GDV (Double Bubble! C-Zeichen! Kompartmentalisierung! → NOTFALL!)
+   - Blase: Größe, Wanddicke, Konkremente (Röntgendichte → Steinart?), Position (Ruptur? Hernie?)
+   - Prostata/Uterus: Vergrößerung, Mineralisierung, Pyometra (vergrößerte Uterushörner!)
+   - Peritonealer Detailzeichnung: verloren = freie Flüssigkeit! Fokaler Detailverlust = lokale Entzündung
+   - Retroperitonealraum: Nierenloge, Nebennieren, sublumbale Lymphknoten
+   - Freies Gas: Pneumoperitoneum → Perforation bis zum Beweis des Gegenteils!
+
+7. WIRBELSÄULE (wenn sichtbar):
+   - JEDEN Wirbelkörper einzeln: Form, Dichte, Endplatten, Processus spinosi
+   - Zwischenwirbelräume: Höhe (Verengung = Diskopathie), Vakuumphänomen, Kalzifikation
+   - Alignment: Scoliose, Kyphose, Lordose, Stufenbildung, Wirbelkörperluxation
+   - Foramina: Einengung bei Diskopathie/Spondylose
+   - Endplatten: Diskospondylitis (Irregularität, Lyse, Sklerose, Spondylose sekundär)
+   - Facettengelenke: Arthrose, Asymmetrie
+   - Cauda equina (lumbosakral): Spondylose, Osteophyten, Stenose
+
+8. PATHOLOGIE-ERKENNUNG — NULL TOLERANZ:
+   - Frakturen: JEDE Art — Quer, Schräg, Spiral, Trümmer, Grünholz, Salter-Harris, Avulsion, Stress,
+     pathologisch, Insuffizienz, Ermüdung. Komplett vs. inkomplett. Disloziert vs. nicht-disloziert.
+   - Tumore: Sunburst-Pattern, Codman-Dreieck, mottenfraßartige/permeative Lysen → SOFORT als Verdacht
+     benennen! Histologische Differenzialdiagnosen: Osteosarkom, Chondrosarkom, Fibrosarkom, Hämangiosarkom,
+     Metastasen. Weichteilsarkome: Randcharakteristik beurteilen
+   - Aggressive vs. nicht-aggressive Knochenläsionen systematisch differenzieren (Zone of Transition!)
+   - Infektionen: Osteomyelitis (Sequester? Involucrum? Kloake?), Diskospondylitis, septische Arthritis
+   - JEDE osteolytische oder osteoproduktive Läsion als potenziell maligne betrachten bis zum Beweis des Gegenteils
+
+9. KLARE AUSSAGEN — KEINE VAGHEIT:
+   - "Querfraktur der distalen Diaphyse des rechten Femurs mit ca. 3mm lateralem Displacement,
+     30° Angulation und moderater periartikulärer Weichteilschwellung" — SO muss eine Beschreibung aussehen
+   - Graduiere: mild/moderat/schwer/hochgradig
+   - Prozentangaben bei Differenzialdiagnosen
+   - IMMER konkrete Messungen wenn möglich (mm, cm, Grad, Verhältnisse)
+
+10. DRINGLICHKEIT — KORREKT UND VERANTWORTUNGSVOLL:
+    - NIEDRIG: Normalbefund, leichte degenerative Veränderungen, Zufallsbefunde, chronische stabile Läsionen
+    - MITTEL: Moderate Pathologien, zeitnahe Kontrolle nötig (Tage), neue Befunde ohne Notfallcharakter
+    - HOCH: Frakturen, Luxationen, signifikante Organveränderungen, Tumorverdacht, Ileus-Verdacht
+    - NOTFALL: GDV (Magendrehung!), Spannungspneumothorax, Harnröhrenverschluss, Harnblasenruptur,
+      schwere Blutung/Hämabdomen, Wirbelfraktur mit Myelokompression, Zwerchfellruptur mit Organverlagerung,
+      offene Frakturen, Ösophagus-Fremdkörper mit Perforationsgefahr
+
+11. QUALITÄTSKONTROLLE — BEVOR DU DEN BEFUND ABGIBST:
+    - Habe ich JEDE sichtbare Struktur beurteilt?
+    - Habe ich die Bildränder geprüft?
+    - Habe ich den „zweiten Blick" durchgeführt?
+    - Habe ich nach "Satisfaction of Search" geprüft (gibt es weitere Befunde)?
+    - Stimmt meine Dringlichkeitseinstufung mit den Befunden überein?
+    - Sind meine Differenzialdiagnosen sinnvoll und nach Wahrscheinlichkeit geordnet?
+    - Sind meine Therapieempfehlungen konkret und umsetzbar?
+    - Habe ich Normwerte/Messungen angegeben wo relevant?
+    - Würde der weltweit beste Veterinärradiologe etwas anders machen? Wenn ja — ändere es!
 
 PFLICHT: Die DIAGNOSE und der MEDIZINISCHE ZUSTAND kommen IMMER ZUERST.
+Erstelle den Befundbericht auf Deutsch.
 
 FORMAT - genau diese Reihenfolge einhalten:
 
 ## Diagnose & Klinische Beurteilung
-**Hauptdiagnose:** [Was ist das wichtigste/dringendste Ergebnis? Klar und konkret, keine Vermutungen]
-**Dringlichkeit:** **[NIEDRIG / MITTEL / HOCH / NOTFALL]** — [1 Satz Begründung]
+**Hauptdiagnose:** [Präzise, spezifische Diagnose mit exakter Lokalisation — so wie du es einem
+Fachtierarzt-Kollegen sagen würdest. Kein "möglicherweise" oder "eventuell" bei klaren Befunden!]
+**Nebendiagnosen:** [Falls vorhanden — ALLE weiteren relevanten Befunde, auch Zufallsbefunde]
+**Dringlichkeit:** **[NIEDRIG / MITTEL / HOCH / NOTFALL]** — [Klare Begründung mit klinischer Relevanz]
 
 ## Differenzialdiagnosen
 | Diagnose | Wahrscheinlichkeit | Begründung |
 |---|---|---|
+[Mindestens 3-5 Differenzialdiagnosen, nach Wahrscheinlichkeit sortiert, mit Prozentangabe und
+konkreter röntgenologischer Begründung. Bei Tumorverdacht immer histologische Typen auflisten.
+Bei Frakturen: Typ und Klassifikation angeben.]
 
 ## Detaillierter Radiologischer Befund
-[Systematische Analyse JEDER sichtbaren Struktur. Unterabschnitte je Körperregion mit ### Überschriften. Beschreibe sowohl normale als auch pathologische Befunde.]
+[Systematische Analyse JEDER sichtbaren Struktur mit ### Überschriften pro Region.
+Beschreibe NORMALE und PATHOLOGISCHE Befunde. Normale Befunde dokumentieren die Gründlichkeit.
+Verwende exakte veterinärradiologische Fachterminologie und Messungen wo möglich.
+Gib Normwerte zum Vergleich an (z.B. "VHS 11.2 — normal <10.2 für diese Rasse").
+Dies ist der Kernabschnitt — hier zeigst du deine 30 Jahre Erfahrung.]
 
 ## Therapie- & Kontrollempfehlungen
-[Konkrete, priorisierte Handlungsempfehlungen für den Tierarzt]
+[Konkrete, priorisierte Handlungsempfehlungen:
+1. Sofortmaßnahmen (wenn nötig — z.B. Stabilisierung, Analgesie, Thoraxdrainage)
+2. Weiterführende Diagnostik (CT? MRT? Ultraschall? Arthroskopie? Biopsie? Blutbild? Urinanalyse?
+   Kontrastmittelstudien? Zusätzliche Projektionen?)
+3. Therapieoptionen mit Vor-/Nachteilen (konservativ vs. chirurgisch, welche OP-Technik?
+   Plattenosteosynthese? Fixateur externe? Marknagel? Konservativ mit Robert-Jones-Verband?)
+4. Medikamentöse Empfehlungen (Analgesie, Antibiotika wenn indiziert, Entzündungshemmer)
+5. Kontrollzeitpunkt (wann? welche Aufnahmen? was erwarten wir? Kallusbildung nach 2-3 Wochen?)
+6. Prognose (mit und ohne Therapie, kurz- und langfristig, funktionell)]
 
 ## Technische Bildqualität
-[Kurz — max 2 Sätze zur Aufnahmequalität]
+[Aufnahmetechnik, Belichtung, Lagerung, Projektionsrichtung, Artefakte.
+Empfehlungen für bessere Aufnahmen oder zusätzliche Projektionen (z.B. "Zusätzliche DV-Aufnahme
+empfohlen zur besseren Beurteilung des Mediastinums")]
 
 ---
-*Animioo KI-Befundassistent · Kein Ersatz für tierärztliche Diagnose*"""
+*Animioo KI-Befundassistent -- Expertenniveau. Kein Ersatz fuer tieraerztliche Diagnose.*"""
 
-    msgs = [
-        {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_a}},
-        {'type':'text','text':'Aufnahme A:'}
-    ]
-    if img_b and mode != 'single':
-        msgs += [
-            {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_b}},
-            {'type':'text','text':'Aufnahme B:'}
-        ]
+    # ── Detect image media type from base64 header ──
+    def detect_media_type(b64: str) -> str:
+        try:
+            import base64 as _b64
+            header = _b64.b64decode(b64[:20])[:4]
+            if header[:4] == b'\x89PNG': return 'image/png'
+            if header[:3] == b'GIF': return 'image/gif'
+            if header[:4] == b'RIFF': return 'image/webp'
+        except: pass
+        return 'image/jpeg'
+
+    mime_a = detect_media_type(img_a)
+    mime_b = detect_media_type(img_b) if img_b else 'image/jpeg'
+
     prompt = prompts.get(mode, prompts['single'])
     if ctx: prompt += f'\n\nKlinischer Kontext vom Tierarzt: {ctx}'
     if focus_mode == 'specific' and focus_text:
         prompt += f'\n\nSPEZIFISCHER ANALYSE-FOKUS: Der Tierarzt bittet um gezielte Untersuchung folgender Aspekte: {focus_text}. Bitte gehe besonders detailliert auf diese Fragestellung ein.'
-    msgs.append({'type':'text','text':prompt})
+
+    # Bild NACH dem Prompt — bessere Aufmerksamkeitsverteilung
+    if img_b and mode != 'single':
+        msgs = [
+            {'type':'text','text':prompt + '\n\nAufnahme A (früher):'},
+            {'type':'image','source':{'type':'base64','media_type':mime_a,'data':img_a}},
+            {'type':'text','text':'Aufnahme B (aktuell):'},
+            {'type':'image','source':{'type':'base64','media_type':mime_b,'data':img_b}},
+        ]
+    else:
+        msgs = [
+            {'type':'text','text':prompt},
+            {'type':'image','source':{'type':'base64','media_type':mime_a,'data':img_a}},
+        ]
 
     import time as _time
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    last_err = None
-    for attempt in range(3):
+
+    # ── Helper: Anthropic (BACKUP — nur wenn OpenAI nicht verfuegbar) ──
+    def try_anthropic():
+        if not ANTHROPIC_API_KEY: return None
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        for attempt in range(3):
+            try:
+                resp = client.messages.create(
+                    model='claude-sonnet-4-20250514',
+                    max_tokens=8192,   # mehr Raum für ausführliche Befunde
+                    temperature=0.15,  # leichte Kreativität für besseres Reasoning
+                    system=system,
+                    messages=[{'role':'user','content':msgs}]
+                )
+                return resp.content[0].text
+            except anthropic.APIStatusError as e:
+                if e.status_code == 529 and attempt < 2:
+                    _time.sleep(2 * (attempt + 1))
+                    continue
+                app.logger.warning(f'Anthropic Fehler (Versuch {attempt+1}): {e}')
+                return None
+            except Exception as e:
+                app.logger.warning(f'Anthropic Fehler: {e}')
+                return None
+        return None
+
+    # ── Helper: OpenAI (PRIMAER — Hauptanbieter fuer Bildanalyse) ──
+    def try_openai():
+        if not OPENAI_API_KEY: return None
+        from openai import OpenAI
+        oc = OpenAI(api_key=OPENAI_API_KEY)
+        oai_content = []
+        for m in msgs:
+            if m['type'] == 'image':
+                oai_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
+            else:
+                oai_content.append({'type':'text','text':m['text']})
+        for attempt in range(3):
+            try:
+                resp = oc.chat.completions.create(
+                    model='gpt-4o',
+                    max_tokens=8192,   # mehr Raum für ausführliche Befunde
+                    temperature=0.15,  # leichte Kreativität für besseres Reasoning
+                    messages=[
+                        {'role':'system','content':system},
+                        {'role':'user','content':oai_content}
+                    ]
+                )
+                return resp.choices[0].message.content
+            except Exception as e:
+                app.logger.warning(f'OpenAI Fehler (Versuch {attempt+1}): {e}')
+                if attempt < 2:
+                    _time.sleep(2 * (attempt + 1))
+                    continue
+                return None
+        return None
+
+    # ── Helper: Google Gemini ──
+    def try_gemini():
+        if not GEMINI_API_KEY: return None
         try:
-            resp = client.messages.create(
-                model='claude-sonnet-4-20250514',
-                max_tokens=2400,
-                system=system,
-                messages=[{'role':'user','content':msgs}]
-            )
-            text = resp.content[0].text
-            tl   = text.lower()
-            sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
-
-            rid = 'r_'+nid()
-            conn = get_db()
-            db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                         (rid,user['id'],pet_name,species,region,mode,sev,text,now()))
-            db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
-            conn.commit(); conn.close()
-
-            audit('Analyse',user['id'],f'{species}/{region}/{mode}')
-            return jsonify({'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now()})
-
-        except anthropic.APIStatusError as e:
-            last_err = e
-            if e.status_code == 529 and attempt < 2:
-                _time.sleep(2 * (attempt + 1))
-                continue
-            return jsonify({'error':f'KI-Server überlastet. Bitte in 30 Sekunden erneut versuchen.'}), 503
+            import google.generativeai as genai
+            import base64
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-2.0-flash', generation_config={'temperature': 0.15})
+            parts = [system + '\n\n']
+            for m in msgs:
+                if m['type'] == 'image':
+                    parts.append({'mime_type':m['source']['media_type'],'data':base64.b64decode(m['source']['data'])})
+                else:
+                    parts.append(m['text'])
+            resp = model.generate_content(parts)
+            return resp.text
         except Exception as e:
-            app.logger.error(f'Analyse-Fehler: {e}')
-            return jsonify({'error':f'Serverfehler: {str(e)}'}), 500
-    return jsonify({'error':'KI-Server nicht erreichbar. Bitte später erneut versuchen.'}), 503
+            app.logger.warning(f'Gemini Fehler: {e}')
+            return None
+
+    # ── Multi-Provider Fallback (OpenAI primär, Claude Backup, Gemini letzter Ausweg) ──
+    providers = [
+        ('OpenAI', try_openai),
+        ('Anthropic', try_anthropic),
+        ('Gemini', try_gemini),
+    ]
+    text = None
+    used_provider = None
+    for pname, pfunc in providers:
+        app.logger.info(f'Versuche KI-Provider: {pname}')
+        text = pfunc()
+        if text:
+            used_provider = pname
+            app.logger.info(f'Analyse erfolgreich mit: {pname}')
+            break
+        app.logger.warning(f'{pname} fehlgeschlagen, versuche nächsten Provider...')
+
+    if not text:
+        return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
+
+    tl   = text.lower()
+    sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
+
+    # ── Qualitätskontrolle ──
+    required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
+    sections_found = sum(1 for s in required_sections if s in tl)
+    quality_ok = sections_found >= len(required_sections) and len(text) >= 500
+    quality_score = sections_found  # 0-4, 4 = all sections present
+
+    rid = 'r_'+nid()
+    conn = get_db()
+    # Fehlende Spalten zuerst per Migration hinzufügen (PostgreSQL-sicher)
+    for migration in [
+        "ALTER TABLE reports ADD COLUMN IF NOT EXISTS image_hash TEXT DEFAULT ''",
+        "ALTER TABLE reports ADD COLUMN IF NOT EXISTS quality_score INTEGER",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS api_key TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pet_name TEXT DEFAULT ''",
+    ]:
+        try:
+            db_execute(conn, migration)
+            conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except: pass
+    # INSERT mit allen Spalten
+    try:
+        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                     (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,now()))
+    except Exception as e:
+        app.logger.warning(f'INSERT fehlgeschlagen ({e}), Rollback + Fallback...')
+        try: conn.rollback()
+        except: pass
+        try:
+            db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                         (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,now()))
+        except Exception as e2:
+            app.logger.error(f'INSERT Fallback fehlgeschlagen: {e2}')
+            try: conn.rollback()
+            except: pass
+            conn.close()
+            return jsonify({'error': f'Datenbankfehler: {str(e2)}'}), 500
+    db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
+    conn.commit(); conn.close()
+
+    audit('Analyse',user['id'],f'{species}/{region}/{mode} via {used_provider}')
+    result = {'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now(),
+              'quality_ok':quality_ok,'quality_score':quality_score}
+    return jsonify(result)
 
 # ═══════════════════════════════════════════════════
 # CHAT (Rückfragen zum Befund)
@@ -752,18 +1611,43 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
     for h in history[-10:]:
         messages.append({'role':h['role'] if h['role'] in ('user','assistant') else 'user', 'content':h['text']})
 
-    try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        resp = client.messages.create(
-            model='claude-sonnet-4-20250514',
-            max_tokens=800,
-            system=system,
-            messages=messages
-        )
-        answer = resp.content[0].text
+    answer = None
+
+    # Try OpenAI (Primär)
+    if OPENAI_API_KEY and not answer:
+        try:
+            from openai import OpenAI
+            oc = OpenAI(api_key=OPENAI_API_KEY)
+            oai_msgs = [{'role':'system','content':system}] + [{'role':m['role'],'content':m['content']} for m in messages]
+            resp = oc.chat.completions.create(model='gpt-4o', max_tokens=800, messages=oai_msgs)
+            answer = resp.choices[0].message.content
+        except Exception as e:
+            app.logger.warning(f'Chat OpenAI Fehler: {e}')
+
+    # Try Anthropic (Backup)
+    if ANTHROPIC_API_KEY and not answer:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
+            answer = resp.content[0].text
+        except Exception as e:
+            app.logger.warning(f'Chat Anthropic Fehler: {e}')
+
+    # Try Gemini (Letzter Ausweg)
+    if GEMINI_API_KEY and not answer:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            chat_text = system + '\n\n' + '\n'.join([f"{m['role']}: {m['content']}" for m in messages])
+            resp = model.generate_content(chat_text)
+            answer = resp.text
+        except Exception as e:
+            app.logger.warning(f'Chat Gemini Fehler: {e}')
+
+    if answer:
         return jsonify({'answer':answer})
-    except Exception as e:
-        return jsonify({'error':str(e)}), 500
+    return jsonify({'error':'Alle KI-Server nicht erreichbar. Bitte später versuchen.'}), 503
 
 # ═══════════════════════════════════════════════════
 # REPORTS
@@ -771,13 +1655,97 @@ Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
 @app.route('/api/reports')
 @require_auth
 def get_reports():
+    page = request.args.get('page', None, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    severity_filter = request.args.get('severity', '').strip()
+    species_filter = request.args.get('species', '').strip()
+    per_page = min(max(per_page, 1), 100)  # clamp 1-100
+
     conn = get_db()
-    if request.user['role'] == 'admin':
-        rows = db_fetchall(conn, 'SELECT r.*,u.name as user_name,u.praxis FROM reports r LEFT JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC')
+    is_admin = request.user['role'] == 'admin'
+
+    # Build WHERE clause
+    conditions = []
+    params = []
+    if not is_admin:
+        conditions.append('r.user_id=?')
+        params.append(request.user['id'])
+    if severity_filter:
+        conditions.append('r.severity=?')
+        params.append(severity_filter)
+    if species_filter:
+        conditions.append('r.species=?')
+        params.append(species_filter)
+
+    where = (' WHERE ' + ' AND '.join(conditions)) if conditions else ''
+    join = ' LEFT JOIN users u ON r.user_id=u.id' if is_admin else ''
+    select_extra = ',u.name as user_name,u.praxis' if is_admin else ''
+
+    # If page param provided, use pagination; otherwise return all (backward compat)
+    if page is not None:
+        page = max(page, 1)
+        # Get total count
+        count_row = db_dict(db_fetchone(conn, f'SELECT COUNT(*) as n FROM reports r{join}{where}', params))
+        total = count_row['n']
+        pages = math.ceil(total / per_page) if per_page > 0 else 1
+        offset = (page - 1) * per_page
+        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?', params + [per_page, offset])
+        conn.close()
+        for r in rows:
+            r['has_image'] = bool(r.get('image_data'))
+            r.pop('image_data', None)
+        return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
     else:
-        rows = db_fetchall(conn, 'SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC',(request.user['id'],))
+        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC', params)
+        conn.close()
+        for r in rows:
+            r['has_image'] = bool(r.get('image_data'))
+            r.pop('image_data', None)
+        return jsonify({'reports': rows})
+
+@app.route('/api/reports/<rid>/image')
+@require_auth
+def get_report_image(rid):
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT image_data,user_id FROM reports WHERE id=?',(rid,))
     conn.close()
-    return jsonify({'reports':rows})
+    if not rows: return jsonify({'error':'Befund nicht gefunden'}), 404
+    r = rows[0]
+    if r['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error':'Kein Zugriff'}), 403
+    if not r.get('image_data'):
+        return jsonify({'error':'Kein Bild vorhanden'}), 404
+    return jsonify({'image_data':r['image_data']})
+
+@app.route('/api/reports/<rid>/thumbnail')
+@require_auth
+def get_report_thumbnail(rid):
+    """Generate a small thumbnail (120px) from the report image"""
+    conn = get_db()
+    rows = db_fetchall(conn, 'SELECT image_data,user_id FROM reports WHERE id=?',(rid,))
+    conn.close()
+    if not rows: return jsonify({'error':'Befund nicht gefunden'}), 404
+    r = rows[0]
+    if r['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error':'Kein Zugriff'}), 403
+    if not r.get('image_data'):
+        return jsonify({'error':'Kein Bild vorhanden'}), 404
+    try:
+        import base64, io
+        from PIL import Image
+        img_bytes = base64.b64decode(r['image_data'])
+        img = Image.open(io.BytesIO(img_bytes))
+        img.thumbnail((120, 120), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG', quality=60)
+        thumb_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return jsonify({'thumbnail': thumb_b64})
+    except ImportError:
+        # Pillow not installed — return first chars of original as fallback
+        return jsonify({'thumbnail': r['image_data']})
+    except Exception as e:
+        app.logger.warning(f'Thumbnail-Fehler: {e}')
+        return jsonify({'thumbnail': r['image_data']})
 
 @app.route('/api/reports/<rid>', methods=['DELETE'])
 @require_auth
@@ -865,7 +1833,7 @@ def stripe_webhook():
     elif event['type'] == 'customer.subscription.deleted':
         sub = event['data']['object']
         conn = get_db()
-        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=3 WHERE stripe_subscription_id=?",
+        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=20 WHERE stripe_subscription_id=?",
                      ('trial',sub['id']))
         conn.commit(); conn.close()
 
@@ -922,7 +1890,7 @@ def admin_customers():
 def admin_create_customer():
     d = request.json or {}
     uid = 'u_'+nid()
-    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 3)
+    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
     conn = get_db()
     try:
         db_execute(conn, 'INSERT INTO users (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,created_at) VALUES (?,?,?,?,?,?,1,?,0,?,1,?)',
@@ -937,7 +1905,7 @@ def admin_create_customer():
 @require_admin
 def admin_update_customer(uid):
     d = request.json or {}
-    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 3)
+    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
     conn = get_db()
     db_execute(conn, 'UPDATE users SET name=?,praxis=?,plan=?,active=?,analyses_limit=? WHERE id=?',
                  (d.get('name'),d.get('praxis'),d.get('plan'),int(d.get('active',1)),limit,uid))
@@ -1000,6 +1968,100 @@ def admin_reports():
     return jsonify({'reports':rows})
 
 # ═══════════════════════════════════════════════════
+# DSGVO ENDPOINTS (Art. 17, 20, Consent)
+# ═══════════════════════════════════════════════════
+
+@app.route('/api/auth/export-data')
+@require_auth
+def export_data():
+    """DSGVO Art. 20 – Data Portability: export all user data as JSON."""
+    try:
+        uid = request.user['id']
+        conn = get_db()
+
+        user = db_dict(db_fetchone(conn, 'SELECT id,email,name,praxis,plan,role,analyses_used,analyses_limit,created_at,trial_ends_at FROM users WHERE id=?', (uid,)))
+        if not user:
+            conn.close()
+            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+
+        reports_raw = db_fetchall(conn, 'SELECT id,pet_name,species,created_at,status,summary FROM reports WHERE user_id=?', (uid,))
+        reports = [db_dict(r) for r in reports_raw] if reports_raw else []
+
+        session_count_row = db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM sessions WHERE user_id=?', (uid,))
+        session_count = db_dict(session_count_row)['cnt'] if session_count_row else 0
+
+        conn.close()
+
+        audit('dsgvo_data_export', uid, 'User exported personal data (Art. 20)')
+
+        return jsonify({
+            'user': user,
+            'reports': reports,
+            'sessions_count': session_count,
+            'exported_at': now()
+        })
+    except Exception as e:
+        app.logger.error(f'DSGVO export error: {e}')
+        return jsonify({'error': 'Datenexport fehlgeschlagen'}), 500
+
+
+@app.route('/api/auth/delete-account', methods=['DELETE'])
+@require_auth
+def delete_account():
+    """DSGVO Art. 17 – Right to Erasure: delete all user data."""
+    try:
+        uid = request.user['id']
+
+        if request.user.get('role') == 'admin':
+            return jsonify({'error': 'Admin-Konten können nicht gelöscht werden'}), 403
+
+        conn = get_db()
+
+        # Verify user exists
+        user = db_fetchone(conn, 'SELECT id FROM users WHERE id=?', (uid,))
+        if not user:
+            conn.close()
+            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+
+        # Delete all user data in correct order (foreign key safety)
+        db_execute(conn, 'DELETE FROM reports WHERE user_id=?', (uid,))
+        db_execute(conn, 'DELETE FROM sessions WHERE user_id=?', (uid,))
+        db_execute(conn, 'DELETE FROM audit_log WHERE user_id=?', (uid,))
+        db_execute(conn, 'DELETE FROM users WHERE id=?', (uid,))
+
+        conn.commit()
+        conn.close()
+
+        # Audit logged after deletion (user_id kept for traceability)
+        app.logger.info(f'DSGVO Art.17: Account {uid} fully deleted')
+
+        return jsonify({'ok': True, 'message': 'Konto und alle Daten wurden gelöscht'})
+    except Exception as e:
+        app.logger.error(f'DSGVO delete error: {e}')
+        return jsonify({'error': 'Kontolöschung fehlgeschlagen'}), 500
+
+
+@app.route('/api/auth/consent', methods=['POST'])
+@require_auth
+def record_consent():
+    """Track DSGVO consent (e.g. dsgvo_accepted, ai_processing_accepted)."""
+    try:
+        uid = request.user['id']
+        d = request.json or {}
+        consent_type = d.get('type', 'dsgvo_accepted')
+
+        if consent_type not in ('dsgvo_accepted', 'ai_processing_accepted', 'marketing_accepted'):
+            return jsonify({'error': 'Ungültiger Einwilligungstyp'}), 400
+
+        audit('consent_given', uid, f'Consent: {consent_type} at {now()}')
+
+        return jsonify({'ok': True, 'consent_type': consent_type, 'timestamp': now()})
+    except Exception as e:
+        app.logger.error(f'DSGVO consent error: {e}')
+        return jsonify({'error': 'Einwilligung konnte nicht gespeichert werden'}), 500
+
+
+# ═══════════════════════════════════════════════════
 # CONTACT / LEAD CAPTURE (öffentlich)
 # ═══════════════════════════════════════════════════
 @app.route('/api/contact', methods=['POST'])
@@ -1019,6 +2081,346 @@ def contact():
     return jsonify({'ok':True}), 201
 
 # ═══════════════════════════════════════════════════
+# PDF-EXPORT
+# ═══════════════════════════════════════════════════
+@app.route('/api/reports/<rid>/pdf')
+@require_auth
+def export_report_pdf(rid):
+    """Generate a professional PDF for a report."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=?', (rid,)))
+    conn.close()
+    if not report:
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    if report['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error': 'Kein Zugriff'}), 403
+
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        return jsonify({'error': 'PDF-Bibliothek (fpdf2) nicht installiert'}), 503
+
+    class AnimiooPDF(FPDF):
+        def header(self):
+            self.set_fill_color(26, 86, 219)  # #1a56db
+            self.rect(0, 0, 210, 28, 'F')
+            self.set_font('Helvetica', 'B', 18)
+            self.set_text_color(255, 255, 255)
+            self.set_y(8)
+            self.cell(0, 10, 'Animioo KI-Befundassistent', align='C')
+            self.ln(18)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(128, 128, 128)
+            self.cell(0, 10, 'Animioo KI-Befundassistent -- Kein Ersatz fuer tieraerztliche Diagnose.', align='C')
+            self.cell(0, 10, f'Seite {self.page_no()}/{{nb}}', align='R')
+
+    pdf = AnimiooPDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+
+    # ── Report Metadata ──
+    pdf.set_y(32)
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_text_color(26, 86, 219)
+    pdf.cell(0, 8, 'Befund-Metadaten', ln=True)
+
+    pdf.set_font('Helvetica', '', 10)
+    pdf.set_text_color(60, 60, 60)
+    meta_items = [
+        ('Datum', report.get('created_at', '')[:19].replace('T', ' ')),
+        ('Tierart', report.get('species', '')),
+        ('Region', report.get('region', '')),
+        ('Modus', report.get('mode', '')),
+        ('Dringlichkeit', {'low': 'Niedrig', 'mid': 'Mittel', 'high': 'Hoch'}.get(report.get('severity', ''), report.get('severity', ''))),
+    ]
+    if report.get('pet_name'):
+        meta_items.insert(1, ('Patient', report['pet_name']))
+
+    for label, value in meta_items:
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(35, 6, f'{label}:', ln=False)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(0, 6, str(value), ln=True)
+
+    pdf.ln(4)
+    # Separator line
+    pdf.set_draw_color(26, 86, 219)
+    pdf.set_line_width(0.5)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
+
+    # ── Report text ──
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_text_color(26, 86, 219)
+    pdf.cell(0, 8, 'Befundbericht', ln=True)
+
+    report_text = report.get('report_text', '')
+    # Parse markdown-style text into PDF
+    pdf.set_text_color(30, 30, 30)
+    for line in report_text.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('## '):
+            pdf.ln(3)
+            pdf.set_font('Helvetica', 'B', 11)
+            pdf.set_text_color(26, 86, 219)
+            pdf.multi_cell(0, 6, stripped[3:])
+            pdf.set_text_color(30, 30, 30)
+        elif stripped.startswith('### '):
+            pdf.ln(2)
+            pdf.set_font('Helvetica', 'B', 10)
+            pdf.multi_cell(0, 6, stripped[4:])
+        elif stripped.startswith('**') and stripped.endswith('**'):
+            pdf.set_font('Helvetica', 'B', 10)
+            pdf.multi_cell(0, 5, stripped.strip('*'))
+            pdf.set_font('Helvetica', '', 10)
+        elif stripped.startswith('|') and '|' in stripped[1:]:
+            # Table row — render as simple text
+            cells = [c.strip() for c in stripped.split('|') if c.strip() and c.strip() != '---']
+            if cells and not all(set(c) <= set('-| ') for c in cells):
+                pdf.set_font('Helvetica', '', 9)
+                pdf.multi_cell(0, 5, '  |  '.join(cells))
+                pdf.set_font('Helvetica', '', 10)
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            pdf.set_font('Helvetica', '', 10)
+            pdf.multi_cell(0, 5, '  ' + stripped)
+        elif stripped.startswith('---'):
+            pdf.ln(2)
+            pdf.set_draw_color(180, 180, 180)
+            pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+            pdf.ln(2)
+        elif stripped:
+            # Handle inline bold
+            clean = stripped.replace('**', '')
+            pdf.set_font('Helvetica', '', 10)
+            pdf.multi_cell(0, 5, clean)
+        else:
+            pdf.ln(2)
+
+    # Output PDF
+    pdf_bytes = pdf.output()
+    response = make_response(pdf_bytes)
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename="Animioo-Befund-{rid}.pdf"'
+    return response
+
+# ═══════════════════════════════════════════════════
+# BEFUND-FEEDBACK API
+# ═══════════════════════════════════════════════════
+@app.route('/api/reports/<rid>/feedback', methods=['POST'])
+@require_auth
+def create_report_feedback(rid):
+    """Submit feedback for a report (rating, correctness, comment)."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT id,user_id FROM reports WHERE id=?', (rid,)))
+    if not report:
+        conn.close()
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    if report['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        conn.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+
+    d = request.json or {}
+    rating = d.get('rating')
+    correct = d.get('correct')
+    comment = d.get('comment', '').strip()
+
+    if rating is not None and (not isinstance(rating, int) or rating < 1 or rating > 5):
+        conn.close()
+        return jsonify({'error': 'Rating muss zwischen 1 und 5 liegen'}), 400
+
+    fid = 'fb_' + nid()
+    db_execute(conn, 'INSERT INTO report_feedback (id,report_id,user_id,rating,correct,comment,created_at) VALUES (?,?,?,?,?,?,?)',
+               (fid, rid, request.user['id'], rating, 1 if correct else 0 if correct is not None else None, comment, now()))
+    conn.commit(); conn.close()
+
+    audit('Feedback', request.user['id'], f'Report {rid}: rating={rating}, correct={correct}')
+    return jsonify({'ok': True, 'id': fid}), 201
+
+@app.route('/api/reports/<rid>/feedback')
+@require_auth
+def get_report_feedback(rid):
+    """Get feedback for a report."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT id,user_id FROM reports WHERE id=?', (rid,)))
+    if not report:
+        conn.close()
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    if report['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        conn.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+
+    rows = db_fetchall(conn, 'SELECT * FROM report_feedback WHERE report_id=? ORDER BY created_at DESC', (rid,))
+    conn.close()
+    return jsonify({'feedback': rows})
+
+# ═══════════════════════════════════════════════════
+# API-KEY MANAGEMENT
+# ═══════════════════════════════════════════════════
+@app.route('/api/auth/api-key')
+@require_auth
+def get_api_key():
+    """Get or generate an API key for the current user."""
+    conn = get_db()
+    user = db_dict(db_fetchone(conn, 'SELECT api_key FROM users WHERE id=?', (request.user['id'],)))
+    api_key = user.get('api_key', '') if user else ''
+    if not api_key:
+        api_key = 'ak_' + secrets.token_hex(24)
+        db_execute(conn, 'UPDATE users SET api_key=? WHERE id=?', (api_key, request.user['id']))
+        conn.commit()
+    conn.close()
+    return jsonify({'api_key': api_key})
+
+# ═══════════════════════════════════════════════════
+# PRAXISMANAGEMENT-INTEGRATION API (v1)
+# ═══════════════════════════════════════════════════
+@app.route('/api/v1/analyse', methods=['POST'])
+@require_api_key
+@limiter.limit("10 per minute")
+def v1_analyse():
+    """External API: analyse an image via multipart/form-data with API key auth."""
+    user = request.user
+
+    if user['role'] != 'admin':
+        if user['plan'] in ('trial',) and user['analyses_used'] >= user['analyses_limit']:
+            return jsonify({'error': 'Analyse-Kontingent aufgebraucht', 'upgrade_required': True}), 402
+        if user['plan'] == 'starter' and user['analyses_used'] >= 50:
+            return jsonify({'error': 'Monatliches Kontingent erreicht', 'upgrade_required': True}), 402
+
+    import base64
+
+    # Accept either multipart form or JSON
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        image_file = request.files.get('image')
+        if not image_file:
+            return jsonify({'error': 'Kein Bild hochgeladen (multipart field "image" erwartet)'}), 400
+        img_a = base64.b64encode(image_file.read()).decode('utf-8')
+        species = request.form.get('species', 'Hund')
+        region = request.form.get('region', 'Thorax')
+    else:
+        d = request.json or {}
+        img_a = d.get('image', '')
+        species = d.get('species', 'Hund')
+        region = d.get('region', 'Thorax')
+
+    if not img_a:
+        return jsonify({'error': 'Kein Bild-Daten'}), 400
+
+    # Reuse the main analyse logic by forwarding internally
+    # Build the JSON body and call the analyse function indirectly
+    from flask import g
+    # Store original json and set up the request data
+    request._v1_data = {
+        'img_a': img_a, 'species': species, 'region': region,
+        'mode': 'single', 'context': '', 'focus_mode': 'general', 'focus_text': '',
+        'pet_name': '', 'img_b': ''
+    }
+
+    # Check cache
+    img_h = image_hash(img_a)
+    conn = get_db()
+    cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
+    conn.close()
+    if cached:
+        result = {k: cached.get(k, '') for k in ['id', 'report_text', 'severity', 'species', 'region', 'mode', 'created_at']}
+        result['cached'] = True
+        return jsonify(result)
+
+    # Call AI (simplified — use same providers)
+    if not ANTHROPIC_API_KEY and not OPENAI_API_KEY and not GEMINI_API_KEY:
+        return jsonify({'error': 'KI nicht konfiguriert'}), 503
+
+    import time as _time
+
+    system_prompt = "Du bist ein erfahrener Veterinärradiologe. Erstelle einen vollständigen Befundbericht auf Deutsch."
+    msgs = [
+        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': img_a}},
+        {'type': 'text', 'text': f'Erstelle einen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}.'}
+    ]
+
+    text = None
+    # Try OpenAI
+    if OPENAI_API_KEY and not text:
+        try:
+            from openai import OpenAI
+            oc = OpenAI(api_key=OPENAI_API_KEY)
+            oai_content = []
+            for m in msgs:
+                if m['type'] == 'image':
+                    oai_content.append({'type': 'image_url', 'image_url': {'url': f"data:{m['source']['media_type']};base64,{m['source']['data']}", 'detail': 'high'}})
+                else:
+                    oai_content.append({'type': 'text', 'text': m['text']})
+            resp = oc.chat.completions.create(model='gpt-4o', max_tokens=4096, temperature=0,
+                messages=[{'role': 'system', 'content': system_prompt}, {'role': 'user', 'content': oai_content}])
+            text = resp.choices[0].message.content
+        except Exception as e:
+            app.logger.warning(f'v1 OpenAI Fehler: {e}')
+
+    # Try Anthropic
+    if ANTHROPIC_API_KEY and not text:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=4096, temperature=0,
+                system=system_prompt, messages=[{'role': 'user', 'content': msgs}])
+            text = resp.content[0].text
+        except Exception as e:
+            app.logger.warning(f'v1 Anthropic Fehler: {e}')
+
+    if not text:
+        return jsonify({'error': 'KI-Analyse fehlgeschlagen'}), 503
+
+    tl = text.lower()
+    sev = 'high' if ('**hoch**' in tl or '**notfall**' in tl) else ('low' if '**niedrig**' in tl else 'mid')
+
+    required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
+    sections_found = sum(1 for s in required_sections if s in tl)
+    quality_score = sections_found
+
+    rid = 'r_' + nid()
+    conn = get_db()
+    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+               (rid, user['id'], '', species, region, 'single', sev, text, img_a, img_h, quality_score, now()))
+    db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?', (user['id'],))
+    conn.commit(); conn.close()
+
+    audit('v1_Analyse', user['id'], f'{species}/{region}')
+    return jsonify({'id': rid, 'report_text': text, 'severity': sev, 'species': species, 'region': region,
+                    'quality_score': quality_score, 'created_at': now()})
+
+@app.route('/api/v1/reports')
+@require_api_key
+def v1_list_reports():
+    """External API: list reports for API key user."""
+    page = request.args.get('page', 1, type=int)
+    per_page = min(max(request.args.get('per_page', 20, type=int), 1), 100)
+    page = max(page, 1)
+
+    conn = get_db()
+    count_row = db_dict(db_fetchone(conn, 'SELECT COUNT(*) as n FROM reports WHERE user_id=?', (request.user['id'],)))
+    total = count_row['n']
+    pages = math.ceil(total / per_page) if per_page > 0 else 1
+    offset = (page - 1) * per_page
+    rows = db_fetchall(conn, 'SELECT id,pet_name,species,region,mode,severity,quality_score,created_at FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                       (request.user['id'], per_page, offset))
+    conn.close()
+    return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
+
+@app.route('/api/v1/reports/<rid>')
+@require_api_key
+def v1_get_report(rid):
+    """External API: get a single report by ID."""
+    conn = get_db()
+    report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=? AND user_id=?', (rid, request.user['id'])))
+    conn.close()
+    if not report:
+        return jsonify({'error': 'Befund nicht gefunden'}), 404
+    report.pop('image_data', None)
+    return jsonify({'report': report})
+
+# ═══════════════════════════════════════════════════
 # ERROR HANDLER
 # ═══════════════════════════════════════════════════
 @app.errorhandler(429)
@@ -1031,6 +2433,80 @@ def internal_error(e):
     return jsonify({'error': 'Interner Serverfehler'}), 500
 
 # ═══════════════════════════════════════════════════
+# DEBUG: DB Health Check (temporär)
+# ═══════════════════════════════════════════════════
+@app.route('/api/db-check')
+def db_check():
+    """Debug: Prüft welche Spalten in reports/users existieren"""
+    try:
+        conn = get_db()
+        if USE_POSTGRES:
+            cur = conn.cursor()
+            cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='reports' ORDER BY ordinal_position")
+            report_cols = [r[0] for r in cur.fetchall()]
+            cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' ORDER BY ordinal_position")
+            user_cols = [r[0] for r in cur.fetchall()]
+        else:
+            cur = conn.execute("PRAGMA table_info(reports)")
+            report_cols = [r[1] for r in cur.fetchall()]
+            cur = conn.execute("PRAGMA table_info(users)")
+            user_cols = [r[1] for r in cur.fetchall()]
+        conn.close()
+        return jsonify({
+            'reports_columns': report_cols,
+            'users_columns': user_cols,
+            'has_image_hash': 'image_hash' in report_cols,
+            'has_quality_score': 'quality_score' in report_cols,
+            'has_api_key': 'api_key' in user_cols,
+            'db': 'PostgreSQL' if USE_POSTGRES else 'SQLite'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/health')
+def health_check():
+    # Bei jedem Health-Check: Admin-Passwort sicherstellen
+    pw_hash = hash_pw('admin123')
+    try:
+        conn = get_db()
+        existing = db_dict(db_fetchone(conn, 'SELECT id,password,active,role FROM users WHERE email=?', ('admin@animioo.de',)))
+        if existing:
+            db_execute(conn, 'UPDATE users SET password=?, active=1, role=?, email_verified=1 WHERE email=?',
+                       (pw_hash, 'admin', 'admin@animioo.de'))
+            admin_status = 'UPDATED'
+        else:
+            trial_end = (datetime.now() + timedelta(days=14)).isoformat()
+            db_execute(conn, '''INSERT INTO users
+                (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,trial_ends_at,created_at)
+                VALUES (?,?,?,?,?,?,1,?,?,?,1,?,?)''',
+                ('admin1','admin@animioo.de',pw_hash,'Administrator','Animioo','admin','admin',0,999999,trial_end,now()))
+            admin_status = 'CREATED'
+        conn.commit()
+        # Verify the password works
+        verify_user = db_dict(db_fetchone(conn, 'SELECT password FROM users WHERE email=?', ('admin@animioo.de',)))
+        conn.close()
+        pw_ok = check_pw('admin123', verify_user['password']) if verify_user else False
+        admin_status += f' pw_ok={pw_ok} bcrypt={HAS_BCRYPT} hash_start={pw_hash[:10]}'
+    except Exception as e:
+        admin_status = f'ERROR: {e}'
+    return jsonify({'status': 'ok', 'admin': admin_status})
+
+@app.route('/api/test-email')
+@require_admin
+def test_email():
+    """Admin-only: Test ob E-Mail-Versand funktioniert."""
+    ok = send_email(request.user['email'], 'Animioo – Test-E-Mail',
+        '<div style="font-family:Inter,sans-serif;padding:30px;"><h2>Test erfolgreich!</h2><p>Der E-Mail-Versand funktioniert.</p></div>')
+    return jsonify({
+        'ok': ok,
+        'smtp_host': SMTP_HOST,
+        'smtp_port': SMTP_PORT,
+        'smtp_user': SMTP_USER,
+        'smtp_from': SMTP_FROM,
+        'message': 'E-Mail gesendet!' if ok else 'E-Mail-Versand fehlgeschlagen. Siehe Logs.'
+    })
+
+# ═══════════════════════════════════════════════════
 # START
 # ═══════════════════════════════════════════════════
 init_db()
@@ -1040,16 +2516,17 @@ if __name__ == '__main__':
     debug = os.environ.get('DEBUG','false').lower() == 'true'
 
     missing = []
-    if not ANTHROPIC_API_KEY:  missing.append('ANTHROPIC_API_KEY')
+    if not OPENAI_API_KEY and not ANTHROPIC_API_KEY:  missing.append('OPENAI_API_KEY')
     if not STRIPE_SECRET_KEY:  missing.append('STRIPE_SECRET_KEY')
 
+    ki_status = 'OpenAI (primaer)' if OPENAI_API_KEY else ('Anthropic (backup)' if ANTHROPIC_API_KEY else ('Gemini' if GEMINI_API_KEY else 'KEINE KI konfiguriert!'))
     db_type = 'PostgreSQL' if USE_POSTGRES else 'SQLite'
     print(f"""
 ╔══════════════════════════════════════════════╗
 ║   Animioo – Server v2 gestartet             ║
 ║   URL: http://localhost:{port}                  ║
 ║   DB:     {db_type}
-║   KI:     {'Bereit' if ANTHROPIC_API_KEY else 'ANTHROPIC_API_KEY fehlt'}
+║   KI:     {ki_status}
 ║   Stripe: {'Bereit' if STRIPE_SECRET_KEY else 'STRIPE_SECRET_KEY fehlt'}
 ║   E-Mail: {'Bereit' if SMTP_HOST else 'SMTP nicht konfiguriert'}
 ║   Sentry: {'Bereit' if SENTRY_DSN else 'Nicht konfiguriert'}

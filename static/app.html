@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Animioo – KI-Radiologie Plattform</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--blue:#1a56db;--blue2:#1447b7;--blue-dim:#eff6ff;--blue-mid:#bfdbfe;--green:#059669;--green-dim:#ecfdf5;--green-mid:#a7f3d0;--amber:#b45309;--amber-dim:#fffbeb;--red:#dc2626;--red-dim:#fef2f2;--navy:#0f1c35;--navy2:#1a2e52;--bg:#f8fafc;--surface:#fff;--s2:#f1f5f9;--border:#e2e8f0;--border2:#cbd5e1;--text:#0f172a;--text2:#475569;--text3:#94a3b8;--f:'Inter',system-ui,sans-serif;--r:6px;--sh:0 1px 3px rgba(0,0,0,.08);--sh2:0 4px 20px rgba(0,0,0,.1);}
@@ -197,6 +198,73 @@ a{color:inherit;text-decoration:none;}
 .t-dot.red{background:var(--red);}
 .t-dot.amber{background:var(--amber);}
 
+/* ═══ PROGRESS MODAL ═══ */
+.prog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.prog-card{background:var(--surface);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.3);width:100%;max-width:500px;padding:28px 32px 24px;position:relative;overflow:hidden;}
+.prog-animal-track{position:relative;height:36px;margin-bottom:18px;overflow:hidden;}
+.prog-animal{position:absolute;top:0;left:0;transition:left 1s ease-out;}
+.prog-title{font-size:15px;font-weight:800;color:var(--text);margin-bottom:18px;text-align:center;}
+.prog-bar-wrap{height:8px;background:var(--s2);border-radius:8px;overflow:hidden;margin-bottom:20px;border:1px solid var(--border);}
+.prog-bar-fill{height:100%;background:linear-gradient(90deg,var(--blue),#3b82f6,var(--blue2));border-radius:8px;transition:width .8s ease-out;width:0%;}
+.prog-steps{display:flex;flex-direction:column;gap:6px;}
+.prog-step{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r);font-size:12.5px;color:var(--text3);transition:all .3s ease;opacity:.4;}
+.prog-step.active{color:var(--blue);font-weight:600;background:var(--blue-dim);opacity:1;}
+.prog-step.done{color:var(--green);opacity:.7;}
+.prog-step svg{width:18px;height:18px;flex-shrink:0;}
+.prog-step .prog-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--blue-mid);border-top-color:var(--blue);animation:spin .7s linear infinite;flex-shrink:0;margin-left:auto;}
+.prog-error{text-align:center;padding:14px;color:var(--red);font-size:13px;font-weight:600;}
+@keyframes progFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.prog-step.active{animation:progFadeIn .35s ease;}
+
+/* ═══ ONBOARDING MODAL ═══ */
+.onb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:6000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.onb-card{background:var(--surface);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.3);width:100%;max-width:480px;overflow:hidden;}
+.onb-slide{padding:32px 36px 24px;text-align:center;display:none;}
+.onb-slide.active{display:block;}
+.onb-illus{width:80px;height:80px;margin:0 auto 18px;border-radius:20px;display:flex;align-items:center;justify-content:center;}
+.onb-illus svg{width:44px;height:44px;}
+.onb-h{font-size:20px;font-weight:800;color:var(--text);margin-bottom:8px;}
+.onb-p{font-size:13.5px;color:var(--text2);line-height:1.7;margin-bottom:20px;}
+.onb-steps-list{text-align:left;margin:0 auto 20px;max-width:320px;}
+.onb-step-item{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px;color:var(--text2);}
+.onb-step-num{width:26px;height:26px;border-radius:50%;background:var(--blue-dim);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;}
+.onb-footer{padding:0 36px 24px;display:flex;align-items:center;justify-content:space-between;}
+.onb-dots{display:flex;gap:6px;}
+.onb-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .2s;}
+.onb-dot.active{background:var(--blue);width:20px;border-radius:4px;}
+.onb-btn{padding:9px 22px;border-radius:var(--r);background:var(--blue);color:#fff;font-size:13px;font-weight:700;transition:all .2s;}
+.onb-btn:hover{background:var(--blue2);}
+.onb-skip{font-size:12px;color:var(--text3);cursor:pointer;}
+.onb-skip:hover{color:var(--text2);}
+
+/* ═══ FEEDBACK UI ═══ */
+.fb-section{border-top:1px solid var(--border);margin-top:20px;padding-top:18px;}
+.fb-title{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;}
+.fb-stars{display:flex;gap:4px;margin-bottom:12px;}
+.fb-star{width:28px;height:28px;cursor:pointer;color:var(--border2);transition:color .15s;}
+.fb-star.filled{color:#f59e0b;}
+.fb-star svg{width:28px;height:28px;fill:currentColor;}
+.fb-toggle{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.fb-toggle-label{font-size:12.5px;color:var(--text2);}
+.fb-toggle-btn{padding:5px 14px;border-radius:var(--r);font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all .15s;}
+.fb-toggle-btn.selected-yes{background:var(--green-dim);border-color:var(--green-mid);color:var(--green);}
+.fb-toggle-btn.selected-no{background:var(--red-dim);border-color:#fecaca;color:var(--red);}
+.fb-comment{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:12.5px;font-family:var(--f);resize:vertical;min-height:60px;margin-bottom:10px;color:var(--text);}
+.fb-comment:focus{outline:none;border-color:var(--blue);}
+.fb-submit{padding:8px 18px;border-radius:var(--r);background:var(--blue);color:#fff;font-size:12px;font-weight:700;transition:all .2s;}
+.fb-submit:hover{background:var(--blue2);}
+.fb-submit:disabled{opacity:.5;cursor:not-allowed;}
+.fb-thanks{font-size:13px;color:var(--green);font-weight:600;padding:10px 0;}
+.fb-readonly{opacity:.7;}
+.fb-readonly .fb-star,.fb-readonly .fb-toggle-btn,.fb-readonly .fb-comment{cursor:default;pointer-events:none;}
+
+/* ═══ PAGINATION ═══ */
+.pag-wrap{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 0;border-top:1px solid var(--border);margin-top:10px;}
+.pag-btn{padding:6px 14px;border-radius:var(--r);font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;transition:all .15s;}
+.pag-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue);}
+.pag-btn:disabled{opacity:.4;cursor:not-allowed;}
+.pag-info{font-size:12px;color:var(--text3);}
+
 /* ═══ MOBILE RESPONSIVE ═══ */
 @media(max-width:768px){
   /* Toolbar: kompakter */
@@ -335,8 +403,9 @@ a{color:inherit;text-decoration:none;}
     <span class="tb-uname" id="tb-name"></span>
     <button class="tb-logout" onclick="doLogout()">Abmelden</button>
   </div>
-  <div id="verify-banner" style="display:none;background:#fffbeb;border-bottom:1px solid #fde68a;padding:8px 18px;font-size:12.5px;color:#92400e;flex-shrink:0;">
-    ⚠ Bitte bestätigen Sie Ihre E-Mail-Adresse. <a href="#" onclick="resendVerify();return false;" style="color:var(--blue);font-weight:600;text-decoration:underline;">Erneut senden</a>
+  <div id="verify-banner" style="display:none;background:#fef2f2;border-bottom:2px solid #fca5a5;padding:12px 18px;font-size:13px;color:#991b1b;flex-shrink:0;text-align:center;">
+    <strong>E-Mail nicht best&auml;tigt!</strong> Bitte pr&uuml;fen Sie Ihr Postfach (<span id="verify-email-hint"></span>) und klicken Sie auf den Best&auml;tigungslink. Erst danach k&ouml;nnen Sie Analysen durchf&uuml;hren.
+    <button onclick="resendVerify()" style="margin-left:12px;padding:5px 14px;border-radius:6px;background:#1a56db;color:#fff;font-size:12px;font-weight:700;border:none;cursor:pointer;">Best&auml;tigungs-E-Mail erneut senden</button>
   </div>
   <div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileMenu()"></div>
   <div class="app-wrap">
@@ -493,7 +562,7 @@ function doRegister() {
       localStorage.setItem('ps_token',d.token);
       ME=d.user;
       showApp();
-      toast('Willkommen! Sie haben 3 kostenlose Analysen.');
+      toast('Willkommen! Sie haben 20 kostenlose Analysen.');
     })
     .catch(function(e){ err.textContent=e.message; err.style.display='block'; })
     .finally(function(){ btn.disabled=false; btn.textContent='14 Tage kostenlos starten'; });
@@ -538,7 +607,7 @@ function doLogout() {
 }
 
 function resendVerify() {
-  api('/api/auth/resend-verify','POST',{})
+  api('/api/auth/resend-verification','POST',{})
     .then(function(){ toast('Bestätigungs-E-Mail wurde erneut gesendet.'); })
     .catch(function(e){ toast('Fehler: '+e.message); });
 }
@@ -566,8 +635,99 @@ function showApp() {
   }
   // Show email verification banner if not verified
   var vb = document.getElementById('verify-banner');
-  if (vb) vb.style.display = (ME.email_verified===false && ME.role!=='admin') ? '' : 'none';
+  var notVerified = !ME.email_verified && ME.role!=='admin';
+  if (vb) vb.style.display = notVerified ? '' : 'none';
+  var eh = document.getElementById('verify-email-hint');
+  if (eh && ME.email) eh.textContent = ME.email;
   renderAnalyse();
+  // Befund-Anzahl sofort im Hintergrund laden und Badge aktualisieren
+  api('/api/reports').then(function(data){
+    ALL_REPORTS = (data.reports||[]).map(function(r){
+      var cached = CACHED.find(function(c){ return c.id===r.id; });
+      return cached ? Object.assign({},r,{img_a:cached.img_a,img_b:cached.img_b}) : r;
+    });
+    updateBadge(ALL_REPORTS.length);
+  }).catch(function(){});
+  // Onboarding tour for new users
+  if ((ME.analyses_used||0) === 0 && !localStorage.getItem('animioo_onboarding_done')) {
+    showOnboarding();
+  }
+}
+
+// ONBOARDING TOUR
+var onbSlide = 0;
+function showOnboarding() {
+  var ov = document.createElement('div');
+  ov.className = 'onb-overlay';
+  ov.id = 'onb-overlay';
+  ov.innerHTML = '<div class="onb-card">'
+    // Slide 1
+    +'<div class="onb-slide active" id="onb-s0">'
+    +'<div class="onb-illus" style="background:var(--blue-dim);">'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5"><circle cx="7.5" cy="6.5" r="2"/><circle cx="16.5" cy="6.5" r="2"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><path d="M7.5 15.5C7.5 14 9.5 12 12 12s4.5 2 4.5 3.5c0 2-1.5 4-2.5 4.5-.7.3-1.3.5-2 .5s-1.3-.2-2-.5c-1-.5-2.5-2.5-2.5-4.5z" fill="var(--blue)" opacity=".15"/></svg>'
+    +'</div>'
+    +'<div class="onb-h">Willkommen bei Animioo!</div>'
+    +'<div class="onb-p">Die KI-gestützte Plattform für veterinärradiologische Befundung. Laden Sie Röntgenbilder hoch und erhalten Sie in Sekunden einen detaillierten radiologischen Befundbericht.</div>'
+    +'</div>'
+    // Slide 2
+    +'<div class="onb-slide" id="onb-s1">'
+    +'<div class="onb-illus" style="background:var(--green-dim);">'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
+    +'</div>'
+    +'<div class="onb-h">So funktioniert es</div>'
+    +'<div class="onb-steps-list">'
+    +'<div class="onb-step-item"><span class="onb-step-num">1</span>Röntgenbild hochladen (JPG, PNG, DICOM)</div>'
+    +'<div class="onb-step-item"><span class="onb-step-num">2</span>Tierart und Körperregion auswählen</div>'
+    +'<div class="onb-step-item"><span class="onb-step-num">3</span>KI-Analyse starten — Befund in unter 45 Sekunden</div>'
+    +'<div class="onb-step-item"><span class="onb-step-num">4</span>Befund als PDF, Word oder TXT exportieren</div>'
+    +'</div>'
+    +'</div>'
+    // Slide 3
+    +'<div class="onb-slide" id="onb-s2">'
+    +'<div class="onb-illus" style="background:var(--amber-dim);">'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+    +'</div>'
+    +'<div class="onb-h">20 Analysen kostenlos</div>'
+    +'<div class="onb-p">Ihre ersten 20 Analysen sind völlig kostenlos — keine Kreditkarte erforderlich. Testen Sie die volle Leistungsfähigkeit der KI-Befundung mit echten Roentgenbildern aus Ihrer Praxis.</div>'
+    +'</div>'
+    // Slide 4
+    +'<div class="onb-slide" id="onb-s3">'
+    +'<div class="onb-illus" style="background:var(--blue-dim);">'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>'
+    +'</div>'
+    +'<div class="onb-h">Los geht es!</div>'
+    +'<div class="onb-p">Starten Sie jetzt Ihre erste Analyse. Wählen Sie die Tierart, laden Sie ein Röntgenbild hoch und lassen Sie die KI arbeiten.</div>'
+    +'</div>'
+    // Footer
+    +'<div class="onb-footer" id="onb-footer">'
+    +'<button class="onb-skip" onclick="closeOnboarding()">Ueberspringen</button>'
+    +'<div class="onb-dots" id="onb-dots"><div class="onb-dot active"></div><div class="onb-dot"></div><div class="onb-dot"></div><div class="onb-dot"></div></div>'
+    +'<button class="onb-btn" id="onb-btn" onclick="nextOnbSlide()">Weiter</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  onbSlide = 0;
+}
+
+function nextOnbSlide() {
+  onbSlide++;
+  if (onbSlide >= 4) { closeOnboarding(); navTo('analyse', document.querySelector('.nb[data-v=analyse]')); return; }
+  for (var i = 0; i < 4; i++) {
+    var s = document.getElementById('onb-s'+i);
+    if (s) s.className = 'onb-slide' + (i === onbSlide ? ' active' : '');
+  }
+  // Update dots
+  var dots = document.querySelectorAll('#onb-dots .onb-dot');
+  dots.forEach(function(d, i){ d.className = 'onb-dot' + (i === onbSlide ? ' active' : ''); });
+  // Update button text
+  var btn = document.getElementById('onb-btn');
+  if (btn) btn.textContent = onbSlide === 3 ? 'Los geht es!' : 'Weiter';
+}
+
+function closeOnboarding() {
+  localStorage.setItem('animioo_onboarding_done', '1');
+  var ov = document.getElementById('onb-overlay');
+  if (ov) ov.remove();
 }
 
 // MOBILE MENU
@@ -733,10 +893,16 @@ function loadImg(file, k) {
     img.onload=function(){
       var canvas=document.createElement('canvas');
       var w=img.naturalWidth, h=img.naturalHeight;
-      if(w>1200){ h=Math.round(h*1200/w); w=1200; }
+      // Höhere Auflösung für bessere Diagnostik — Röntgenbilder brauchen Details!
+      var maxDim=2048;
+      if(w>maxDim||h>maxDim){
+        if(w>h){ h=Math.round(h*maxDim/w); w=maxDim; }
+        else{ w=Math.round(w*maxDim/h); h=maxDim; }
+      }
       canvas.width=w; canvas.height=h;
       canvas.getContext('2d').drawImage(img,0,0,w,h);
-      var url=canvas.toDataURL('image/jpeg',0.88);
+      // PNG = verlustfrei für maximale Diagnosequalität bei Röntgenbildern
+      var url=canvas.toDataURL('image/png');
       if(k==='a') AN.imgA={url:url,b64:url.split(',')[1],name:file.name};
       else AN.imgB={url:url,b64:url.split(',')[1],name:file.name};
       var uz=document.getElementById('uz-'+k);
@@ -773,12 +939,129 @@ function setFocus(type, btn) {
   document.getElementById('focus-detail').style.display = type==='specific' ? '' : 'none';
 }
 
+// PROGRESS MODAL
+var PROG_STEPS = [
+  {label:'Bild wird vorbereitet...', pct:10, icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.5 2 5.5 4.5 4.2 7.5c-.3.7.1 1.5.8 1.5h14c.7 0 1.1-.8.8-1.5C18.5 4.5 15.5 2 12 2z"/><circle cx="7" cy="14" r="2"/><circle cx="17" cy="14" r="2"/><circle cx="12" cy="18" r="2"/></svg>'},
+  {label:'Bildqualitaet wird geprueft...', pct:25, icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>'},
+  {label:'Knochen werden analysiert...', pct:45, icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/><path d="M6 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/><path d="M18 6L6 18"/><path d="M6 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/><path d="M18 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"/></svg>'},
+  {label:'Weichteile werden untersucht...', pct:60, icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'},
+  {label:'Organe werden beurteilt...', pct:75, icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6h.3"/><path d="M20 18a2 2 0 1 0-4 0c0 2 4 3 4 3s4-1 4-3a2 2 0 1 0-4 0"/></svg>'},
+  {label:'Differenzialdiagnosen werden erstellt...', pct:90, icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>'},
+  {label:'Befund wird finalisiert...', pct:100, icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'}
+];
+var progTimers = [];
+var progModal = null;
+
+function showProgressModal() {
+  closeProgressModal();
+  var ov = document.createElement('div');
+  ov.className = 'prog-overlay';
+  ov.id = 'prog-overlay';
+  var animalSvg = '<svg viewBox="0 0 60 36" width="48" height="28" fill="var(--blue)" opacity=".7">'
+    +'<ellipse cx="18" cy="22" rx="14" ry="10"/>'
+    +'<circle cx="6" cy="16" r="4"/>'
+    +'<ellipse cx="36" cy="28" rx="4" ry="6" transform="rotate(-15 36 28)"/>'
+    +'<ellipse cx="26" cy="30" rx="3" ry="5" transform="rotate(5 26 30)"/>'
+    +'<ellipse cx="10" cy="30" rx="3" ry="5" transform="rotate(-5 10 30)"/>'
+    +'<ellipse cx="2" cy="28" rx="3" ry="5" transform="rotate(10 2 28)"/>'
+    +'<path d="M36 22q6-2 10 0q4 3 0 5q-4 1-8-1z" fill="var(--blue)" opacity=".5"/>'
+    +'</svg>';
+  var stepsHtml = PROG_STEPS.map(function(s, i){
+    return '<div class="prog-step" id="prog-s'+i+'">'
+      + '<span style="display:flex;align-items:center;justify-content:center;width:18px;height:18px;">' + s.icon + '</span>'
+      + '<span>' + s.label + '</span>'
+      + '</div>';
+  }).join('');
+  ov.innerHTML = '<div class="prog-card">'
+    +'<div class="prog-animal-track"><div class="prog-animal" id="prog-animal">' + animalSvg + '</div></div>'
+    +'<div class="prog-title">KI analysiert Röntgenbild</div>'
+    +'<div class="prog-bar-wrap"><div class="prog-bar-fill" id="prog-bar"></div></div>'
+    +'<div class="prog-steps" id="prog-steps">' + stepsHtml + '</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  progModal = ov;
+  // Start step progression
+  startProgSteps();
+}
+
+function startProgSteps() {
+  progTimers = [];
+  var delays = [0, 2000, 5000, 8500, 11500, 14500, 17500];
+  delays.forEach(function(d, i){
+    var t = setTimeout(function(){ advanceProgStep(i); }, d);
+    progTimers.push(t);
+  });
+}
+
+function advanceProgStep(idx) {
+  var bar = document.getElementById('prog-bar');
+  var animal = document.getElementById('prog-animal');
+  if (!bar) return;
+  // Mark previous steps done
+  for (var j = 0; j < idx; j++) {
+    var prev = document.getElementById('prog-s'+j);
+    if (prev) { prev.className = 'prog-step done'; }
+  }
+  // Mark current active
+  var cur = document.getElementById('prog-s'+idx);
+  if (cur) {
+    cur.className = 'prog-step active';
+    cur.innerHTML += '<div class="prog-spin"></div>';
+  }
+  // Update bar
+  bar.style.width = PROG_STEPS[idx].pct + '%';
+  // Move animal
+  if (animal) {
+    var trackWidth = animal.parentElement.offsetWidth - 48;
+    animal.style.left = (trackWidth * PROG_STEPS[idx].pct / 100) + 'px';
+  }
+}
+
+function completeProgress() {
+  // Clear timers
+  progTimers.forEach(function(t){ clearTimeout(t); });
+  progTimers = [];
+  // Mark all done
+  var bar = document.getElementById('prog-bar');
+  if (bar) bar.style.width = '100%';
+  var animal = document.getElementById('prog-animal');
+  if (animal) {
+    var trackWidth = animal.parentElement.offsetWidth - 48;
+    animal.style.left = trackWidth + 'px';
+  }
+  for (var i = 0; i < PROG_STEPS.length; i++) {
+    var s = document.getElementById('prog-s'+i);
+    if (s) { s.className = 'prog-step done'; s.querySelector('.prog-spin')&&s.querySelector('.prog-spin').remove(); }
+  }
+  setTimeout(function(){ closeProgressModal(); }, 800);
+}
+
+function showProgressError(msg) {
+  progTimers.forEach(function(t){ clearTimeout(t); });
+  progTimers = [];
+  var steps = document.getElementById('prog-steps');
+  if (steps) {
+    steps.innerHTML = '<div class="prog-error"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--red)" stroke-width="2" style="margin-bottom:6px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><div>' + msg + '</div></div>';
+  }
+  var bar = document.getElementById('prog-bar');
+  if (bar) { bar.style.background = 'var(--red)'; }
+  setTimeout(function(){ closeProgressModal(); }, 2500);
+}
+
+function closeProgressModal() {
+  progTimers.forEach(function(t){ clearTimeout(t); });
+  progTimers = [];
+  var ov = document.getElementById('prog-overlay');
+  if (ov) ov.remove();
+  progModal = null;
+}
+
 function runAnalysis() {
   if(!AN.imgA){ toast('Bitte Aufnahme A hochladen','red'); return; }
   if(AN.mode!=='single'&&!AN.imgB){ toast('Bitte auch Aufnahme B hochladen','amber'); return; }
   var btn=document.getElementById('run-btn');
   btn.disabled=true; btn.classList.add('busy');
-  showLoading();
+  showProgressModal();
   var ctx=document.getElementById('ctx');
   var focusTxt=document.getElementById('focus-text');
   api('/api/analyse','POST',{
@@ -790,6 +1073,7 @@ function runAnalysis() {
     img_a:AN.imgA.b64, img_b:AN.imgB?AN.imgB.b64:''
   })
   .then(function(data){
+    completeProgress();
     var report=Object.assign({},data,{img_a:AN.imgA.url,img_b:AN.imgB?AN.imgB.url:''});
     CACHED.unshift(report);
     updateBadge(CACHED.length);
@@ -797,31 +1081,19 @@ function runAnalysis() {
     if(ME.plan==='trial'||ME.plan==='starter'){
       document.getElementById('tb-usage').textContent=ME.analyses_used+'/'+(ME.analyses_limit||5)+' Analysen';
     }
-    renderResult(report);
-    document.getElementById('result-ts').textContent='Erstellt: '+new Date().toLocaleTimeString('de-DE');
-    toast('Befund erfolgreich erstellt');
+    setTimeout(function(){
+      renderResult(report);
+      document.getElementById('result-ts').textContent='Erstellt: '+new Date().toLocaleTimeString('de-DE');
+      toast('Befund erfolgreich erstellt');
+    }, 900);
   })
   .catch(function(e){
-    document.getElementById('an-main').innerHTML='<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.5" width="24" height="24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div class="empty-h" style="color:var(--red)">Fehler</div><div class="empty-p">'+e.message+'</div></div>';
+    showProgressError(e.message);
+    setTimeout(function(){
+      document.getElementById('an-main').innerHTML='<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.5" width="24" height="24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div class="empty-h" style="color:var(--red)">Fehler</div><div class="empty-p">'+e.message+'</div></div>';
+    }, 2600);
   })
   .finally(function(){ btn.disabled=false; btn.classList.remove('busy'); });
-}
-
-function showLoading() {
-  document.getElementById('an-main').innerHTML='<div class="load-wrap"><div class="load-card">'
-    +'<div style="font-size:13px;font-weight:700;margin-bottom:16px">🔬 KI analysiert Röntgenbild …</div>'
-    +'<div class="l-step done"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Bild vorbereitet</div>'
-    +'<div class="l-step act" id="ls1"><div class="l-step-spin"></div>Bild wird übertragen …</div>'
-    +'<div class="l-step" id="ls2"><div style="width:13px;height:13px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0"></div>KI analysiert</div>'
-    +'<div class="l-step" id="ls3"><div style="width:13px;height:13px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0"></div>Befund wird formuliert</div>'
-    +'<div class="l-bar"><div class="l-bar-fill"></div></div></div></div>';
-  setTimeout(function(){ advStep('ls1','ls2','KI analysiert …'); },1000);
-  setTimeout(function(){ advStep('ls2','ls3','Befund wird formuliert …'); },3000);
-}
-function advStep(doneId,nextId,nextLabel) {
-  var d=document.getElementById(doneId), n=document.getElementById(nextId);
-  if(d){ d.classList.remove('act'); d.classList.add('done'); d.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'+d.textContent.trim(); }
-  if(n){ n.classList.add('act'); n.innerHTML='<div class="l-step-spin"></div>'+nextLabel; }
 }
 
 // RENDER RESULT
@@ -847,7 +1119,7 @@ function renderResult(r) {
     +imgs
     +'<div class="sev-bar '+sevCls+'"><div style="flex:1"><div class="sev-lbl">DRINGLICHKEIT: '+sevLbl+'</div></div><div class="sev-track"><div class="sev-fill"></div></div></div>'
     +'<div class="result-body">'+mdToHtml(r.report_text)+'</div>'
-    +'<div class="disclaimer">⚠️ KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
+    +'<div class="disclaimer">Hinweis: KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
     +'</div>'
     +'<div class="chat-box" id="chat-box">'
     +'<div class="chat-header"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Rückfragen zum Befund</div>'
@@ -898,17 +1170,21 @@ function sendChat(){
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 // REPORTS
+var REP_PAGE = 1;
+var REP_PER_PAGE = 20;
+
 function renderReports() {
+  REP_PAGE = 1;
   var c=document.getElementById('main-content');
   c.style.overflow='';
   c.innerHTML='<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">'
     +'<div style="padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;">'
-    +'<input id="rep-q" type="text" placeholder="Befunde suchen — Tierart, Region …" oninput="filterReps(this.value)"'
+    +'<input id="rep-q" type="text" placeholder="Befunde suchen — Tierart, Region ..." oninput="REP_PAGE=1;filterReps(this.value)"'
     +' style="flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--f);">'
-    +'<select id="rep-sev" onchange="filterReps(document.getElementById(\'rep-q\').value)" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);">'
+    +'<select id="rep-sev" onchange="REP_PAGE=1;filterReps(document.getElementById(\'rep-q\').value)" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);">'
     +'<option value="">Alle Dringlichkeiten</option><option value="high">HOCH</option><option value="mid">MITTEL</option><option value="low">NIEDRIG</option></select>'
     +'<button class="abt ab-g" onclick="exportAllCSV()">CSV Export</button></div>'
-    +'<div id="rep-list" style="flex:1;overflow-y:auto;padding:16px 20px;"><div style="color:var(--text3);padding:20px;text-align:center;">Lade Befunde …</div></div></div>';
+    +'<div id="rep-list" style="flex:1;overflow-y:auto;padding:16px 20px;"><div style="color:var(--text3);padding:20px;text-align:center;">Lade Befunde ...</div></div></div>';
   api('/api/reports')
     .then(function(data){
       ALL_REPORTS=(data.reports||[]).map(function(r){
@@ -932,24 +1208,61 @@ function filterReps(q) {
   var el=document.getElementById('rep-list');
   if(!el) return;
   if(!filtered.length){
-    el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">'+(ALL_REPORTS.length?'Keine Treffer — Filter anpassen':'Noch keine Befunde. Starten Sie Ihre erste Analyse.')+'</div>';
+    el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">'+(ALL_REPORTS.length?'Keine Treffer -- Filter anpassen':'Noch keine Befunde. Starten Sie Ihre erste Analyse.')+'</div>';
     return;
   }
+  // Pagination
+  var totalPages = Math.ceil(filtered.length / REP_PER_PAGE);
+  if (REP_PAGE > totalPages) REP_PAGE = totalPages;
+  if (REP_PAGE < 1) REP_PAGE = 1;
+  var startIdx = (REP_PAGE - 1) * REP_PER_PAGE;
+  var pageItems = filtered.slice(startIdx, startIdx + REP_PER_PAGE);
+
   el.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">'+filtered.length+' Befund'+(filtered.length!==1?'e':'')+' gefunden</div>'
-    +filtered.map(function(r){
+    +pageItems.map(function(r){
       var ml={single:'Einzelanalyse',compare:'Verlauf',diff:'Vergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
       var sb={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
       var sl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
-      return '<div class="report-item" onclick="openReport(\''+r.id+'\')"><div style="width:38px;height:38px;border-radius:8px;background:var(--blue-dim);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>'
-        +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
+      var thumbId = 'thumb-'+r.id;
+      return '<div class="report-item" onclick="openReport(\''+r.id+'\')"><div id="'+thumbId+'" style="width:48px;height:48px;border-radius:8px;background:var(--blue-dim);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">'+(r.has_image?'<div style="width:48px;height:48px;background:var(--s2);border-radius:8px;display:flex;align-items:center;justify-content:center;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>':'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>')+'</div>'
+        +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' -- ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
         +'<span class="badge '+sb+'">'+sl+'</span>'
         +'<div style="display:flex;gap:4px;" onclick="event.stopPropagation()">'
+        +(r.has_image?'<button class="abt ab-g" onclick="startCompareFromReport(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;" title="Mit neuem Bild vergleichen">Vergleich</button>':'')
         +'<button class="abt ab-p" onclick="exportPDF(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">PDF</button>'
         +'<button class="abt ab-g" onclick="exportWord(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">Word</button>'
         +'<button class="abt ab-g" onclick="exportTXT(\''+r.id+'\')" style="padding:5px 9px;font-size:11px;">TXT</button>'
-        +'<button onclick="delReport(\''+r.id+'\',event)" style="padding:5px 9px;font-size:11px;font-weight:600;color:var(--red);border:1px solid var(--border);border-radius:var(--r);background:var(--surface);">✕</button>'
+        +'<button onclick="delReport(\''+r.id+'\',event)" style="padding:5px 9px;font-size:11px;font-weight:600;color:var(--red);border:1px solid var(--border);border-radius:var(--r);background:var(--surface);">x</button>'
         +'</div></div>';
-    }).join('');
+    }).join('')
+    // Pagination controls
+    +(totalPages > 1 ? '<div class="pag-wrap">'
+      +'<button class="pag-btn" onclick="repPagePrev()" '+(REP_PAGE<=1?'disabled':'')+'>&#8592; Vorherige</button>'
+      +'<span class="pag-info">Seite '+REP_PAGE+' von '+totalPages+'</span>'
+      +'<button class="pag-btn" onclick="repPageNext()" '+(REP_PAGE>=totalPages?'disabled':'')+'>Nächste &#8594;</button>'
+      +'</div>' : '');
+
+  // Lazy-load thumbnails for reports with images
+  pageItems.forEach(function(r){
+    if(!r.has_image) return;
+    var thumbEl = document.getElementById('thumb-'+r.id);
+    if(!thumbEl) return;
+    api('/api/reports/'+r.id+'/thumbnail')
+      .then(function(data){
+        if(!data.thumbnail) return;
+        var el = document.getElementById('thumb-'+r.id);
+        if(el) el.innerHTML='<img src="data:image/jpeg;base64,'+data.thumbnail+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;">';
+      })
+      .catch(function(){});
+  });
+}
+
+function repPagePrev() {
+  if (REP_PAGE > 1) { REP_PAGE--; filterReps(document.getElementById('rep-q')?document.getElementById('rep-q').value:''); }
+}
+function repPageNext() {
+  REP_PAGE++;
+  filterReps(document.getElementById('rep-q')?document.getElementById('rep-q').value:'');
 }
 
 function openReport(id) {
@@ -964,13 +1277,6 @@ function openReport(id) {
   var m=document.createElement('div');
   m.id='rep-modal';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;overflow-y:auto;padding:20px;display:flex;align-items:flex-start;justify-content:center;';
-  var imgs='';
-  if(r.img_a){
-    imgs='<div style="display:flex;gap:10px;margin-bottom:16px;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;">'
-      +'<div style="flex:1;text-align:center;"><img src="'+r.img_a+'" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:4px;"><div style="font-size:10px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px;">Aufnahme A</div></div>'
-      +(r.img_b?'<div style="flex:1;text-align:center;"><img src="'+r.img_b+'" style="max-width:100%;max-height:200px;object-fit:contain;border-radius:4px;"><div style="font-size:10px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px;">Aufnahme B</div></div>':'')
-      +'</div>';
-  }
   m.innerHTML='<div style="background:var(--surface);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.3);width:100%;max-width:820px;margin:auto;">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;border-radius:12px 12px 0 0;">'
     +'<div><div style="font-size:11px;color:var(--text3)">'+(r.pet_name?r.pet_name+' — ':'')+r.species+' · '+r.region+' · '+modeLabel+'</div><div style="font-size:16px;font-weight:800;">Radiologischer Befundbericht</div></div>'
@@ -982,13 +1288,251 @@ function openReport(id) {
     +'</div></div>'
     +'<div style="padding:22px;">'
     +'<div style="display:flex;justify-content:space-between;margin-bottom:12px;"><span style="font-size:12px;color:var(--text3)">'+fmtDate(r.created_at)+'</span><span class="badge '+sevBadge+'">'+sevBadgeLbl+'</span></div>'
-    +imgs
+    +'<div id="report-image-area" style="margin-bottom:16px;"></div>'
     +'<div class="sev-bar '+sevCls+'" style="margin-bottom:16px;"><div style="flex:1"><div class="sev-lbl">DRINGLICHKEIT: '+sevLbl+'</div></div><div class="sev-track"><div class="sev-fill"></div></div></div>'
     +'<div class="result-body">'+mdToHtml(r.report_text)+'</div>'
-    +'<div class="disclaimer" style="margin-top:12px;">⚠️ KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
+    +'<div class="disclaimer" style="margin-top:12px;">Hinweis: KI-generierter Befund. Kein Ersatz für tierärztliche Diagnose.</div>'
+    +'<div class="fb-section" id="fb-section-'+id+'">'
+    +'<div class="fb-title">Feedback zum Befund</div>'
+    +'<div id="fb-content-'+id+'"><div style="color:var(--text3);font-size:12px;">Feedback wird geladen...</div></div>'
+    +'</div>'
     +'</div></div>';
   m.addEventListener('click',function(e){ if(e.target===m) m.remove(); });
   document.body.appendChild(m);
+  loadFeedback(id);
+
+  // Load image from API and display in report
+  if(r.has_image) {
+    var imgArea = document.getElementById('report-image-area');
+    imgArea.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Bild wird geladen…</div>';
+    api('/api/reports/'+id+'/image')
+      .then(function(data){
+        if(!data.image_data) { imgArea.innerHTML=''; return; }
+        var imgSrc = 'data:image/jpeg;base64,' + data.image_data;
+        // Cache image data on report object for reuse
+        r._cachedImgData = data.image_data;
+        imgArea.innerHTML=
+          '<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px;overflow:hidden;">'
+          +'<div style="text-align:center;position:relative;">'
+          +'<img src="'+imgSrc+'" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:6px;cursor:pointer;" onclick="openImageFullscreen(this.src)" title="Klicken zum Vergrößern">'
+          +'<div style="font-size:10px;color:var(--text3);margin-top:6px;text-transform:uppercase;letter-spacing:1px;">Originalaufnahme</div>'
+          +'</div>'
+          +'<div style="display:flex;gap:8px;margin-top:10px;justify-content:center;">'
+          +'<button class="abt ab-p" onclick="useImageForCompare(\''+id+'\')" style="font-size:11px;padding:6px 14px;">'
+          +'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/><path d="M13 7h4v4"/><path d="M11 17H7v-4"/></svg>'
+          +'Für Vergleich verwenden</button>'
+          +'<button class="abt ab-g" onclick="useImageForSecondOpinion(\''+id+'\')" style="font-size:11px;padding:6px 14px;">'
+          +'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
+          +'Zweitmeinung anfordern</button>'
+          +'</div>'
+          +'</div>';
+      })
+      .catch(function(){ imgArea.innerHTML=''; });
+  }
+}
+
+// Fullscreen image viewer
+function openImageFullscreen(src) {
+  var ov = document.createElement('div');
+  ov.id='img-fullscreen';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:3000;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;';
+  ov.innerHTML='<img src="'+src+'" style="max-width:95%;max-height:95%;object-fit:contain;border-radius:4px;">'
+    +'<button style="position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);border:none;cursor:pointer;font-size:22px;color:#fff;">×</button>';
+  ov.addEventListener('click',function(){ ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+// Use image from report for comparison
+function useImageForCompare(reportId) {
+  var r = ALL_REPORTS.find(function(x){ return x.id===reportId; });
+  if(!r){ toast('Befund nicht gefunden','red'); return; }
+  var modal = document.getElementById('rep-modal');
+  if(modal) modal.remove();
+
+  function loadAndSetup(imgData) {
+    AN.species = r.species || 'Hund';
+    AN.region = r.region || 'Thorax';
+    AN.mode = 'compare';
+    AN.petName = r.pet_name || '';
+    AN.imgA = { b64: imgData, url: 'data:image/jpeg;base64,' + imgData };
+    AN.imgB = null;
+    navTo('analyse', document.querySelector('.nb'));
+    setTimeout(function(){
+      var uzA = document.getElementById('uz-a');
+      if(uzA){
+        uzA.className = 'uz has';
+        uzA.onclick = null;
+        uzA.innerHTML = '<span class="uz-tag">AUFNAHME A — VORHERIGES BILD</span>'
+          + '<img class="uz-preview" src="' + AN.imgA.url + '">'
+          + '<div class="uz-name" style="color:var(--blue);font-weight:600;">Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
+          + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
+      }
+      var uzB = document.getElementById('uz-b');
+      if(uzB){ uzB.style.borderColor = 'var(--blue)'; uzB.style.background = 'var(--blue-dim)'; }
+      // Set mode selector to compare
+      var modeSelect = document.querySelector('select[onchange*="AN.mode"]') || document.getElementById('mode-select');
+      if(modeSelect) { modeSelect.value = 'compare'; AN.mode = 'compare'; }
+      toast('Bild geladen — jetzt neues Bild als Aufnahme B hochladen', 'blue');
+    }, 150);
+  }
+
+  if(r._cachedImgData) {
+    loadAndSetup(r._cachedImgData);
+  } else {
+    toast('Lade Bild…');
+    api('/api/reports/'+reportId+'/image')
+      .then(function(data){
+        if(!data.image_data){ toast('Kein Bild vorhanden','amber'); return; }
+        r._cachedImgData = data.image_data;
+        loadAndSetup(data.image_data);
+      })
+      .catch(function(e){ toast('Fehler: ' + e.message, 'red'); });
+  }
+}
+
+// Use image for second opinion
+function useImageForSecondOpinion(reportId) {
+  var r = ALL_REPORTS.find(function(x){ return x.id===reportId; });
+  if(!r){ toast('Befund nicht gefunden','red'); return; }
+  var modal = document.getElementById('rep-modal');
+  if(modal) modal.remove();
+
+  function loadAndSetup(imgData) {
+    AN.species = r.species || 'Hund';
+    AN.region = r.region || 'Thorax';
+    AN.mode = 'second';
+    AN.petName = r.pet_name || '';
+    AN.imgA = { b64: imgData, url: 'data:image/jpeg;base64,' + imgData };
+    AN.imgB = null;
+    navTo('analyse', document.querySelector('.nb'));
+    setTimeout(function(){
+      var uzA = document.getElementById('uz-a');
+      if(uzA){
+        uzA.className = 'uz has';
+        uzA.onclick = null;
+        uzA.innerHTML = '<span class="uz-tag">AUFNAHME — ZWEITMEINUNG</span>'
+          + '<img class="uz-preview" src="' + AN.imgA.url + '">'
+          + '<div class="uz-name" style="color:var(--blue);font-weight:600;">Aus Befund: ' + (r.pet_name ? r.pet_name + ' — ' : '') + r.species + ' · ' + r.region + '</div>'
+          + '<button class="uz-rm" onclick="removeImg(\'a\',event)">✕</button>';
+      }
+      // Set mode to second opinion
+      var modeSelect = document.querySelector('select[onchange*="AN.mode"]') || document.getElementById('mode-select');
+      if(modeSelect) { modeSelect.value = 'second'; AN.mode = 'second'; }
+      toast('Bild geladen — Zweitmeinung wird vorbereitet', 'blue');
+    }, 150);
+  }
+
+  if(r._cachedImgData) {
+    loadAndSetup(r._cachedImgData);
+  } else {
+    toast('Lade Bild…');
+    api('/api/reports/'+reportId+'/image')
+      .then(function(data){
+        if(!data.image_data){ toast('Kein Bild vorhanden','amber'); return; }
+        r._cachedImgData = data.image_data;
+        loadAndSetup(data.image_data);
+      })
+      .catch(function(e){ toast('Fehler: ' + e.message, 'red'); });
+  }
+}
+
+// FEEDBACK UI
+function loadFeedback(reportId) {
+  var container = document.getElementById('fb-content-'+reportId);
+  if (!container) return;
+  api('/api/reports/'+reportId+'/feedback')
+    .then(function(data) {
+      if (data && data.feedback && (data.feedback.rating || data.feedback.correct !== undefined || data.feedback.comment)) {
+        renderFeedbackReadonly(reportId, data.feedback);
+      } else {
+        renderFeedbackForm(reportId);
+      }
+    })
+    .catch(function() {
+      // No feedback yet or endpoint not found, show form
+      renderFeedbackForm(reportId);
+    });
+}
+
+function renderFeedbackForm(reportId) {
+  var container = document.getElementById('fb-content-'+reportId);
+  if (!container) return;
+  var starSvg = '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  container.innerHTML = ''
+    +'<div class="fb-stars" id="fb-stars-'+reportId+'">'
+    + [1,2,3,4,5].map(function(n){
+      return '<div class="fb-star" data-val="'+n+'" onclick="setFbStar(\''+reportId+'\','+n+')">'+starSvg+'</div>';
+    }).join('')
+    +'</div>'
+    +'<div class="fb-toggle">'
+    +'<span class="fb-toggle-label">War der Befund korrekt?</span>'
+    +'<button class="fb-toggle-btn" id="fb-yes-'+reportId+'" onclick="setFbCorrect(\''+reportId+'\',true)">Ja</button>'
+    +'<button class="fb-toggle-btn" id="fb-no-'+reportId+'" onclick="setFbCorrect(\''+reportId+'\',false)">Nein</button>'
+    +'</div>'
+    +'<textarea class="fb-comment" id="fb-comment-'+reportId+'" placeholder="Anmerkungen zum Befund..."></textarea>'
+    +'<button class="fb-submit" id="fb-submit-'+reportId+'" onclick="submitFeedback(\''+reportId+'\')">Feedback senden</button>';
+  // Store state
+  window['fb_state_'+reportId] = {rating:0, correct:null};
+}
+
+function renderFeedbackReadonly(reportId, fb) {
+  var container = document.getElementById('fb-content-'+reportId);
+  if (!container) return;
+  var starSvg = '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  var starsHtml = [1,2,3,4,5].map(function(n){
+    return '<div class="fb-star'+(n <= (fb.rating||0) ? ' filled' : '')+'">'+starSvg+'</div>';
+  }).join('');
+  var correctText = fb.correct === true ? 'Ja' : (fb.correct === false ? 'Nein' : '--');
+  var correctClass = fb.correct === true ? 'selected-yes' : (fb.correct === false ? 'selected-no' : '');
+  container.innerHTML = '<div class="fb-readonly">'
+    +'<div class="fb-stars">'+starsHtml+'</div>'
+    +'<div class="fb-toggle">'
+    +'<span class="fb-toggle-label">War der Befund korrekt?</span>'
+    +'<span class="fb-toggle-btn '+correctClass+'">'+correctText+'</span>'
+    +'</div>'
+    +(fb.comment ? '<div style="font-size:12.5px;color:var(--text2);padding:6px 0;font-style:italic;">"'+escHtml(fb.comment)+'"</div>' : '')
+    +'<div class="fb-thanks">Danke für Ihr Feedback!</div>'
+    +'</div>';
+}
+
+function setFbStar(reportId, val) {
+  var state = window['fb_state_'+reportId];
+  if (!state) return;
+  state.rating = val;
+  var stars = document.querySelectorAll('#fb-stars-'+reportId+' .fb-star');
+  stars.forEach(function(s, i){ s.className = 'fb-star' + (i < val ? ' filled' : ''); });
+}
+
+function setFbCorrect(reportId, val) {
+  var state = window['fb_state_'+reportId];
+  if (!state) return;
+  state.correct = val;
+  var yesBtn = document.getElementById('fb-yes-'+reportId);
+  var noBtn = document.getElementById('fb-no-'+reportId);
+  if (yesBtn) yesBtn.className = 'fb-toggle-btn' + (val === true ? ' selected-yes' : '');
+  if (noBtn) noBtn.className = 'fb-toggle-btn' + (val === false ? ' selected-no' : '');
+}
+
+function submitFeedback(reportId) {
+  var state = window['fb_state_'+reportId];
+  if (!state) return;
+  var comment = document.getElementById('fb-comment-'+reportId);
+  var btn = document.getElementById('fb-submit-'+reportId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Wird gesendet...'; }
+  var payload = {
+    rating: state.rating,
+    correct: state.correct,
+    comment: comment ? comment.value.trim() : ''
+  };
+  api('/api/reports/'+reportId+'/feedback', 'POST', payload)
+    .then(function() {
+      renderFeedbackReadonly(reportId, payload);
+      toast('Danke für Ihr Feedback!');
+    })
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Feedback senden'; }
+      toast('Fehler beim Senden: ' + e.message, 'red');
+    });
 }
 
 function delReport(id,e) {
@@ -997,6 +1541,11 @@ function delReport(id,e) {
   api('/api/reports/'+id,'DELETE')
     .then(function(){ ALL_REPORTS=ALL_REPORTS.filter(function(r){return r.id!==id;}); CACHED=CACHED.filter(function(r){return r.id!==id;}); filterReps(document.getElementById('rep-q')?document.getElementById('rep-q').value:''); toast('Befund gelöscht'); })
     .catch(function(e){ toast(e.message,'red'); });
+}
+
+// COMPARE FROM EXISTING REPORT (delegate to new function)
+function startCompareFromReport(reportId) {
+  useImageForCompare(reportId);
 }
 
 // ACCOUNT
@@ -1018,7 +1567,43 @@ function buildAccount() {
     +'<div class="ac-row"><span class="ac-lbl">Praxis</span><span class="ac-val">'+(ME.praxis||'–')+'</span></div>'
     +'<div class="ac-row"><span class="ac-lbl">Plan</span><span class="ac-val">'+pl+'</span></div></div>'
     +(ME.plan!=='professional'&&ME.plan!=='admin'?'<div class="ac-card" style="border-color:var(--blue);background:var(--blue-dim);"><div class="ac-h" style="border-color:var(--blue-mid);">Auf Professional upgraden</div><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">Unbegrenzte Analysen, alle Exportformate — ab 143 €/Monat (jährlich).</p><button class="abt ab-p" onclick="navTo(\'upgrade\',document.querySelector(\'[data-v=upgrade]\'))">Jetzt upgraden →</button></div>':'')
+    +'<div class="ac-card"><div class="ac-h">Datenschutz (DSGVO)</div>'
+    +'<p style="font-size:12.5px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Gem&auml;&szlig; DSGVO haben Sie das Recht, Ihre Daten einzusehen, zu exportieren und Ihr Konto zu l&ouml;schen.</p>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+    +'<button class="abt ab-g" onclick="exportMyData()" style="font-size:12px;padding:8px 16px;">Meine Daten exportieren (JSON)</button>'
+    +'<button class="abt" onclick="deleteMyAccount()" style="font-size:12px;padding:8px 16px;background:var(--red-dim);color:var(--red);border-color:var(--red-mid);">Konto &amp; Daten l&ouml;schen</button>'
+    +'</div>'
+    +'<p style="font-size:11px;color:var(--text3);margin-top:10px;">Fragen zum Datenschutz: <a href="mailto:kontakt@animioo.de" style="color:var(--blue);">kontakt@animioo.de</a> · <a href="/datenschutz" target="_blank" style="color:var(--blue);">Datenschutzerkl&auml;rung</a></p>'
+    +'</div>'
     +'</div></div>';
+}
+
+// DSGVO: Daten exportieren
+function exportMyData() {
+  toast('Daten werden exportiert...');
+  api('/api/auth/export-data').then(function(data){
+    var blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'animioo-meine-daten-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Datenexport erfolgreich heruntergeladen.');
+  }).catch(function(e){ toast('Fehler beim Export: ' + e.message); });
+}
+
+// DSGVO: Konto löschen
+function deleteMyAccount() {
+  if (!confirm('ACHTUNG: Ihr gesamtes Konto und alle Daten (Befunde, Bilder, Profil) werden unwiderruflich gelöscht.\n\nDieser Vorgang kann NICHT rückgängig gemacht werden.\n\nMöchten Sie wirklich fortfahren?')) return;
+  if (!confirm('Letzte Warnung: Alle Ihre Daten werden sofort und endgültig gelöscht. Bestätigen Sie die Löschung?')) return;
+  api('/api/auth/delete-account','DELETE').then(function(){
+    localStorage.removeItem('ps_token');
+    ME = null;
+    ALL_REPORTS = [];
+    toast('Ihr Konto und alle Daten wurden gelöscht.');
+    setTimeout(function(){ location.reload(); }, 1500);
+  }).catch(function(e){ toast('Fehler: ' + e.message); });
 }
 
 // UPGRADE
@@ -1044,7 +1629,7 @@ function renderUpgrade() {
     +'<span style="font-size:10px;font-weight:700;background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:6px;">20% sparen</span>'
     +'</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">'
-    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;"><div style="font-size:15px;font-weight:800;margin-bottom:4px">Gratis</div><div style="font-size:26px;font-weight:800;margin-bottom:4px">0 €</div><div style="font-size:11px;color:var(--text3);margin-bottom:12px">3 Analysen gratis</div><div style="font-size:12px;color:var(--text2);line-height:1.8">3 KI-Analysen<br>Alle Tierarten<br>PDF Export</div></div>'
+    +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;"><div style="font-size:15px;font-weight:800;margin-bottom:4px">Gratis</div><div style="font-size:26px;font-weight:800;margin-bottom:4px">0 €</div><div style="font-size:11px;color:var(--text3);margin-bottom:12px">20 Analysen gratis</div><div style="font-size:12px;color:var(--text2);line-height:1.8">20 KI-Analysen<br>Alle Tierarten<br>PDF Export</div></div>'
     +'<div style="border:1px solid var(--border);border-radius:10px;padding:20px;cursor:pointer;" onclick="startCheckout(\'starter\',\''+sBilling+'\')">'
     +'<div style="font-size:15px;font-weight:800;margin-bottom:4px">Starter</div><div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">'+sPrice+' €<span style="font-size:13px;color:var(--text3)">/Mo</span></div>'
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+sPeriod+'</div>'
@@ -1067,10 +1652,53 @@ function startCheckout(plan, billing) {
     .catch(function(e){ toast('Stripe: '+e.message,'red'); });
 }
 
-// PDF EXPORT
+// PDF EXPORT (server-side)
 function exportPDF(id) {
+  // Find the button that triggered this to show loading state
+  var btns = document.querySelectorAll('button[onclick*="exportPDF(\''+id+'\')"]');
+  btns.forEach(function(b){ b.disabled = true; b.textContent = 'PDF...'; });
+  toast('PDF wird generiert...');
+
+  var token = localStorage.getItem('ps_token');
+  fetch('/api/reports/'+id+'/pdf', {
+    method: 'GET',
+    headers: {'Authorization': 'Bearer '+token}
+  })
+  .then(function(r) {
+    if (!r.ok) {
+      return r.json().then(function(d){ throw new Error(d.error || 'PDF-Export fehlgeschlagen'); });
+    }
+    return r.blob();
+  })
+  .then(function(blob) {
+    // If the server returned JSON error instead of PDF blob
+    if (blob.type && blob.type.indexOf('json') >= 0) {
+      return blob.text().then(function(t){
+        var d = JSON.parse(t);
+        throw new Error(d.error || 'PDF-Export fehlgeschlagen');
+      });
+    }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'Animioo_Befund_' + id + '.pdf';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('PDF heruntergeladen');
+  })
+  .catch(function(e) {
+    // Fallback to client-side print if server endpoint not available
+    exportPDFFallback(id);
+  })
+  .finally(function() {
+    btns.forEach(function(b){ b.disabled = false; b.textContent = 'PDF'; });
+  });
+}
+
+// Fallback: client-side PDF via print dialog
+function exportPDFFallback(id) {
   var r=CACHED.find(function(x){return x.id===id;})||ALL_REPORTS.find(function(x){return x.id===id;});
-  if(!r){ toast('Bild nicht im Cache — bitte Seite neu laden','amber'); return; }
+  if(!r){ toast('Befund nicht gefunden','amber'); return; }
   var ml={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
   var sc={low:'#ecfdf5',mid:'#fffbeb',high:'#fef2f2'}[r.severity]||'#fffbeb';
   var bc={low:'#a7f3d0',mid:'#fde68a',high:'#fecaca'}[r.severity]||'#fde68a';
@@ -1104,17 +1732,17 @@ function exportPDF(id) {
     +'<div class="hdr"><div><div class="bn">Animioo</div><div class="bs">KI-Radiologieplattform</div></div>'
     +'<div style="text-align:right"><div style="font-weight:700;font-size:13px">'+(ME&&ME.praxis?ME.praxis:'')+'</div><div class="me">'+(ME&&ME.name?ME.name:'')+'</div></div></div>'
     +'<div class="ti">Radiologischer Befundbericht</div>'
-    +'<div class="me">'+r.species+' · '+r.region+' · '+ml+' · '+fmtDate(r.created_at)+' · ID: '+r.id+'</div>'
+    +'<div class="me">'+r.species+' . '+r.region+' . '+ml+' . '+fmtDate(r.created_at)+' . ID: '+r.id+'</div>'
     +'<div class="sv"><div class="sl">DRINGLICHKEIT: '+stxt+'</div></div>'
     +(r.img_a?'<div class="imgs"><img src="'+r.img_a+'">'+(r.img_b&&r.mode!=='single'?'<img src="'+r.img_b+'">':'')+'</div>':'')
     +mdToHtml(r.report_text)
-    +'<div class="dis">⚠️ KI-generierter Befundbericht. Kein Ersatz für tierärztliche Diagnose durch einen approbierten Tierarzt.</div>'
+    +'<div class="dis">Hinweis: KI-generierter Befundbericht. Kein Ersatz für tierärztliche Diagnose durch einen approbierten Tierarzt.</div>'
     +'<div class="ft"><span>Animioo GmbH</span><span>'+fmtDate(r.created_at)+'</span></div>'
     +'</body></html>';
   win.document.write(html);
   win.document.close();
   setTimeout(function(){ win.print(); }, 600);
-  toast('PDF wird geöffnet …');
+  toast('PDF wird geöffnet (Druckdialog)');
 }
 
 // WORD EXPORT
@@ -1128,7 +1756,7 @@ function exportWord(id) {
     +'<p><strong>Tierart:</strong> '+r.species+' &nbsp;&nbsp; <strong>Region:</strong> '+r.region+' &nbsp;&nbsp; <strong>Modus:</strong> '+ml+'</p>'
     +'<p><strong>Datum:</strong> '+fmtDate(r.created_at)+' &nbsp;&nbsp; <strong>Dringlichkeit:</strong> '+st+'</p><hr>'
     +mdToHtml(r.report_text)
-    +'<hr><p><em>Animioo KI-Befundassistent. Kein Ersatz fuer tieraerztliche Diagnose.</em></p>'
+    +'<hr><p><em>Animioo KI-Befundassistent. Kein Ersatz für tierärztliche Diagnose.</em></p>'
     +'</body></html>';
   var blob=new Blob([html],{type:'application/msword'});
   var url=URL.createObjectURL(blob);
@@ -1147,7 +1775,7 @@ function exportTXT(id) {
     +'Tierart: '+r.species+'\nRegion: '+r.region+'\nDatum: '+fmtDate(r.created_at)+'\nDringlichkeit: '+st+'\n'
     +'='.repeat(40)+'\n\n'
     +(r.report_text||'').replace(/\*\*(.+?)\*\*/g,'$1').replace(/^## /gm,'-- ').replace(/^### /gm,'  ')
-    +'\n\n'+'--\nAnimioo KI. Kein Ersatz fuer tieraerztliche Diagnose.';
+    +'\n\n'+'--\nAnimioo KI. Kein Ersatz für tierärztliche Diagnose.';
   var blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
@@ -1220,15 +1848,17 @@ function toast(msg,type) {
 }
 </script>
 
-<!-- COOKIE BANNER -->
-<div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:var(--navy);border-top:1px solid rgba(255,255,255,.1);padding:14px 20px;font-family:var(--f);">
-  <div style="max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-    <div style="flex:1;min-width:240px;font-size:12.5px;color:rgba(255,255,255,.8);line-height:1.6;">
-      Diese Website verwendet Cookies, um die bestmögliche Funktionalität zu bieten. <a href="/datenschutz" style="color:#93c5fd;text-decoration:underline;">Mehr erfahren</a>
+<!-- DSGVO COOKIE BANNER -->
+<div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a2e52;border-top:2px solid rgba(255,255,255,.15);padding:18px 20px;font-family:var(--f);box-shadow:0 -4px 20px rgba(0,0,0,.3);">
+  <div style="max-width:1000px;margin:0 auto;">
+    <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:6px;">Cookie-Einstellungen</div>
+    <div style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;margin-bottom:12px;">
+      Wir verwenden ausschlie&szlig;lich <strong style="color:#fff;">technisch notwendige Cookies</strong> (Session-Token, Cookie-Pr&auml;ferenz). Es werden <strong style="color:#fff;">keine Tracking- oder Marketing-Cookies</strong> eingesetzt. Ihre Daten werden gem&auml;&szlig; DSGVO auf Servern in Frankfurt (EU) verarbeitet.
+      <a href="/datenschutz" style="color:#93c5fd;text-decoration:underline;margin-left:4px;">Datenschutzerkl&auml;rung</a>
     </div>
-    <div style="display:flex;gap:8px;flex-shrink:0;">
-      <button onclick="acceptCookies('all')" style="padding:7px 16px;border-radius:6px;background:var(--blue);color:#fff;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:var(--f);">Akzeptieren</button>
-      <button onclick="acceptCookies('necessary')" style="padding:7px 16px;border-radius:6px;background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.25);cursor:pointer;font-family:var(--f);">Nur notwendige</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="acceptCookies('all')" style="padding:8px 20px;border-radius:6px;background:#1a56db;color:#fff;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:var(--f);">Alle akzeptieren</button>
+      <button onclick="acceptCookies('necessary')" style="padding:8px 20px;border-radius:6px;background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.25);cursor:pointer;font-family:var(--f);">Nur notwendige</button>
     </div>
   </div>
 </div>
@@ -1240,6 +1870,7 @@ function toast(msg,type) {
 })();
 function acceptCookies(t){
   localStorage.setItem('cookie_consent',t);
+  localStorage.setItem('cookie_consent_date',new Date().toISOString());
   document.getElementById('cookie-banner').style.display='none';
 }
 </script>
