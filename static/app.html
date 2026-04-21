@@ -916,9 +916,6 @@ function renderAnalyse() {
         return '<button class="mode-btn'+(AN.mode===mv[1]?' on':'')+'" onclick="setMode(this,\''+mv[1]+'\')">'+mv[0]+'</button>';
       }).join('')
     + '</div>'
-    + '<button class="mode-btn'+(AN.mode==='viewonly'?' on':'')+'" onclick="setMode(this,\'viewonly\')" style="width:100%;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:5px;">'
-    + '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
-    + 'Nur Bild anzeigen (kein KI)</button>'
     + '</div>'
     // Upload
     + '<div><div class="an-lbl">5 · Röntgenbild hochladen</div>'
@@ -949,7 +946,7 @@ function renderAnalyse() {
     + '</div>'
     // Button
     + '<button class="run-btn" id="run-btn" onclick="runAnalysis()">'
-    + '<div class="run-spin"></div><span id="run-btn-lbl">'+(AN.mode==='viewonly'?'Bild anzeigen':'Radiologische Analyse starten')+'</span></button>'
+    + '<div class="run-spin"></div><span id="run-btn-lbl">Radiologische Analyse starten</span></button>'
     + '</div>'
     + '<div class="an-main" id="an-main">'
     + '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>'
@@ -1001,8 +998,6 @@ function setRg(btn, val) {
 function setMode(btn, val) {
   document.querySelectorAll('.mode-btn').forEach(function(b){ b.classList.remove('on'); });
   btn.classList.add('on'); AN.mode=val;
-  var lbl = document.getElementById('run-btn-lbl');
-  if (lbl) lbl.textContent = val === 'viewonly' ? 'Bild anzeigen' : 'Radiologische Analyse starten';
 }
 
 // UPLOADS
@@ -1212,11 +1207,6 @@ function closeProgressModal() {
 
 function runAnalysis() {
   if(!AN.imgA){ toast('Bitte Aufnahme A hochladen','red'); return; }
-  // Nur Bild anzeigen — no AI call
-  if (AN.mode === 'viewonly') {
-    showImageOnlyView();
-    return;
-  }
   if(AN.mode!=='single'&&!AN.imgB){ toast('Bitte auch Aufnahme B hochladen','amber'); return; }
   var btn=document.getElementById('run-btn');
   btn.disabled=true; btn.classList.add('busy');
@@ -1972,45 +1962,6 @@ function exportAllCSV() {
   a.href=url; a.download='Animioo_Befunde_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click(); URL.revokeObjectURL(url);
   toast(reports.length+' Befunde als CSV exportiert');
-}
-
-// NUR BILD ANZEIGEN
-function showImageOnlyView() {
-  var main = document.getElementById('an-main');
-  if (!main) return;
-  var imgs = '';
-  if (AN.imgA) {
-    imgs += '<div style="text-align:center;margin-bottom:12px;">'
-      + '<img src="'+AN.imgA.url+'" style="max-width:100%;max-height:calc(100vh - 240px);object-fit:contain;border-radius:6px;cursor:zoom-in;box-shadow:0 2px 12px rgba(0,0,0,.15);" onclick="openImageFullscreen(this.src)" title="Klicken zum Vergrößern">'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:5px;text-transform:uppercase;letter-spacing:1px;">Aufnahme A</div>'
-      + '</div>';
-  }
-  if (AN.imgB) {
-    imgs += '<div style="text-align:center;margin-bottom:12px;">'
-      + '<img src="'+AN.imgB.url+'" style="max-width:100%;max-height:calc(100vh - 240px);object-fit:contain;border-radius:6px;cursor:zoom-in;box-shadow:0 2px 12px rgba(0,0,0,.15);" onclick="openImageFullscreen(this.src)" title="Klicken zum Vergrößern">'
-      + '<div style="font-size:10px;color:var(--text3);margin-top:5px;text-transform:uppercase;letter-spacing:1px;">Aufnahme B</div>'
-      + '</div>';
-  }
-  var patMeta = [];
-  if (AN.patAlter) patMeta.push(AN.patAlter);
-  if (AN.patGewicht) patMeta.push(AN.patGewicht);
-  if (AN.patRasse) patMeta.push(AN.patRasse);
-  if (AN.patGeschlecht) patMeta.push(AN.patGeschlecht);
-  var patStr = patMeta.length ? ' · ' + patMeta.join(', ') : '';
-  main.innerHTML = '<div style="padding:20px;max-width:820px;margin:0 auto;">'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;">'
-    + '<div><div style="font-size:18px;font-weight:800;">Bildansicht</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+(AN.petName?AN.petName+' — ':'')+AN.species+' · '+AN.region+patStr+'</div></div>'
-    + '<button class="abt ab-p" onclick="setMode(document.querySelector(\'.mode-btn\'),\'single\');document.getElementById(\'run-btn-lbl\').textContent=\'Radiologische Analyse starten\';" style="white-space:nowrap;">'
-    + '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>'
-    + 'KI-Analyse starten</button>'
-    + '</div>'
-    + '<div style="background:#000;border-radius:8px;padding:10px;">' + imgs + '</div>'
-    + '<div style="margin-top:10px;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px;">'
-    + '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
-    + 'Nur-Bild-Modus — keine KI-Analyse. Klicken Sie auf das Bild zum Vergrößern oder auf "KI-Analyse starten".</div>'
-    + '</div>';
-  document.getElementById('result-ts').textContent = 'Nur Bild';
 }
 
 // STATISTIK
