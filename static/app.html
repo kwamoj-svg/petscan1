@@ -957,20 +957,28 @@ function showProgressModal() {
   var ov = document.createElement('div');
   ov.className = 'prog-overlay';
   ov.id = 'prog-overlay';
-  // Hund-Silhouette, läuft von links nach rechts (Kopf rechts, Schwanz links)
-  var animalSvg = '<svg viewBox="0 0 72 42" width="54" height="32" fill="var(--blue)" opacity=".85">'
-    +'<path d="M7 24 Q1 13 5 6 Q9 1 12 5 Q14 10 10 18" fill="none" stroke="var(--blue)" stroke-opacity=".85" stroke-width="4" stroke-linecap="round"/>'
-    +'<ellipse cx="31" cy="27" rx="21" ry="11"/>'
-    +'<path d="M48 23 Q49 17 53 13 Q56 10 58 15 L55 25Z"/>'
-    +'<circle cx="53" cy="13" r="11"/>'
-    +'<path d="M47 6 Q40 3 38 11 Q37 18 44 20 Q51 19 52 13 Q52 7 47 6Z"/>'
-    +'<ellipse cx="63" cy="18" rx="8" ry="4.5"/>'
-    +'<circle cx="69" cy="17" r="2.2" opacity=".5"/>'
-    +'<circle cx="57" cy="10" r="2.8" fill="white"/>'
-    +'<path d="M45 35 L43 42" stroke="var(--blue)" stroke-opacity=".85" stroke-width="5" stroke-linecap="round" fill="none"/>'
-    +'<path d="M51 35 L55 42" stroke="var(--blue)" stroke-opacity=".85" stroke-width="5" stroke-linecap="round" fill="none"/>'
-    +'<path d="M18 35 L16 42" stroke="var(--blue)" stroke-opacity=".85" stroke-width="5" stroke-linecap="round" fill="none"/>'
-    +'<path d="M24 35 L27 42" stroke="var(--blue)" stroke-opacity=".85" stroke-width="5" stroke-linecap="round" fill="none"/>'
+  // Hund – saubere geometrische Formen, Kopf rechts, Schwanz links
+  var animalSvg = '<svg viewBox="0 0 66 42" width="52" height="33" fill="var(--blue)" opacity=".85">'
+    // Schwanz (geschwungene Linie, hinten/links, zeigt nach oben)
+    +'<path d="M3 21 Q0 12 3 6 Q6 2 9 6 Q10 11 6 18" fill="none" stroke="var(--blue)" stroke-width="3.5" stroke-linecap="round" stroke-opacity=".85"/>'
+    // Körper: RECHTECK (kein Oval) → klar kein Nilpferd
+    +'<rect x="9" y="22" width="30" height="13" rx="6"/>'
+    // Schlappohren (links vom Kopf, hängt nach hinten)
+    +'<ellipse cx="39" cy="12" rx="7" ry="10"/>'
+    // Kopf (Kreis, vorne rechts, leicht höher als Körper)
+    +'<circle cx="49" cy="15" r="11"/>'
+    // Schnauze (längliches Oval, zeigt nach rechts)
+    +'<ellipse cx="59" cy="19" rx="6" ry="4.5"/>'
+    // Nase
+    +'<circle cx="63" cy="18" r="2" opacity=".4"/>'
+    // Auge (weißer Punkt)
+    +'<circle cx="52" cy="11" r="3" fill="white"/>'
+    // Vorderbeine
+    +'<rect x="32" y="31" width="5" height="11" rx="2.5"/>'
+    +'<rect x="39" y="31" width="5" height="11" rx="2.5"/>'
+    // Hinterbeine
+    +'<rect x="11" y="31" width="5" height="11" rx="2.5"/>'
+    +'<rect x="18" y="31" width="5" height="11" rx="2.5"/>'
     +'</svg>';
   var stepsHtml = PROG_STEPS.map(function(s, i){
     return '<div class="prog-step" id="prog-s'+i+'">'
