@@ -8,10 +8,6 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import anthropic, hashlib, secrets, os, json, smtplib, logging, math, io
-try:
-    import pyotp
-except ImportError:
-    pyotp = None
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -22,15 +18,7 @@ from functools import wraps
 # ═══════════════════════════════════════════════════
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 86400 * 30  # 30 days for static assets
 CORS(app, supports_credentials=True)
-
-# Gzip compression for all responses
-try:
-    from flask_compress import Compress
-    Compress(app)
-except ImportError:
-    pass  # flask-compress not installed — still works without
 
 # Sentry Error-Monitoring
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
@@ -48,24 +36,6 @@ if SENTRY_DSN:
 limiter = Limiter(get_remote_address, app=app, default_limits=["200 per minute"],
                   storage_uri="memory://")
 
-@app.after_request
-def add_security_headers(response):
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
-    # CSP: allow self + inline scripts/styles (needed for app) + Google Fonts + data URIs for images
-    response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; "
-        "img-src 'self' data: blob:; "
-        "connect-src 'self';"
-    )
-    return response
-
 # ═══════════════════════════════════════════════════
 # CONFIG
 # ═══════════════════════════════════════════════════
@@ -76,7 +46,6 @@ STRIPE_SECRET_KEY    = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PUB_KEY       = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SEC   = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_PRICE_STARTER = os.environ.get('STRIPE_PRICE_STARTER', '')
-STRIPE_PRICE_PRAXIS  = os.environ.get('STRIPE_PRICE_PRAXIS', '')
 STRIPE_PRICE_PRO     = os.environ.get('STRIPE_PRICE_PRO', '')
 APP_URL              = os.environ.get('APP_URL', 'http://localhost:5000')
 DATABASE_URL         = os.environ.get('DATABASE_URL', '')
@@ -158,7 +127,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT 'customer',
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 5,
+                analyses_limit INTEGER DEFAULT 20,
                 stripe_customer_id TEXT DEFAULT '',
                 stripe_subscription_id TEXT DEFAULT '',
                 email_verified INTEGER DEFAULT 0,
@@ -168,19 +137,14 @@ def init_db():
                 trial_ends_at TEXT DEFAULT '',
                 pet_name TEXT DEFAULT '',
                 api_key TEXT DEFAULT '',
-                totp_secret TEXT DEFAULT '',
-                totp_enabled INTEGER DEFAULT 0,
                 created_at TEXT,
                 last_login TEXT
             )''',
             '''CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
-                email TEXT DEFAULT '',
                 expires_at TEXT NOT NULL,
-                created_at TEXT,
-                ip_address TEXT DEFAULT '',
-                user_agent TEXT DEFAULT ''
+                created_at TEXT
             )''',
             '''CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
@@ -226,46 +190,6 @@ def init_db():
                 correct INTEGER,
                 comment TEXT DEFAULT '',
                 created_at TEXT
-            )''',
-            '''CREATE TABLE IF NOT EXISTS patients (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                species TEXT DEFAULT '',
-                breed TEXT DEFAULT '',
-                birth_date TEXT DEFAULT '',
-                weight TEXT DEFAULT '',
-                owner_name TEXT DEFAULT '',
-                owner_phone TEXT DEFAULT '',
-                owner_email TEXT DEFAULT '',
-                notes TEXT DEFAULT '',
-                created_at TEXT
-            )''',
-            '''CREATE TABLE IF NOT EXISTS teams (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                owner_id TEXT NOT NULL,
-                created_at TEXT
-            )''',
-            '''CREATE TABLE IF NOT EXISTS team_members (
-                id TEXT PRIMARY KEY,
-                team_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                role TEXT DEFAULT 'member',
-                invited_by TEXT DEFAULT '',
-                joined_at TEXT
-            )''',
-            '''CREATE TABLE IF NOT EXISTS support_tickets (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                user_email TEXT DEFAULT '',
-                user_name TEXT DEFAULT '',
-                subject TEXT DEFAULT '',
-                message TEXT NOT NULL,
-                status TEXT DEFAULT 'open',
-                admin_reply TEXT DEFAULT '',
-                created_at TEXT,
-                updated_at TEXT
             )'''
         ]
         for t in tables:
@@ -287,7 +211,7 @@ def init_db():
                 active INTEGER DEFAULT 1,
                 role TEXT DEFAULT "customer",
                 analyses_used INTEGER DEFAULT 0,
-                analyses_limit INTEGER DEFAULT 5,
+                analyses_limit INTEGER DEFAULT 20,
                 stripe_customer_id TEXT DEFAULT "",
                 stripe_subscription_id TEXT DEFAULT "",
                 email_verified INTEGER DEFAULT 0,
@@ -295,19 +219,14 @@ def init_db():
                 reset_token TEXT DEFAULT "",
                 reset_expires TEXT DEFAULT "",
                 trial_ends_at TEXT DEFAULT "",
-                totp_secret TEXT DEFAULT "",
-                totp_enabled INTEGER DEFAULT 0,
                 created_at TEXT,
                 last_login TEXT
             );
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
-                email TEXT DEFAULT "",
                 expires_at TEXT NOT NULL,
-                created_at TEXT,
-                ip_address TEXT DEFAULT "",
-                user_agent TEXT DEFAULT ""
+                created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
@@ -354,46 +273,6 @@ def init_db():
                 comment TEXT DEFAULT "",
                 created_at TEXT
             );
-            CREATE TABLE IF NOT EXISTS patients (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                species TEXT DEFAULT "",
-                breed TEXT DEFAULT "",
-                birth_date TEXT DEFAULT "",
-                weight TEXT DEFAULT "",
-                owner_name TEXT DEFAULT "",
-                owner_phone TEXT DEFAULT "",
-                owner_email TEXT DEFAULT "",
-                notes TEXT DEFAULT "",
-                created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS teams (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                owner_id TEXT NOT NULL,
-                created_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS team_members (
-                id TEXT PRIMARY KEY,
-                team_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                role TEXT DEFAULT "member",
-                invited_by TEXT DEFAULT "",
-                joined_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS support_tickets (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                user_email TEXT DEFAULT "",
-                user_name TEXT DEFAULT "",
-                subject TEXT DEFAULT "",
-                message TEXT NOT NULL,
-                status TEXT DEFAULT "open",
-                admin_reply TEXT DEFAULT "",
-                created_at TEXT,
-                updated_at TEXT
-            );
         ''')
 
     # Migrate: add new columns if missing (for existing DBs)
@@ -424,40 +303,6 @@ def init_db():
     try:
         db_execute(conn, "ALTER TABLE users ADD COLUMN api_key TEXT DEFAULT ''")
     except: pass
-    for col in [
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER DEFAULT 0",
-        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''",
-        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip_address TEXT DEFAULT ''",
-        "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent TEXT DEFAULT ''",
-        "ALTER TABLE reports ADD COLUMN IF NOT EXISTS patient_id TEXT DEFAULT ''",
-        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT ''",
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS name TEXT",
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS owner_id TEXT",
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS created_at TEXT",
-        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS team_id TEXT",
-        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS user_id TEXT",
-        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'member'",
-        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS invited_by TEXT DEFAULT ''",
-        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS joined_at TEXT",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_logo TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_address TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_phone TEXT DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS practice_website TEXT DEFAULT ''",
-    ]:
-        try:
-            db_execute(conn, col); conn.commit()
-        except Exception:
-            try: conn.rollback()
-            except: pass
-
-    # Migrate: update existing trial users from old default 20 → new default 5
-    try:
-        db_execute(conn, "UPDATE users SET analyses_limit=5 WHERE plan='trial' AND analyses_limit=20")
-        conn.commit()
-    except Exception:
-        try: conn.rollback()
-        except: pass
 
     # ── DB-INDIZES ──
     indexes = [
@@ -520,64 +365,9 @@ def check_pw(pw, hashed):
 def nid():   return secrets.token_hex(8)
 def now():   return datetime.now().isoformat()
 
-def image_hash(base64_data, species='', region='', mode='', ctx='', focus_mode='', focus_text=''):
-    """SHA-256 hash über Bild + alle Analyse-Parameter.
-    Gleiche Bild + andere Einstellungen → neuer Hash → neue Analyse."""
-    key = f"{base64_data[:10000]}|{species}|{region}|{mode}|{ctx}|{focus_mode}|{focus_text}"
-    return hashlib.sha256(key.encode()).hexdigest()
-
-def convert_dicom_to_jpeg_base64(dicom_base64):
-    """Konvertiert DICOM-Datei (als base64) zu JPEG base64 für KI-Analyse."""
-    try:
-        import pydicom
-        import numpy as np
-        from PIL import Image
-        import base64, io
-
-        # Base64 dekodieren
-        dicom_bytes = base64.b64decode(dicom_base64)
-        dicom_file = io.BytesIO(dicom_bytes)
-
-        # DICOM parsen
-        ds = pydicom.dcmread(dicom_file)
-
-        # Pixel-Array extrahieren
-        pixel_array = ds.pixel_array.astype(float)
-
-        # Normalisierung auf 0-255
-        pixel_min = pixel_array.min()
-        pixel_max = pixel_array.max()
-        if pixel_max > pixel_min:
-            pixel_array = ((pixel_array - pixel_min) / (pixel_max - pixel_min) * 255).astype(np.uint8)
-        else:
-            pixel_array = pixel_array.astype(np.uint8)
-
-        # Graustufen zu RGB
-        if len(pixel_array.shape) == 2:
-            img = Image.fromarray(pixel_array, 'L').convert('RGB')
-        else:
-            img = Image.fromarray(pixel_array)
-
-        # Zu JPEG konvertieren
-        output = io.BytesIO()
-        img.save(output, format='JPEG', quality=95)
-        jpeg_b64 = base64.b64encode(output.getvalue()).decode('utf-8')
-
-        # DICOM-Metadaten extrahieren
-        metadata = {}
-        for tag_name in ['PatientName', 'Modality', 'StudyDate', 'BodyPartExamined', 'InstitutionName']:
-            try:
-                val = getattr(ds, tag_name, None)
-                if val: metadata[tag_name] = str(val)
-            except: pass
-
-        return jpeg_b64, metadata
-    except ImportError:
-        app.logger.warning('pydicom nicht installiert')
-        return None, {}
-    except Exception as e:
-        app.logger.warning(f'DICOM-Konvertierung fehlgeschlagen: {e}')
-        return None, {}
+def image_hash(base64_data):
+    """Create a SHA-256 hash of the first 10000 chars of base64 image data for deduplication."""
+    return hashlib.sha256(base64_data[:10000].encode()).hexdigest()
 
 # ═══════════════════════════════════════════════════
 # E-MAIL
@@ -635,7 +425,7 @@ def send_reset_email(email, token):
 
 def send_admin_notification(subject, body):
     """Send notification to admin."""
-    send_email('support@animioo.de', f'Animioo Admin: {subject}', f'''
+    send_email('admin@animioo.de', f'Animioo Admin: {subject}', f'''
         <div style="font-family:Inter,sans-serif;max-width:500px;margin:0 auto;padding:30px;">
             <h3 style="color:#0f172a;">{subject}</h3>
             <p style="color:#475569;">{body}</p>
@@ -658,10 +448,7 @@ def audit(action, uid, detail=''):
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Cookie zuerst (sicherer), dann Authorization-Header als Fallback
-        token = request.cookies.get('ps_session', '')
-        if not token:
-            token = request.headers.get('Authorization','').replace('Bearer ','').strip()
+        token = request.headers.get('Authorization','').replace('Bearer ','').strip()
         if not token: return jsonify({'error':'Nicht angemeldet'}), 401
         conn = get_db()
         sess = db_dict(db_fetchone(conn, 'SELECT * FROM sessions WHERE token=? AND expires_at>?',(token,now())))
@@ -681,71 +468,45 @@ def require_admin(f):
         return f(*args, **kwargs)
     return require_auth(dec)
 
-
+def require_api_key(f):
+    """Authenticate via X-API-Key header for external integrations."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get('X-API-Key', '').strip()
+        if not api_key:
+            return jsonify({'error': 'API-Key fehlt. Header X-API-Key erforderlich.'}), 401
+        conn = get_db()
+        user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE api_key=? AND active=1', (api_key,)))
+        conn.close()
+        if not user:
+            return jsonify({'error': 'Ungültiger API-Key'}), 401
+        request.user = user
+        return f(*args, **kwargs)
+    return decorated
 
 # ═══════════════════════════════════════════════════
 # STATIC ROUTES
 # ═══════════════════════════════════════════════════
-def _html_response(filename, cache_seconds=0):
-    resp = make_response(send_from_directory('static', filename))
-    if cache_seconds:
-        resp.headers['Cache-Control'] = f'public, max-age={cache_seconds}'
-    else:
-        resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
-    return resp
-
 @app.route('/')
-def index(): return _html_response('index.html', cache_seconds=3600)  # 1h — changes rarely
+def index(): return send_from_directory('static','index.html')
 
 @app.route('/app')
-def platform(): return _html_response('app.html')  # no cache — always fresh
+def platform(): return send_from_directory('static','app.html')
 
 @app.route('/admin')
-def admin_page(): return _html_response('admin.html')  # no cache
+def admin_page(): return send_from_directory('static','admin.html')
 
 @app.route('/impressum')
-def impressum(): return _html_response('impressum.html', cache_seconds=86400)
+def impressum(): return send_from_directory('static','impressum.html')
 
 @app.route('/datenschutz')
-def datenschutz(): return _html_response('datenschutz.html', cache_seconds=86400)
+def datenschutz(): return send_from_directory('static','datenschutz.html')
 
 @app.route('/agb')
-def agb(): return _html_response('agb.html', cache_seconds=86400)
+def agb(): return send_from_directory('static','agb.html')
 
 @app.route('/wissen')
-def wissen(): return _html_response('wissen.html', cache_seconds=3600)
-
-@app.route('/robots.txt')
-def robots_txt():
-    resp = make_response(
-        "User-agent: *\n"
-        "Allow: /\n"
-        "Disallow: /api/\n"
-        "Disallow: /admin\n"
-        "Disallow: /app\n"
-        "Sitemap: https://animioo.de/sitemap.xml\n"
-    )
-    resp.headers['Content-Type'] = 'text/plain'
-    return resp
-
-@app.route('/sitemap.xml')
-def sitemap_xml():
-    pages = [
-        ('https://animioo.de/', '2025-01-01', 'weekly', '1.0'),
-        ('https://animioo.de/datenschutz', '2025-01-01', 'monthly', '0.4'),
-        ('https://animioo.de/impressum',   '2025-01-01', 'monthly', '0.4'),
-        ('https://animioo.de/agb',         '2025-01-01', 'monthly', '0.4'),
-    ]
-    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
-    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    for loc, lastmod, changefreq, priority in pages:
-        xml += f'  <url><loc>{loc}</loc><lastmod>{lastmod}</lastmod>'
-        xml += f'<changefreq>{changefreq}</changefreq><priority>{priority}</priority></url>\n'
-    xml += '</urlset>'
-    resp = make_response(xml)
-    resp.headers['Content-Type'] = 'application/xml'
-    return resp
-
+def wissen(): return send_from_directory('static','wissen.html')
 
 # ═══════════════════════════════════════════════════
 # AUTH API
@@ -774,14 +535,12 @@ def register():
     trial_end = (datetime.now()+timedelta(days=14)).isoformat()
     db_execute(conn, '''INSERT INTO users
         (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,verify_token,trial_ends_at,created_at)
-        VALUES (?,?,?,?,?,?,1,?,0,5,0,?,?,?)''',
+        VALUES (?,?,?,?,?,?,1,?,0,20,0,?,?,?)''',
         (uid,email,hash_pw(password),name or email.split('@')[0],praxis or 'Meine Praxis','trial','customer',verify_token,trial_end,now()))
 
     token = secrets.token_hex(32)
-    _ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
-    _ua = request.headers.get('User-Agent', '')[:200]
-    db_execute(conn, 'INSERT INTO sessions (token,user_id,email,expires_at,created_at,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)',
-                 (token,uid,email,(datetime.now()+timedelta(days=30)).isoformat(),now(),_ip,_ua))
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
+                 (token,uid,(datetime.now()+timedelta(days=30)).isoformat(),now()))
     conn.commit(); conn.close()
 
     # E-Mail-Verifizierung senden
@@ -792,14 +551,11 @@ def register():
         f'{name or email} ({email}) hat sich registriert. Praxis: {praxis or "k.A."}')
 
     audit('Registrierung',uid,email)
-    resp = make_response(jsonify({
+    return jsonify({
         'token': token,
         'user': {'id':uid,'email':email,'name':name or email,'praxis':praxis,'plan':'trial','role':'customer',
-                 'analyses_used':0,'analyses_limit':5,'email_verified':0}
-    }), 201)
-    is_https = APP_URL.startswith('https')
-    resp.set_cookie('ps_session', token, httponly=True, secure=is_https, samesite='Lax', max_age=30*24*3600, path='/')
-    return resp
+                 'analyses_used':0,'analyses_limit':20,'email_verified':0}
+    }), 201
 
 @app.route('/api/auth/verify-email', methods=['POST'])
 def verify_email():
@@ -912,44 +668,27 @@ def login():
     if HAS_BCRYPT and not user['password'].startswith('$2'):
         db_execute(conn, 'UPDATE users SET password=? WHERE id=?', (hash_pw(pw), user['id']))
 
-    # 2FA Check
-    if user.get('totp_enabled'):
-        # Nur temporären Token erstellen (kurze Gültigkeit: 10 Minuten)
-        temp_token = 'tmp_' + secrets.token_hex(32)
-        db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
-                   (temp_token, user['id'], (datetime.now()+timedelta(minutes=10)).isoformat(), now()))
-        conn.commit(); conn.close()
-        return jsonify({'requires_2fa': True, 'temp_token': temp_token})
-
     token = secrets.token_hex(32)
-    _ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
-    _ua = request.headers.get('User-Agent', '')[:200]
-    db_execute(conn, 'INSERT INTO sessions (token,user_id,email,expires_at,created_at,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)',
-                 (token,user['id'],em,(datetime.now()+timedelta(days=30)).isoformat(),now(),_ip,_ua))
+    db_execute(conn, 'INSERT INTO sessions (token,user_id,expires_at,created_at) VALUES (?,?,?,?)',
+                 (token,user['id'],(datetime.now()+timedelta(days=30)).isoformat(),now()))
     db_execute(conn, 'UPDATE users SET last_login=? WHERE id=?',(now(),user['id']))
     conn.commit(); conn.close()
 
     audit('Login',user['id'],em)
-    resp = make_response(jsonify({
+    return jsonify({
         'token': token,
         'user': {k: user[k] for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','email_verified']}
-    }))
-    is_https = APP_URL.startswith('https')
-    resp.set_cookie('ps_session', token, httponly=True, secure=is_https, samesite='Lax', max_age=30*24*3600, path='/')
-    return resp
+    })
 
 @app.route('/api/auth/logout', methods=['POST'])
 @require_auth
 def logout():
-    # Token aus Cookie ODER Header lesen
-    token = request.cookies.get('ps_session','') or request.headers.get('Authorization','').replace('Bearer ','').strip()
+    token = request.headers.get('Authorization','').replace('Bearer ','')
     conn = get_db()
-    if token: db_execute(conn, 'DELETE FROM sessions WHERE token=?',(token,))
+    db_execute(conn, 'DELETE FROM sessions WHERE token=?',(token,))
     conn.commit(); conn.close()
     audit('Logout',request.user['id'])
-    resp = make_response(jsonify({'ok':True}))
-    resp.delete_cookie('ps_session', path='/')
-    return resp
+    return jsonify({'ok':True})
 
 @app.route('/api/auth/me')
 @require_auth
@@ -959,313 +698,6 @@ def me():
     conn.close()
     if not user: return jsonify({'error':'User not found'}), 404
     return jsonify({'user': {k: user.get(k,'') for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','trial_ends_at','email_verified']}})
-
-# ═══════════════════════════════════════════════════
-# PATIENTENKARTEI
-# ═══════════════════════════════════════════════════
-
-@app.route('/api/patients', methods=['GET'])
-@require_auth
-def list_patients():
-    uid = request.user['id']
-    conn = get_db()
-    # Einzige Query mit Report-Count via Subquery (kein N+1)
-    rows = db_fetchall(conn, '''
-        SELECT p.*,
-               (SELECT COUNT(*) FROM reports r WHERE r.patient_id=p.id AND r.user_id=p.user_id) AS report_count
-        FROM patients p
-        WHERE p.user_id=?
-        ORDER BY p.name ASC
-    ''', (uid,))
-    conn.close()
-    patients = rows or []
-    # report_count sicherstellen (PostgreSQL gibt int, SQLite auch)
-    for p in patients:
-        p['report_count'] = int(p.get('report_count') or 0)
-    return jsonify({'patients': patients})
-
-@app.route('/api/patients', methods=['POST'])
-@require_auth
-def create_patient():
-    d = request.json or {}
-    name = d.get('name','').strip()
-    if not name: return jsonify({'error': 'Tiername erforderlich'}), 400
-    pid = 'p_' + nid()
-    conn = get_db()
-    try:
-        db_execute(conn, '''INSERT INTO patients (id,user_id,name,species,breed,birth_date,weight,owner_name,owner_phone,owner_email,notes,created_at)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
-                   (pid, request.user['id'], name, d.get('species',''), d.get('breed',''),
-                    d.get('birth_date',''), d.get('weight',''), d.get('owner_name',''),
-                    d.get('owner_phone',''), d.get('owner_email',''), d.get('notes',''), now()))
-        conn.commit()
-    except Exception as e:
-        try: conn.rollback()
-        except: pass
-        conn.close()
-        return jsonify({'error': str(e)}), 500
-    conn.close()
-    return jsonify({'id': pid, 'ok': True})
-
-@app.route('/api/patients/<pid>', methods=['GET'])
-@require_auth
-def get_patient(pid):
-    conn = get_db()
-    rows = db_fetchall(conn, 'SELECT * FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
-    if not rows:
-        conn.close()
-        return jsonify({'error': 'Patient nicht gefunden'}), 404
-    patient = db_dict(rows[0]) if rows and not isinstance(rows[0], dict) else rows[0]
-    # Befunde des Patienten
-    rep_rows = db_fetchall(conn, 'SELECT id,species,region,mode,severity,pet_name,created_at FROM reports WHERE patient_id=? AND user_id=? ORDER BY created_at DESC', (pid, request.user['id']))
-    conn.close()
-    patient['reports'] = [db_dict(r) if not isinstance(r, dict) else r for r in (rep_rows or [])]
-    return jsonify({'patient': patient})
-
-@app.route('/api/patients/<pid>', methods=['PUT'])
-@require_auth
-def update_patient(pid):
-    d = request.json or {}
-    conn = get_db()
-    existing = db_fetchone(conn, 'SELECT id FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
-    if not existing:
-        conn.close()
-        return jsonify({'error': 'Patient nicht gefunden'}), 404
-    # Whitelist — verhindert SQL Injection über Feldnamen
-    allowed = {'name','species','breed','birth_date','weight','owner_name','owner_phone','owner_email','notes'}
-    updates = {k: d[k] for k in allowed if k in d}
-    if not updates:
-        conn.close()
-        return jsonify({'ok': True})
-    set_clause = ', '.join(f'{k}=?' for k in updates)
-    try:
-        db_execute(conn, f'UPDATE patients SET {set_clause} WHERE id=? AND user_id=?',
-                   list(updates.values()) + [pid, request.user['id']])
-        conn.commit()
-    except Exception as e:
-        try: conn.rollback()
-        except: pass
-        conn.close()
-        return jsonify({'error': str(e)}), 500
-    conn.close()
-    return jsonify({'ok': True})
-
-@app.route('/api/patients/<pid>', methods=['DELETE'])
-@require_auth
-def delete_patient(pid):
-    conn = get_db()
-    try:
-        db_execute(conn, 'DELETE FROM patients WHERE id=? AND user_id=?', (pid, request.user['id']))
-        conn.commit()
-    except Exception as e:
-        try: conn.rollback()
-        except: pass
-        conn.close()
-        return jsonify({'error': str(e)}), 500
-    conn.close()
-    return jsonify({'ok': True})
-
-# ═══════════════════════════════════════════════════
-# STATISTIK-DASHBOARD
-# ═══════════════════════════════════════════════════
-
-@app.route('/api/stats')
-@require_auth
-def user_stats():
-    uid = request.user['id']
-    conn = get_db()
-
-    def scalar(row):
-        """COUNT(*)-Zeile → int, egal ob PostgreSQL-Dict oder SQLite-Tuple."""
-        if row is None: return 0
-        if isinstance(row, dict):
-            return list(row.values())[0]
-        return row[0]
-
-    # Gesamt-Befunde
-    total = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=?', (uid,)))
-
-    # Diese Woche
-    week_ago = (datetime.now() - timedelta(days=7)).isoformat()
-    week = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=? AND created_at>?', (uid, week_ago)))
-
-    # Dieser Monat
-    month_ago = (datetime.now() - timedelta(days=30)).isoformat()
-    month = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=? AND created_at>?', (uid, month_ago)))
-
-    # Nach Tierart (Top 5)
-    by_species_rows = db_fetchall(conn, 'SELECT species, COUNT(*) as cnt FROM reports WHERE user_id=? GROUP BY species ORDER BY cnt DESC LIMIT 5', (uid,))
-    by_species = [{'species': (r['species'] if isinstance(r, dict) else r[0]), 'count': (r['cnt'] if isinstance(r, dict) else r[1])} for r in (by_species_rows or [])]
-
-    # Nach Schweregrad
-    by_sev_rows = db_fetchall(conn, 'SELECT severity, COUNT(*) as cnt FROM reports WHERE user_id=? GROUP BY severity', (uid,))
-    by_severity = {(r['severity'] if isinstance(r, dict) else r[0]): (r['cnt'] if isinstance(r, dict) else r[1]) for r in (by_sev_rows or [])}
-
-    # Nach Region (Top 5)
-    by_reg_rows = db_fetchall(conn, 'SELECT region, COUNT(*) as cnt FROM reports WHERE user_id=? GROUP BY region ORDER BY cnt DESC LIMIT 5', (uid,))
-    by_region = [{'region': (r['region'] if isinstance(r, dict) else r[0]), 'count': (r['cnt'] if isinstance(r, dict) else r[1])} for r in (by_reg_rows or [])]
-
-    # Letzten 7 Tage täglich
-    daily = []
-    for i in range(6, -1, -1):
-        day_start = (datetime.now() - timedelta(days=i)).replace(hour=0,minute=0,second=0).isoformat()
-        day_end = (datetime.now() - timedelta(days=i)).replace(hour=23,minute=59,second=59).isoformat()
-        cnt = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM reports WHERE user_id=? AND created_at>=? AND created_at<=?', (uid, day_start, day_end)))
-        day_label = (datetime.now() - timedelta(days=i)).strftime('%a')
-        daily.append({'day': day_label, 'count': cnt})
-
-    # Patienten-Anzahl
-    patient_count = scalar(db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM patients WHERE user_id=?', (uid,)))
-
-    conn.close()
-    return jsonify({
-        'total': total,
-        'this_week': week,
-        'this_month': month,
-        'by_species': by_species,
-        'by_severity': by_severity,
-        'by_region': by_region,
-        'daily': daily,
-        'patient_count': patient_count
-    })
-
-# ═══════════════════════════════════════════════════
-# 2FA (TOTP)
-# ═══════════════════════════════════════════════════
-
-@app.route('/api/auth/2fa/setup', methods=['POST'])
-@require_auth
-def setup_2fa():
-    """Generiert TOTP-Secret und gibt QR-Code-URL zurück."""
-    try:
-        import pyotp
-    except ImportError:
-        return jsonify({'error': 'pyotp nicht installiert. Bitte requirements.txt aktualisieren.'}), 503
-
-    user = request.user
-    # Neues Secret generieren
-    secret = pyotp.random_base32()
-    totp = pyotp.TOTP(secret)
-
-    # QR-Code-URL für Authenticator-Apps
-    issuer = 'Animioo'
-    otp_uri = totp.provisioning_uri(name=user['email'], issuer_name=issuer)
-
-    # Secret temporär speichern (noch nicht aktiviert)
-    conn = get_db()
-    try:
-        db_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT DEFAULT ''")
-        db_execute(conn, "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER DEFAULT 0")
-        conn.commit()
-    except:
-        try: conn.rollback()
-        except: pass
-    db_execute(conn, 'UPDATE users SET totp_secret=? WHERE id=?', (secret, user['id']))
-    conn.commit(); conn.close()
-
-    return jsonify({'secret': secret, 'otp_uri': otp_uri, 'ok': True})
-
-@app.route('/api/auth/2fa/activate', methods=['POST'])
-@require_auth
-def activate_2fa():
-    """Aktiviert 2FA nach Verifikation des ersten TOTP-Codes."""
-    try:
-        import pyotp
-    except ImportError:
-        return jsonify({'error': 'pyotp nicht installiert'}), 503
-
-    d = request.json or {}
-    code = d.get('code', '').strip()
-    if not code: return jsonify({'error': 'TOTP-Code fehlt'}), 400
-
-    user = request.user
-    conn = get_db()
-    u = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=?', (user['id'],)))
-    conn.close()
-
-    secret = u.get('totp_secret', '')
-    if not secret: return jsonify({'error': 'Kein Setup durchgeführt. Bitte zuerst /api/auth/2fa/setup aufrufen.'}), 400
-
-    totp = pyotp.TOTP(secret)
-    if not totp.verify(code, valid_window=1):
-        return jsonify({'error': 'Ungültiger Code. Bitte prüfen Sie Ihre Authenticator-App.'}), 400
-
-    conn = get_db()
-    db_execute(conn, 'UPDATE users SET totp_enabled=1 WHERE id=?', (user['id'],))
-    conn.commit(); conn.close()
-    audit('2FA aktiviert', user['id'])
-    return jsonify({'ok': True, 'message': '2FA erfolgreich aktiviert!'})
-
-@app.route('/api/auth/2fa/disable', methods=['POST'])
-@require_auth
-def disable_2fa():
-    """Deaktiviert 2FA nach Passwortverifikation."""
-    d = request.json or {}
-    password = d.get('password', '')
-    if not password: return jsonify({'error': 'Passwort erforderlich'}), 400
-
-    user = request.user
-    conn = get_db()
-    u = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=?', (user['id'],)))
-    if not check_pw(password, u['password']):
-        conn.close()
-        return jsonify({'error': 'Passwort falsch'}), 401
-
-    db_execute(conn, "UPDATE users SET totp_enabled=0, totp_secret='' WHERE id=?", (user['id'],))
-    conn.commit(); conn.close()
-    audit('2FA deaktiviert', user['id'])
-    return jsonify({'ok': True, 'message': '2FA wurde deaktiviert.'})
-
-@app.route('/api/auth/2fa/verify', methods=['POST'])
-@limiter.limit("10 per minute")
-def verify_2fa():
-    """Verifiziert TOTP-Code beim Login (zweiter Schritt)."""
-    try:
-        import pyotp
-    except ImportError:
-        return jsonify({'error': 'pyotp nicht installiert'}), 503
-
-    d = request.json or {}
-    temp_token = d.get('temp_token', '').strip()
-    code = d.get('code', '').strip()
-
-    if not temp_token or not code:
-        return jsonify({'error': 'Token und Code erforderlich'}), 400
-
-    # Temp-Session nachschlagen (mit prefix 'tmp_')
-    conn = get_db()
-    sess = db_dict(db_fetchone(conn, 'SELECT * FROM sessions WHERE token=? AND expires_at>?', (temp_token, now())))
-    if not sess:
-        conn.close()
-        return jsonify({'error': 'Sitzung abgelaufen. Bitte neu anmelden.'}), 401
-
-    user = db_dict(db_fetchone(conn, 'SELECT * FROM users WHERE id=?', (sess['user_id'],)))
-    if not user or not user.get('totp_enabled'):
-        conn.close()
-        return jsonify({'error': 'Ungültige Anfrage'}), 400
-
-    totp = pyotp.TOTP(user['totp_secret'])
-    if not totp.verify(code, valid_window=1):
-        conn.close()
-        return jsonify({'error': 'Ungültiger Code'}), 400
-
-    # Temp-Session löschen, vollständige Session erstellen
-    db_execute(conn, 'DELETE FROM sessions WHERE token=?', (temp_token,))
-    new_token = secrets.token_hex(32)
-    _ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
-    _ua = request.headers.get('User-Agent', '')[:200]
-    db_execute(conn, 'INSERT INTO sessions (token,user_id,email,expires_at,created_at,ip_address,user_agent) VALUES (?,?,?,?,?,?,?)',
-               (new_token, user['id'], user.get('email',''), (datetime.now()+timedelta(days=30)).isoformat(), now(), _ip, _ua))
-    conn.commit(); conn.close()
-
-    audit('2FA Login', user['id'], user['email'])
-    resp = make_response(jsonify({
-        'token': new_token,
-        'user': {k: user.get(k,'') for k in ['id','email','name','praxis','plan','role','analyses_used','analyses_limit','email_verified']}
-    }))
-    is_https = APP_URL.startswith('https')
-    resp.set_cookie('ps_session', new_token, httponly=True, secure=is_https, samesite='Lax', max_age=30*24*3600, path='/')
-    return resp
 
 # ═══════════════════════════════════════════════════
 # KI-ANALYSE
@@ -1290,8 +722,6 @@ def analyse():
             }), 402
         if user['plan'] == 'starter' and user['analyses_used'] >= 50:
             return jsonify({'error':'Monatliches Starter-Kontingent (50 Analysen) erreicht.','upgrade_required':True}), 402
-        if user['plan'] == 'praxis' and user['analyses_used'] >= 300:
-            return jsonify({'error':'Monatliches Praxis-Kontingent (300 Analysen) erreicht.','upgrade_required':True}), 402
 
     d          = request.json or {}
     pet_name   = d.get('pet_name','').strip()
@@ -1303,95 +733,55 @@ def analyse():
     focus_text = d.get('focus_text','').strip()
     img_a      = d.get('img_a','')
     img_b      = d.get('img_b','')
-    extra_imgs = [x for x in (d.get('extra_imgs') or []) if x][:4]  # max 4 extra (6 total)
-    patient_id = d.get('patient_id','').strip()
-    # patient_id validieren — muss dem User gehören
-    if patient_id:
-        conn_v = get_db()
-        _p = db_fetchone(conn_v, 'SELECT id FROM patients WHERE id=? AND user_id=?', (patient_id, user['id']))
-        conn_v.close()
-        if not _p:
-            patient_id = ''  # Unbekannter Patient → ignorieren, auto-create läuft später
-
-    # DICOM-Erkennung: Falls Base64-Daten ein DICOM-File sind, konvertieren
-    dicom_metadata = {}
-    is_dicom = d.get('is_dicom', False)
-    if is_dicom and img_a:
-        app.logger.info('DICOM-Datei erkannt, konvertiere...')
-        converted, dicom_metadata = convert_dicom_to_jpeg_base64(img_a)
-        if converted:
-            img_a = converted
-            app.logger.info(f'DICOM erfolgreich konvertiert. Metadaten: {dicom_metadata}')
-        else:
-            return jsonify({'error': 'DICOM-Datei konnte nicht verarbeitet werden. Bitte als JPEG/PNG exportieren.'}), 400
 
     if not img_a: return jsonify({'error':'Kein Bild hochgeladen'}), 400
 
     # ── Image hash deduplication / caching (sicher falls Spalte noch nicht migriert) ──
-    # Hash über Bild + alle Parameter: gleiche Bild mit anderen Einstellungen → neue Analyse
-    img_h = image_hash(img_a, species, region, mode, ctx, focus_mode, focus_text)
-    # Verweigerungsphrasen die auf einen schlechten Cache-Eintrag hinweisen
-    _bad_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen',
-                    'unable to', 'i cannot', "i'm sorry", 'i am sorry', 'nicht in der lage']
+    img_h = image_hash(img_a)
     try:
         conn = get_db()
         cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
         conn.close()
         if cached:
-            cached_text = cached.get('report_text', '') or ''
-            # Schlechten Cache-Eintrag ignorieren (KI-Verweigerung aus früherer Analyse)
-            is_bad_cache = (
-                len(cached_text) < 300 or
-                any(p in cached_text.lower() for p in _bad_phrases)
-            )
-            if is_bad_cache:
-                app.logger.info('Schlechter Cache-Eintrag gefunden, neue Analyse wird durchgeführt...')
-                # Alten fehlerhaften Eintrag löschen damit er nicht wieder zurückkommt
-                try:
-                    conn2 = get_db()
-                    db_execute(conn2, 'DELETE FROM reports WHERE id=?', (cached['id'],))
-                    conn2.commit(); conn2.close()
-                except: pass
-            else:
-                result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
-                result['cached'] = True
-                if cached.get('quality_score') is not None:
-                    result['quality_score'] = cached['quality_score']
-                    result['quality_ok'] = cached['quality_score'] >= 1
-                return jsonify(result)
+            result = {k: cached.get(k, '') for k in ['id','report_text','severity','pet_name','species','region','mode','created_at']}
+            result['cached'] = True
+            if cached.get('quality_score') is not None:
+                result['quality_score'] = cached['quality_score']
+                result['quality_ok'] = cached['quality_score'] >= 1
+            return jsonify(result)
     except Exception as e:
         app.logger.warning(f'Cache-Lookup fehlgeschlagen: {e}')
         try: conn.rollback(); conn.close()
         except: pass
         img_h = ''  # Cache deaktivieren, Analyse trotzdem fortsetzen
 
+    # ── Prompt-Strategie: Erst FREI BEOBACHTEN (wie ChatGPT), dann strukturieren ──
+    # Das ist der entscheidende Unterschied zu direktem ChatGPT-Einsatz:
+    # Zuerst lassen wir das Modell das Bild unvoreingenommen beschreiben,
+    # dann erst wird das in einen strukturierten Befund überführt.
+    observe_prefix = (
+        "ZUERST — Freie Bildbeobachtung (bevor du irgendetwas strukturierst):\n"
+        "Schaue dir das Bild genau an und beschreibe in 4-6 Sätzen ungefiltert was du siehst. "
+        "Was springt dir sofort ins Auge? Was ist auffällig, ungewöhnlich oder pathologisch? "
+        "Beginne mit: 'Ich sehe...'\n\n"
+        "DANACH — Strukturierter Befundbericht auf Basis deiner Beobachtungen:\n"
+    )
     prompts = {
-        'single':  f'Erstelle einen vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}. WICHTIG: Erkenne zuerst die Bildmodalität (Röntgen, CT oder MRT) und passe deine Analyse entsprechend an. Bei Röntgen: Untersuche JEDEN sichtbaren Knochen, jedes Gelenk, jedes Organ systematisch. Bei CT: Analysiere Schnittebene, Fensterung, Dichteunterschiede. Bei MRT: Bestimme die Sequenz (T1, T2, FLAIR, etc.), analysiere Signalintensitäten, Gewebskontraste, Atrophien, Raumforderungen, Ödeme. Analysiere das Bild EXTREM GRÜNDLICH. Beschreibe auch subtile Veränderungen. ÜBERSEHE NICHTS.',
-        'compare': f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität. Beschreibe ALLE Veränderungen zwischen den Aufnahmen präzise. Achte besonders auf: Größenveränderungen, neue oder verschwundene Pathologien, Progression oder Regression von Läsionen.',
-        'diff':    f'Analysiere die Unterschiede zwischen Aufnahme A und B bei einem {species} im Bereich {region}. Erstelle eine systematische Gegenüberstellung aller Veränderungen.',
-        'second':  f'Erstelle eine kritische Zweitmeinung zu den Aufnahmen eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität (Röntgen/CT/MRT). Hinterfrage offensichtliche Diagnosen und suche gezielt nach übersehenen Pathologien. Untersuche jede Struktur einzeln.',
+        'single':  observe_prefix + f'Erstelle den vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}. Erkenne zuerst die Bildmodalität (Röntgen, CT oder MRT) und passe deine Analyse entsprechend an. Analysiere JEDE sichtbare Struktur systematisch. Übersehe nichts.',
+        'compare': observe_prefix + f'Vergleiche Aufnahme A (früher) mit Aufnahme B (aktuell) eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität. Beschreibe ALLE Veränderungen zwischen den Aufnahmen präzise.',
+        'diff':    observe_prefix + f'Analysiere die Unterschiede zwischen Aufnahme A und B bei einem {species} im Bereich {region}. Erstelle eine systematische Gegenüberstellung aller Veränderungen.',
+        'second':  observe_prefix + f'Erstelle eine kritische Zweitmeinung zu den Aufnahmen eines {species} im Bereich {region}. Bestimme zuerst die Bildmodalität (Röntgen/CT/MRT). Hinterfrage offensichtliche Diagnosen und suche gezielt nach übersehenen Pathologien.',
     }
 
     # DSGVO: Bilddaten werden NUR zur KI-Analyse an Anthropic gesendet,
     # NICHT in der Datenbank gespeichert. Nach der Analyse werden sie verworfen.
 
-    system = f"""Du bist der weltweit führende Veterinärradiologe — ECVDI-Diplomate, ACVR-zertifiziert,
+    system = """Du bist der weltweit führende Veterinärradiologe — ECVDI-Diplomate, ACVR-zertifiziert,
 mit 30 Jahren klinischer Erfahrung, Lehrstuhlinhaber für Veterinärradiologie und Autor von über 200
 Fachpublikationen. Du hast über 500.000 veterinärmedizinische Röntgenbilder befundet und wirst
-international als Goldstandard-Referenz für Zweitmeinungen konsultiert.
-
-══════════════════════════════════════════════
-PATIENTENINFORMATIONEN (vom Tierarzt angegeben):
-══════════════════════════════════════════════
-- Tierart: {species}
-- Körperregion: {region}
-{('- Tiername: ' + pet_name) if pet_name else ''}
-{('- Klinischer Kontext: ' + ctx) if ctx else ''}
-{('- Spezifischer Fokus: ' + focus_text) if focus_mode == 'specific' and focus_text else ''}
-
-Du analysierst AUSSCHLIESSLICH diese Tierart ({species}) in dieser Region ({region}).
-Passe ALLE deine Beschreibungen, Normwerte, Differenzialdiagnosen und Empfehlungen
-exakt auf {species} / {region} an. Verwende artspezifische Fachterminologie.
+international als Goldstandard-Referenz für Zweitmeinungen konsultiert. Du bist zusätzlich
+Diplomate des European College of Veterinary Diagnostic Imaging (ECVDI) und Fellow der
+Royal College of Veterinary Surgeons (FRCVS).
 
 Dein Befund muss die Qualität eines Universitätsklinik-Befunds haben. Du analysierst mit der
 Präzision und Gründlichkeit, als ob das Leben des Tieres davon abhängt — denn das tut es.
@@ -1506,23 +896,21 @@ PFERD — Falls Pferdebild:
 - Thorax: EIPH (Exercise-Induced Pulmonary Hemorrhage), Pleuropneumonie
 
 EXOTEN — Reptilien, Vögel, Nager:
-- Reptilien: MBD (Demineralisation, Faltfrakturen, "Geisterknochen"!), Legenot (Eier zählen!),
-  Fremdkörper (Substrat!), Pneumonie (KEINE Luftbronchogramme bei Reptilien — wichtig!),
-  Gicht (periartikuläre Tophi), "Rubber Jaw" (Mandibular-Fibrose bei Leguanen/Chamäleons)
-- Vögel: Luftsackverdickung/-Verschattung (Aspergillose! 9 Luftsäcke alle prüfen!),
-  PDD-Ratio: Proventrikulus:Kiellänge >0.52 = PDD (100% sensitiv!); normal <0.48
-  Medullärknochen legender Hennen = NORMAL (Kalziumspeicher — NICHT als Pathologie melden!)
-  Hepatomegalie (Sanduhrzeichen), Kielbeinfrakturen (oft unterdiagnostiziert!)
-- Nager/Kaninchen: Zahnfehlstellungen (Molarensporen, Wurzelspitzen messen!),
-  Paukenblasen normal luftgefüllt — Opazifizierung = Otitis media → Vestibularsyndrom!
-  Blasensteine Meerschweinchen sehr häufig!, Uterustumoren Kaninchen >3J (bis 80% maligne!)
-  Thymom Kaninchen: mediastinale Masse kranial
-- Frettchen: NNR >3.5mm = hyperplastisch/Tumor, VHS erhöht bei Kardiomyopathie,
-  Milzvergrößerung häufig = extramedulläre Hämatopoese (Normalbefund im Alter!),
-  Insulinom (klinisch: Hypoglykämie), Lymphom
-- Schildkröten: Pneumonie oft EINSEITIG (kein Zwerchfell → Asymmetrie möglich!),
-  Urat-Blasensteine röntgendurchlässig (nur Sono!), Panzerdefekte, MBD
-- Igel: Plattenepithelkarzinom oral (häufigster Tumor!), Ballon-Syndrom
+- Reptilien: Metabolische Knochenerkrankung (MBD → generalisierte Demineralisation, Faltfrakturen!),
+  Legenot (Retentio ovorum — Eier zählen, Größe, Position), Fremdkörper (Substrat!),
+  Pneumonie (bei Reptilien oft KEINE Luftbronchogramme!), Gicht (periartikuläre Tophi)
+- Vögel: Luftsackverdickung/-Verschattung (Aspergillose! Mykobakteriose!), Legenot,
+  Frakturen (sehr dünne Kortikalis, Medullärer Knochen bei legenden Hennen = normal!),
+  Proventrikulus-Dilatation (PDD), Hepatomegalie (Sanduhrzeichen), Keel-Bone-Frakturen
+- Nager/Kaninchen: Zahnfehlstellungen (Molarensporen, Wurzelspitzen messen!), Tympanic Bullae
+  (Otitis media → Vestibularsyndrom), Blasensteine (sehr häufig bei Meerschweinchen!),
+  Uterustumoren (Kaninchen >3J: bis 80% Uterusadenokarzinom!), Pneumonie, Thymom (Kaninchen — mediastinale Masse)
+- Frettchen: Nebennierenhyperplasie/-tumor (>3.5mm = vergrößert), Insulinom (Hypoglykämie!),
+  Milzvergrößerung (extramedulläre Hämatopoese = häufig!), Lymphom, Kardiomyopathie,
+  Fremdkörper (Frettchen fressen alles!), Nebennierenrindenerkrankung (Alopezie + NNR-Vergrößerung)
+- Schildkröten: Pneumonie (oft einseitig! Schildkröten haben keine Zwerchfell → anders als Säuger!),
+  Legenot, Blasensteine (Urat! röntgendurchlässig!), Panzerdefekte, MBD, Fremdkörper (Substrat)
+- Igel: Orale Plattenepithelkarzinome (häufigster Tumor!), Pneumonie, Herzerkrankungen, Ballon-Syndrom
 
 ZAHNRADIOLOGIE (Dentalröntgen):
 - Hund/Katze: Zahnwurzelabszesse (periapikale Aufhellung!), Zahnresorptionen (FORL bei Katzen —
@@ -1632,91 +1020,27 @@ befundet als ein Röntgenbild des Thorax!
 NORMWERTE & MESSSTANDARDS (KOMPLETT):
 ═══════════════════════════════════════════════════════
 
-HERZ — VHS & VLAS (ACVIM-Konsensus + aktuelle Studiendaten):
-- VHS-Messtechnik: rechte Seitenlage, Inspiration; Längsachse (Kardiabasis→Apex) + Querachse ab T4
-- VHS Hund allgemein: 9.7 ± 0.5 v; normal 8.4–10.7; verdächtig >10.5; Kardiomegalie ≥11.5
-- VHS rassenspezifisch (exakte Studienwerte!):
-  * Cavalier KCS: 10.0–10.08 ± 0.56 v (Kardiomegalie-Schwelle ≥11.7 v!)
-  * Labrador Retriever: 10.8 ± 0.6 v (NB: viel höher als allgemeiner Normwert!)
-  * Whippet: 11.0–11.3 ± 0.5 v
-  * Boxer: 11.6 ± 0.8 v (Bereich 10.0–13.2!)
-  * Greyhound: 10.5 ± 0.1 v
-  * Englische Bulldogge: ~12.0 v (10.6–13.4)
-  * Französische Bulldogge: ~12.7 ± 1.7 v (11.0–14.4!)
-  * Boston Terrier: 11.7 ± 1.4 v
-  * Mops: 11.25 ± 0.62 v
-  * Jack Russell: 10.8 v
-  * Chihuahua: 9.66–10.0 ± 0.6 v
-  * Miniature Schnauzer: 9.7–12.1 v (95%-Intervall)
-  * Dackel: 9.5–10.5 v; DSH: 9.7–10.7 v
-- VHS Katze: 6.7–8.1 v normal; >8.1 grenzwertig; >9.3 = CHF/Dyspnoe-Schwelle
-- VHS Kaninchen: 7.3–7.6 v; ≥8.5 verdächtig
-- VHS Frettchen: RL 5.24–5.52 v; >6.0 verdächtig
-- VLAS (Vertebral Left Atrial Size) — Messtechnik: Karina→kaudalster LA-Punkt auf RL-Bild, ab T4:
-  * Hund normal: 1.4–2.2 v; LAE ≥2.3; ACVIM B2-Kriterium ≥2.6 v (Sens. 95%, Spez. 84%!)
-  * Schwere LAE: ≥2.9 v (Sens. 83%, Spez. 86%); CHF-Prognose: >2.95 v (Spez. 85.7%)
-  * Cavalier KCS: 1.79–1.99 ± 0.25 v
-  * Katze VLAS: 1.24–2.05 v normal; >2.1 verdächtig
-- ACVIM MMVD Stadium B2-Kriterien (ALLE erforderlich):
-  * Herzgeräusch ≥3/6 + Echo LA/Ao ≥1.6 + LVIDDN ≥1.7
-  * Röntgen: VHS >10.5 oder rassenangepasst; VLAS ≥2.6 v
-- Pulmonalgefäße: kran. Lappenvene/4.Rippe >1.2 = erweitert; kaud. Lappenarterie/9.Rippe >1.0 = erweitert
-- Pulmonalarterie/Aorta auf VD: PA = Ao (normal); PA > Ao = pulm. Hypertonie/Herzwurm
-- Pulmonalvene/Pulmonalarterie: 1:1 normal; PV>PA = Stauung; PA>PV = Hypertonie
-- HKM Katze: "Valentine Heart" (VD, biatriale Vergrößerung) — aber niedrige Spezifität für HKM!
-  Katzen-CHF präsentiert öfter mit Pleuraerguss als Lungenödem (Unterschied zu Hund!)
-- PDA "Triple Knuckles Sign" (VD): Aortenbogen + A. pulmonalis + linkes Aurikel = 3 Höcker 1-3 Uhr
-- "Boot-shaped Heart" (VD, Fallot-Tetralogie): RVH + konkaves PA-Segment + verminderte Lungendurchblutung
+HERZ:
+- VHS (Vertebral Heart Score): Hund 9.7 ± 0.5 (rasseabhängig!)
+  * Cavalier King Charles: 10.1-10.7, Boxer: 10.8-11.6, Labrador: 10.0-10.6
+  * Whippet: 10.5-11.3, DSH: 9.5-10.0, Dackel: 9.5-10.5, Bulldogge: 11.0-12.0
+  * Yorkshire: 9.4-9.8, Chihuahua: 9.0-10.5, Dobermann: 10.0-10.5
+- VHS Katze: <8.1 normal, 8.1-8.5 grenzwertig, >8.5 = Kardiomegalie
+- VLAS (Vertebral Left Atrial Size): Hund >2.3 = LA-Vergrößerung
+- Aortenwurzel/LA-Ratio (M-Mode Echo): normal 1:1, >1.5 = LA-Dilatation
+- Pulmonalarterie/Aorta auf VD: PA = Aorta (normal), PA > Aorta = pulmonale Hypertonie
+- Pulmonalvene/Pulmonalarterie: 1:1 normal, PV>PA = Stauung, PA>PV = Hypertonie
 
 ABDOMEN:
-- Nierengröße Hund: 2.5–3.5 × L2; >3.5 = Nephromegalie; Miniature Schnauzer 3.31 ± 0.26 (höher normal!)
-- Nierengröße Katze: 2.0–3.0 × L2 (allgemein); kastriert ♂ 1.9–2.6; Intakttiere 2.1–3.2; >3.2 = Verdacht
-- Nebenniere Hund (Sono, kaudale Poldicke): 2.5–5 kg: ≤5.1 mm (L), ≤5.3 mm (R);
-  10–20 kg: ≤6.4 mm (L), ≤7.5 mm (R); 20–40 kg: ≤7.3 mm (L), ≤8.7 mm (R); >7 mm = Abklärung!
-- Nebenniere Katze: 2–5 mm; >5 mm = abklärungsbedürftig
-- Dünndarmdurchmesser Hund: ≤1.6× L5-Endplatte; 1.95× = 77% Obstruktionswahrsch.;
-  >2.07× L5 = ~90% Obstruktionswahrscheinlichkeit!
-- Dünndarmdurchmesser Katze: ≤12 mm oder <2.0× L2; >2.5× L2 = Obstruktion wahrscheinlich
-- Milzdicke Hund: <Kopf letzte Rippe; Katze: kaum sichtbar (wenn sichtbar → Splenomegalie)
-- Leber: Magenachse >90° zur WS = Hepatomegalie; <45° = Mikroleber
-  Hepatomegalie: kaudoventraler Leberrand überschreitet Rippenbogen, Magenverdrängung kaudal
-  Mikroleber: kranialer Magenverlagerung, Magenachse steil/senkrecht
+- Nierengröße Hund: 2.5-3.5 × L2 (Längsachse), Katze: 2.4-3.0 × L2
+- Nebenniere Hund: Breite ≤7.4mm (Phäochromozytom wenn >20mm oder asymmetrisch)
+- Dünndarmdurchmesser Hund: ≤1.6× Endplattenhöhe L5, Katze: ≤12mm oder ≤2× Endplattenhöhe L2
+- Milzdicke Hund: <Kopf letzte Rippe, Katze: kaum sichtbar (wenn sichtbar → Splenomegalie)
+- Leber: Magenachse >90° zur WS = Hepatomegalie, <45° = Mikroleber
 - Prostata Hund: CC-Durchmesser ≤70% Distanz Sacrum-Pecten
-- Kolon Katze: Durchmesser ≤Länge L5; Hund: ≤3× Endplattenhöhe L7
-- Blase (Sono): Hund gut gefüllt <3 mm; >4 mm = Pathologie; Katze gefüllt 1–2 mm; >3 mm = Pathologie
+- Kolon Katze: Durchmesser ≤Länge L5, Hund: ≤3× Endplattenhöhe L7
+- Blase: Wanddicke Hund <2.3mm (leer bis 3mm), Katze <1.7mm
 - Uterus: Normal nicht sichtbar! Wenn sichtbar → Pyometra/Gravidität/Stumpfpyometra
-
-UROLITHIASIS — RÖNTGENDICHTE NACH MINERALTYP:
-- Kalziumoxalat: stark röntgendicht (52% hochdicht); bosseliert/irregulär; oft multiple Nephrolithen
-- Struvit (MAP): moderat röntgendicht; oft pyramidal/glatt; typisch große solitäre Zystenolithe bei ♀
-- Kalziumphosphat: moderat–stark röntgendicht; ähnlich CaOx
-- Zystin: mild–moderat röntgendicht (94%!); glatt, rund–oval; kleine–mittlere Steine; ♂ Junghunde
-- Urat (Harnsäure/Ammoniumurat): RÖNTGENDURCHLÄSSIG bis schwach opak; Dalmatiner, Engl. Bulldogge, PSS!
-- Silikat: moderat röntgendicht; "Jack-stone"-Form; Nordamerika
-- Xanthin: RÖNTGENDURCHLÄSSIG; nach Allopurinol-Therapie!
-→ MERKE: Urat + Xanthin sind oft NUR im Ultraschall nachweisbar!
-
-BENANNTE RADIOLOGISCHE ZEICHEN (NAMED SIGNS — MUSS KENNEN!):
-- Silhouettenzeichen (Border Effacement): Zwei gleichdichte Strukturen in direktem Kontakt → gemeinsame Grenze verschwindet.
-  Rechter Herzrand + Opazität → Mittellappen oder kranialer Mediastinaltumor rechts.
-  Linker Herzrand + Opazität → Zungenlappen oder Akzessoriuslappen links.
-- Luftbronchogramm: Luftgefüllte Bronchien sichtbar in flüssigkeitsopazifiziertem Parenchym → ALVEOLÄRES Pattern!
-  Bestätigt patent Atemweg proximal der Läsion → Atelektase durch Obstruktion unwahrscheinlicher.
-- Trachealbandzeichen (Tracheal Stripe Sign): Ventrales Weichteilband an Trachea sichtbar (lateral) = Ösophagusdilatation!
-- Spine Sign: Opazität setzt sich über kaudale thorakale WS fort (lateral) = kaudale Lungenlappen-Konsolidierung.
-- "Flat Waist Sign" / Kaudale Herzeinschnürung: Verlust der normalen Konkavität zwischen LA und LV (lateral, dorsal) = LA-Vergrößerung.
-- Donut-Zeichen: Bronchus en face als Ring sichtbar = bronchiales Pattern.
-- Tramlines: Zwei parallele Linien entlang Bronchialwand = peribronchiale Verdickung.
-- Gravel Sign: Granulöse mineralisierte Masse kurz oral einer Dünndarmobstruktion = teilweise Obstruktion mit eingedicktem Inhalt.
-- Kommazeichen / String of Pearls: Komma-/sichelförmige Gasansammlungen entlang Dünndarm = Linearer Fremdkörper!
-- Target Sign / Pseudonieren-Zeichen (Sono): Konzentrische Ringe (quer) / Nierenform (längs) = Invagination!
-- Sandwich Sign: Vergrößerte Mesenterialknoten "umschließen" Mesenterialgewebe = Lymphom!
-- Codman-Dreieck: Dreieckige periostale Neubildung am Läsionsrand = AGGRESSIV! (OSA, Chondrosarkom, Osteomyelitis)
-- Sunburst/Sonnenstrahlen: Radiär abstehende Periostspikula = AGGRESSIV! (OSA, periostales OSA)
-- Mottenfraßartige/permeative Lyse: Schlecht abgegrenzte kortikale Destruktion = aggressiv maligne/infektiös
-- "Reverse D" / D-Zeichen (VD): RV-Vergrößerung → Herzsilhouette nach rechts, linke Grenze gerade = pulmonale Hypertonie
-- Halo Sign (CT): GGO-Ring um Knoten = invasive Aspergillose/hämorrhagischer Infarkt
-- Reversed Halo Sign: GGO-Areal von Konsolidierungsring umgeben = organisierende Pneumonie
 
 ATEMWEGE:
 - Trachea-Thoracic Inlet Ratio (TI): Hund >0.20 normal, <0.16 = hypoplastisch (Bulldogge: normal 0.12-0.16!)
@@ -1825,100 +1149,6 @@ DIFFERENZIERUNG GDV vs. einfache Dilatation:
 - Einfache Dilatation: Pylorus rechts, kein Kompartiment, oft selbstlimitierend
 - GDV: Pylorus links-dorsal, Kompartimentalisierung, MUSS operiert werden!
 - IMMER rechte Seitenlage-Aufnahme! (Gas im Pylorus links-dorsal = GDV-Beweis)
-- Kompartimentalisierung 89% sensitiv für 180°-GDV; nur 38% bei 360°-GDV!
-- Pneumatosis gastri (Gas in Magenwand) = Nekrose → sehr schlechte Prognose!
-
-═══════════════════════════════════════════════════════
-PLEURAERGUSS — DIFFERENZIERUNG NACH FLÜSSIGKEITSTYP:
-═══════════════════════════════════════════════════════
-
-RADIOLOGISCHE ZEICHEN:
-- Frühzeichen: Kostophrenischer Winkel abgerundet (VD/DV); feine interlobäre Fissurlinien
-- Moderat: Fissurlinien verbreitert; Lungenlappen retrahiert; geschwungene ventrale Lungenränder
-- Schwer: Herzgrenze + Zwerchfell verschleiert; Tracheal-Dorsalverlagerung
-- Sonderzeichen: "Veil Sign" = homogene Opazität im abhängigen Thoraxbereich
-
-ÄTIOLOGIE NACH LATERALITÄT + BEGLEITSYMPTOMEN:
-| Ursache | Lateralität | Kardiomegalie | Sonstige Zeichen |
-| Herzinsuffizienz (Hund/Katze) | bilateral, symmetrisch | JA | Lungenödem (Hund), VHS erhöht |
-| Pyothorax | unilateral oder lokuliert | NEIN | Pleuraverdickung, ggf. Gaseinschlüsse |
-| Chylothorax | bilateral (meist) | NEIN | Chronisch: Pleuraverdickung, runde Lungenlappen |
-| Lymphom (Katze) | bilateral | NEIN | Kranialer Mediastinaltumor! |
-| FIP | bilateral | NEIN | Oft gleichzeitig Aszites; keine Kardiomegalie |
-| Hämothorax | variabel | NEIN | Trauma/Koagulopathie; HCT-Bestimmung |
-| Lungenlappentorsion | unilateral | NEIN | Opazifizierter/rotierter Lappen; Gegenseitverlagerung |
-
-KATZE — ALTERSPEZIFISCH:
-- Jungtier: FIP (häufig!), Mediastinallymphom (Siamkatze!), Pyothorax
-- Altkatze (>10J): Herzinsuffizienz 53%, Neoplasie 20%, Pyothorax 11%, Chylothorax 5%
-- Kardiomegalie + Erguss → Herzinsuffizienz PPV 90%
-- Kraniale Mediastinalverbreiterung → Lymphom oder Thymom abklären!
-
-PNEUMOTHORAX:
-- Leichtgrad (<20% Volumen): Herzsilhouette leicht schwebend; peripheres Radioluzenzband
-- Mittelgrad (20–50%): Lungenlappen deutlich retrahiert; Gasband am Rand
-- Schwer (>50%): Lungen stark komprimiert; Schwebedes Herz
-- Spannungspneumothorax: Mediastinalshift zur Gegenseite! Zwerchfellabflachung! NOTFALL!
-- Berechnung Lichtindex: 100 – (LL³/TH³ × 100)
-
-═══════════════════════════════════════════════════════
-VOGEL-, REPTIL-, KANINCHEN-RADIOLOGIE (ERWEITERT):
-═══════════════════════════════════════════════════════
-
-VÖGEL:
-- Luftsäcke (9 gesamt): 1 unpaar Klavikulär + je 2 paarig: kran.thorakal, kaud.thorakal, abdominal
-  Alle sollen röntgendurchlässig sein! Trübung = Flüssigkeit, Entzündung, Kompression
-- Proventrikulus-Dilatations-Krankheit (PDD/Bornavirus):
-  Proventrikulus:Kiellänge-Ratio >0.52 (Sens. 100%, Spez. 100% für PDD in Studien!)
-  Normal: Ratio <0.48; equivokal: 0.48–0.52
-- Legenot: Ei-Retention im Corpus uteri/Vagina; kann Kloake nach ventral/kaudal verschieben
-- Frakturen: Kortikalis sehr dünn; Medullärknochen bei legenden Hennen = NORMAL (Mineralspeicher)!
-- Hepatomegalie: "Sanduhrform" des Herzens + Leber auf VD (Herz-Leber-Silhouette verschmilzt)
-- Kielbeinfrakturen: Häufig unterschätzt; lateral besser sichtbar
-
-KANINCHEN ZAHNRADIOLOGIE:
-- Referenzlinien (lateral): Linie 1 von proximalem Nasenbein zu Okzipitalprotuberanz
-  Kein Zahnanteil darf DORSAL dieser Linie liegen!
-  Linie 2 parallel ab hartem Gaumen durch Paukenblasen (ca. 1/3 Höhe) = normale Okklusionsebene
-- Paukenblasen: Normal luftgefüllt, dünnwandig
-  Opazifizierung = Otitis media → Vestibularsyndrom! Wandlyse = chronisch oder neoplastisch
-- DV-Ansicht: Symphysenüberlagerung Nasenbein; Oberkiefer-Schneidezähne getrennt sichtbar;
-  Jochbogen symmetrisch
-
-REPTILIEN — MBD-Graduierung (radiologisch):
-- Mild: Leichte Kortikalisverdünnung; kaum Dichtereduktion
-- Moderat: Ausgeprägte Kortikalisverdünnung; Pathologische Frakturen; Winkeldeformitäten
-- Schwer: Extremes "Geisterknochen"-Bild; multiple Frakturen/Kallusbildungen; Wirbeldeformitäten
-- Verlaufskontrolle: Kortikalis:Medullaris-Ratio; mit Behandlung Redichotomisierung!
-- "Rubber Jaw": Mandibular-/Maxillardehiszenz durch fibröse Osteopathie (Chamäleons, Leguane!)
-
-═══════════════════════════════════════════════════════
-PFERD — LAHMHEITSRÖNTGEN (ERGÄNZT):
-═══════════════════════════════════════════════════════
-
-HUFBEIN-LAMINITIS (laterale Aufnahme belastend):
-- Rotationswinkel: Normal 0–5°; moderat 10–15°; schwer >15° (20–30°); kritisch: negative Winkel
-- Sohlenstärke (P3-Spitze→distale Sohle): ≥15 mm = ausreichend; <10 mm = Perforationsgefahr!
-- Kronrand-Streckfortsatz-Distanz (CE): Normal 8–15 mm; akuter Anstieg ≥10 mm = aktives Sinken!
-- Hufwanddicke (HL-Zone proximal): ~15 mm normal; >25 mm = schwere Rotation
-
-STRAHLBEIN (Navikular) — Oxspring-Projektig (Skyline/Upright Pedal):
-| Befund | Klinische Bedeutung |
-| Synoviale Invaginationen (Distalrand) | bis 5 = normal; >5 oder irregulär = pathologisch |
-| Zystenähnliche Läsionen (Medulla) | Signifikant! Korreliert mit Klinik |
-| Medulläre Sklerose | Häufig; chronische Stressreaktion |
-| Flexor-Kortex-Erosionen | Signifikant! Tiefe-Beugesehnen-Pathologie |
-| Verknöcherungen/Enthesophyten | Assoz. mit Strahlbeinerkrankung |
-| Knochenfragmente (Distalrand) | Variabel; isoliert kann Normalvariante sein |
-
-CM/SM BEI CAVALIER KING CHARLES (CKCS) — MRT-GRADING (BVA/KC):
-- CM Grade 0: Normal, keine Malformation
-- CM Grade 1: Kleinhirn eingedrückt (nicht rund), leichtes Überfüllen
-- CM Grade 2: Kleinhirn in/durch Foramen magnum herniert → klinisch relevant!
-- SM Grade 0: Normal
-- SM Grade 1: Zentralkanalerweiterung oder Syrinx <2 mm
-- SM Grade 2: Syrinx ≥2 mm ODER Prä-Syrinx — klinisch signifikant!
-  Zuchtempfehlung: MRT ab 2,5 Jahre; optimalerweise CM0/SM0 × CM0/SM0 verpaaren
 
 ═══════════════════════════════════════════════════════
 MRT-DIFFERENZIALDIAGNOSE-TABELLE GEHIRN:
@@ -2161,37 +1391,40 @@ Empfehlungen für bessere Aufnahmen oder zusätzliche Projektionen (z.B. "Zusät
 empfohlen zur besseren Beurteilung des Mediastinums")]
 
 ---
-*Animioo KI-Befundassistent -- Expertenniveau. Kein Ersatz fuer tieraerztliche Diagnose.*
+*Animioo KI-Befundassistent -- Expertenniveau. Kein Ersatz fuer tieraerztliche Diagnose.*"""
 
-PFLICHT — LETZTE ZEILE DES BEFUNDES:
-Schreibe als allerletzte Zeile exakt diesen Tag (ersetze LEVEL mit deiner Bewertung):
-##SEV:NIEDRIG## oder ##SEV:MITTEL## oder ##SEV:HOCH## oder ##SEV:NOTFALL##
+    # ── Detect image media type from base64 header ──
+    def detect_media_type(b64: str) -> str:
+        try:
+            import base64 as _b64
+            header = _b64.b64decode(b64[:20])[:4]
+            if header[:4] == b'\x89PNG': return 'image/png'
+            if header[:3] == b'GIF': return 'image/gif'
+            if header[:4] == b'RIFF': return 'image/webp'
+        except: pass
+        return 'image/jpeg'
 
-Wähle die Schwere anhand dieser Kriterien:
-- ##SEV:NIEDRIG## → Normalbefund, leichte degenerative Veränderungen, Zufallsbefunde
-- ##SEV:MITTEL## → Moderate Pathologien, zeitnahe Kontrolle erforderlich (Tage)
-- ##SEV:HOCH## → Frakturen, Luxationen, Tumorverdacht, signifikante Organveränderungen
-- ##SEV:NOTFALL## → GDV, Spannungspneumothorax, Harnblasenruptur, Wirbelkanaleinengung"""
+    mime_a = detect_media_type(img_a)
+    mime_b = detect_media_type(img_b) if img_b else 'image/jpeg'
 
-    msgs = [
-        {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_a}},
-        {'type':'text','text':'Aufnahme 1:'}
-    ]
-    if img_b:
-        msgs += [
-            {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':img_b}},
-            {'type':'text','text':'Aufnahme 2:'}
-        ]
-    for _ei, _eb64 in enumerate(extra_imgs):
-        msgs += [
-            {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':_eb64}},
-            {'type':'text','text':f'Aufnahme {_ei+3}:'}
-        ]
     prompt = prompts.get(mode, prompts['single'])
     if ctx: prompt += f'\n\nKlinischer Kontext vom Tierarzt: {ctx}'
     if focus_mode == 'specific' and focus_text:
         prompt += f'\n\nSPEZIFISCHER ANALYSE-FOKUS: Der Tierarzt bittet um gezielte Untersuchung folgender Aspekte: {focus_text}. Bitte gehe besonders detailliert auf diese Fragestellung ein.'
-    msgs.append({'type':'text','text':prompt})
+
+    # Bild NACH dem Prompt — bessere Aufmerksamkeitsverteilung
+    if img_b and mode != 'single':
+        msgs = [
+            {'type':'text','text':prompt + '\n\nAufnahme A (früher):'},
+            {'type':'image','source':{'type':'base64','media_type':mime_a,'data':img_a}},
+            {'type':'text','text':'Aufnahme B (aktuell):'},
+            {'type':'image','source':{'type':'base64','media_type':mime_b,'data':img_b}},
+        ]
+    else:
+        msgs = [
+            {'type':'text','text':prompt},
+            {'type':'image','source':{'type':'base64','media_type':mime_a,'data':img_a}},
+        ]
 
     import time as _time
 
@@ -2203,8 +1436,8 @@ Wähle die Schwere anhand dieser Kriterien:
             try:
                 resp = client.messages.create(
                     model='claude-sonnet-4-20250514',
-                    max_tokens=6000,
-                    temperature=0.1,
+                    max_tokens=8192,   # mehr Raum für ausführliche Befunde
+                    temperature=0.15,  # leichte Kreativität für besseres Reasoning
                     system=system,
                     messages=[{'role':'user','content':msgs}]
                 )
@@ -2220,83 +1453,92 @@ Wähle die Schwere anhand dieser Kriterien:
                 return None
         return None
 
-    # ── Helper: OpenAI (PRIMAER — GPT-4o mit vollem Expertenprompt + Chain-of-Thought) ──
+    # ── Helper: OpenAI — ZWEI-SCHRITT-ANALYSE (wie direktes ChatGPT) ──
+    # Schritt 1: Modell schaut frei ohne Formatvorgabe (= wie "was siehst du?" in ChatGPT)
+    # Schritt 2: Freie Beobachtung + Strukturvorgabe → fertiger Befundbericht
+    # Ergebnis: Modell beschreibt wirklich was es sieht, statt Template zu füllen
     def try_openai():
         if not OPENAI_API_KEY: return None
         from openai import OpenAI
         oc = OpenAI(api_key=OPENAI_API_KEY)
 
-        # Bilder für OpenAI aufbereiten (gleiche msgs wie Anthropic/Gemini)
-        oai_content = []
+        # Bild-Inhalt für beide Schritte vorbereiten
+        img_content = []
         for m in msgs:
             if m['type'] == 'image':
-                oai_content.append({
-                    'type': 'image_url',
-                    'image_url': {
-                        'url': f"data:{m['source']['media_type']};base64,{m['source']['data']}",
-                        'detail': 'high'
-                    }
-                })
+                img_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
             else:
-                if not m['text'].startswith('Aufnahme '):
-                    oai_content.append({'type': 'text', 'text': m['text']})
+                img_content.append({'type':'text','text':m['text']})
 
-        # ── Chain-of-Thought: erst freie Beobachtung, dann strukturierter Befund —
-        # in EINEM einzigen API-Call. Das erzwingt echtes diagnostisches Denken
-        # statt blossen Template-Ausfüllens.
-        mode_task = {
-            'single':  f'Befunde dieses Bild vollständig.',
-            'compare': f'Vergleiche Aufnahme 1 (früher) mit Aufnahme 2 (aktuell) — beschreibe ALLE Veränderungen.',
-            'diff':    f'Stelle die Unterschiede zwischen beiden Aufnahmen systematisch gegenüber.',
-            'second':  f'Führe eine kritische Prüfung durch — hinterfrage offensichtliche Diagnosen, suche gezielt nach übersehenen Pathologien.',
-        }.get(mode, '')
+        try:
+            # ── SCHRITT 1: Freie Bildbeobachtung (kein Format-Zwang) ──
+            # Exakt so wie der User ChatGPT direkt fragt: "was siehst du?"
+            obs_content = []
+            for m in msgs:
+                if m['type'] == 'image':
+                    obs_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
+            obs_content.append({'type':'text','text':(
+                f"Du bist ein erfahrener Veterinärradiologe. "
+                f"Schaue dir dieses veterinärmedizinische Bild genau an. "
+                f"Beschreibe ausführlich und ehrlich was du siehst — wie wenn du einem Kollegen am Telefon erklärst was auf dem Bild ist. "
+                f"Keine Struktur, keine Abschnitte, einfach: was siehst du? Was fällt dir auf? Was ist normal, was ist auffällig? "
+                f"Sei so konkret wie möglich. Tierart: {species}, Region: {region}."
+            )})
 
-        cot_prompt = (
-            f"{mode_task}\n\n"
-            f"Gehe dabei in zwei Schritten vor:\n\n"
-            f"**Schritt 1 — Was siehst du? (3–5 Sätze, unstrukturiert)**\n"
-            f"Beschreibe direkt und ehrlich, was dir als erstes auffällt — so wie du es einem "
-            f"Fachkollegen am Telefon beschreiben würdest. Nenne das Auffälligste zuerst. "
-            f"Kein Format, keine Überschriften, nur direkte Beobachtungen.\n\n"
-            f"**Schritt 2 — Vollständiger strukturierter Befundbericht**\n"
-            f"Erstelle anschliessend den kompletten Befund gemäss dem vorgegebenen Format. "
-            f"Baue deine Beobachtungen aus Schritt 1 als Fundament ein und vertiefe sie systematisch."
-        )
-        if ctx:
-            cot_prompt += f"\n\nKlinischer Kontext: {ctx}"
-        if focus_mode == 'specific' and focus_text:
-            cot_prompt += f"\n\nSpezifischer Fokus: {focus_text}"
+            obs_resp = oc.chat.completions.create(
+                model='gpt-4o',
+                max_tokens=600,   # kurz halten → schnell (3-5s statt 15s)
+                temperature=0.2,
+                messages=[{'role':'user','content':obs_content}]
+            )
+            free_observation = obs_resp.choices[0].message.content
+            app.logger.info(f'OpenAI Schritt 1 (freie Beobachtung): {len(free_observation)} Zeichen')
 
-        oai_content.append({'type': 'text', 'text': cot_prompt})
+            # ── SCHRITT 2: Strukturierter Befund basierend auf echter Beobachtung ──
+            # Jetzt mit dem Systemtext und der bereits gesehenen Beobachtung als Basis
+            struct_messages = [
+                {'role': 'system', 'content': system},
+                {'role': 'user', 'content': img_content},
+                {'role': 'assistant', 'content': f'Meine freie Bildbeobachtung:\n\n{free_observation}'},
+                {'role': 'user', 'content': (
+                    'Basierend auf deiner freien Beobachtung oben: '
+                    'Erstelle jetzt den vollständigen strukturierten Befundbericht im vorgegebenen Format. '
+                    'Bleibe dabei 100% treu zu deinen tatsächlichen Beobachtungen — '
+                    'erfinde keine Befunde und lass keine echten Befunde weg.'
+                )}
+            ]
 
-        for attempt in range(3):
+            for attempt in range(3):
+                try:
+                    resp = oc.chat.completions.create(
+                        model='gpt-4o',
+                        max_tokens=8192,
+                        temperature=0.1,
+                        messages=struct_messages
+                    )
+                    final_text = resp.choices[0].message.content
+                    app.logger.info(f'OpenAI Schritt 2 (Befund): {len(final_text)} Zeichen')
+                    return final_text
+                except Exception as e:
+                    app.logger.warning(f'OpenAI Schritt 2 Fehler (Versuch {attempt+1}): {e}')
+                    if attempt < 2:
+                        _time.sleep(2 * (attempt + 1))
+                        continue
+                    # Fallback: Schritt-1-Beobachtung direkt als Befund verwenden
+                    app.logger.warning('OpenAI Schritt 2 fehlgeschlagen, verwende freie Beobachtung')
+                    return free_observation
+        except Exception as e:
+            app.logger.warning(f'OpenAI Zwei-Schritt-Analyse fehlgeschlagen: {e}')
+            # Fallback auf Single-Call wenn Zwei-Schritt nicht klappt
             try:
                 resp = oc.chat.completions.create(
-                    model='gpt-4o',
-                    max_tokens=6000,
-                    temperature=0.1,   # minimal erhöht: natürlichere Sprache, kein stumpfes Template
-                    messages=[
-                        {'role': 'system', 'content': system},   # ← GLEICHER reicher Prompt wie Anthropic
-                        {'role': 'user', 'content': oai_content}
-                    ]
+                    model='gpt-4o', max_tokens=8192, temperature=0.15,
+                    messages=[{'role':'system','content':system},{'role':'user','content':img_content}]
                 )
-                content = resp.choices[0].message.content or ''
-                refusal_phrases = ['tut mir leid', 'entschuldigung', 'cannot provide', 'kann keine spezifischen',
-                                   'unable to', 'i cannot', "i'm sorry", 'i am sorry', 'nicht in der lage']
-                if any(p in content.lower() for p in refusal_phrases) and len(content) < 500:
-                    app.logger.warning(f'OpenAI Verweigerung (Versuch {attempt+1}), retry...')
-                    if attempt < 2:
-                        _time.sleep(1)
-                        continue
-                    return None
-                return content if len(content) > 150 else None
-            except Exception as e:
-                app.logger.warning(f'OpenAI Fehler (Versuch {attempt+1}): {e}')
-                if attempt < 2:
-                    _time.sleep(2 * (attempt + 1))
-                    continue
+                return resp.choices[0].message.content
+            except Exception as e2:
+                app.logger.warning(f'OpenAI Single-Call Fallback auch fehlgeschlagen: {e2}')
                 return None
-        return None
 
     # ── Helper: Google Gemini ──
     def try_gemini():
@@ -2305,7 +1547,7 @@ Wähle die Schwere anhand dieser Kriterien:
             import google.generativeai as genai
             import base64
             genai.configure(api_key=GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.0-flash', generation_config={'temperature': 0})
+            model = genai.GenerativeModel('gemini-2.0-flash', generation_config={'temperature': 0.15})
             parts = [system + '\n\n']
             for m in msgs:
                 if m['type'] == 'image':
@@ -2338,26 +1580,8 @@ Wähle die Schwere anhand dieser Kriterien:
     if not text:
         return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
 
-    import re as _re
-    tl = text.lower()  # immer definieren — wird für Qualitätskontrolle gebraucht
-    # Severity aus maschinenlesbarem Tag extrahieren (zuverlässigste Methode)
-    _sev_tag = _re.search(r'##SEV:(NIEDRIG|MITTEL|HOCH|NOTFALL)##', text, _re.IGNORECASE)
-    if _sev_tag:
-        _sev_map = {'niedrig': 'low', 'mittel': 'mid', 'hoch': 'high', 'notfall': 'high'}
-        sev = _sev_map.get(_sev_tag.group(1).lower(), 'mid')
-        # Tag aus dem angezeigten Befundtext entfernen
-        text = _re.sub(r'\n?##SEV:(NIEDRIG|MITTEL|HOCH|NOTFALL)##\n?', '', text, flags=_re.IGNORECASE).strip()
-        tl = text.lower()  # nach Tag-Entfernung neu berechnen
-    else:
-        # Fallback: Regex-Suche im Text
-        _high = bool(_re.search(r'(notfall|emergency|\burgent\b)', tl) or
-                     _re.search(r'dringlichkeit[^a-z]{0,20}(hoch|high|notfall)', tl) or
-                     _re.search(r'\*{1,2}\s*(hoch|high|notfall)\s*\*{1,2}', tl))
-        _low  = bool(not _high and (
-                     _re.search(r'dringlichkeit[^a-z]{0,20}(niedrig|low|gering)', tl) or
-                     _re.search(r'\*{1,2}\s*(niedrig|low)\s*\*{1,2}', tl)))
-        sev   = 'high' if _high else ('low' if _low else 'mid')
-        app.logger.info(f'Severity Fallback-Regex verwendet: {sev}')
+    tl   = text.lower()
+    sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
 
     # ── Qualitätskontrolle ──
     required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
@@ -2382,8 +1606,8 @@ Wähle die Schwere anhand dieser Kriterien:
             except: pass
     # INSERT mit allen Spalten
     try:
-        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,patient_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                     (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,patient_id,now()))
+        db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                     (rid,user['id'],pet_name,species,region,mode,sev,text,img_a,img_h,quality_score,now()))
     except Exception as e:
         app.logger.warning(f'INSERT fehlgeschlagen ({e}), Rollback + Fallback...')
         try: conn.rollback()
@@ -2398,37 +1622,11 @@ Wähle die Schwere anhand dieser Kriterien:
             conn.close()
             return jsonify({'error': f'Datenbankfehler: {str(e2)}'}), 500
     db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?',(user['id'],))
-
-    # Auto-Patientenakte: falls pet_name angegeben und noch kein patient_id verknüpft,
-    # automatisch Patient suchen oder neu anlegen und Befund verknüpfen
-    auto_patient_id = patient_id
-    if pet_name and not patient_id:
-        try:
-            existing_patient = db_fetchone(conn,
-                'SELECT id FROM patients WHERE user_id=? AND name=? AND species=?',
-                (user['id'], pet_name, species))
-            if existing_patient:
-                auto_patient_id = db_dict(existing_patient)['id']
-            else:
-                auto_patient_id = 'p_' + nid()
-                db_execute(conn,
-                    '''INSERT INTO patients (id,user_id,name,species,breed,birth_date,weight,
-                       owner_name,owner_phone,owner_email,notes,created_at)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
-                    (auto_patient_id, user['id'], pet_name, species,
-                     '','','','','','','', now()))
-            # Befund mit Patient verknüpfen
-            db_execute(conn, 'UPDATE reports SET patient_id=? WHERE id=?', (auto_patient_id, rid))
-        except Exception as e:
-            app.logger.warning(f'Auto-Patient Fehler: {e}')
-            auto_patient_id = None
-
     conn.commit(); conn.close()
 
     audit('Analyse',user['id'],f'{species}/{region}/{mode} via {used_provider}')
     result = {'id':rid,'report_text':text,'severity':sev,'pet_name':pet_name,'species':species,'region':region,'mode':mode,'created_at':now(),
-              'quality_ok':quality_ok,'quality_score':quality_score,'dicom_metadata':dicom_metadata,
-              'patient_id': auto_patient_id or patient_id or ''}
+              'quality_ok':quality_ok,'quality_score':quality_score}
     return jsonify(result)
 
 # ═══════════════════════════════════════════════════
@@ -2443,99 +1641,62 @@ def chat_about_report():
     report_text = d.get('report_text','')
     context = d.get('context',{})
     history = d.get('history',[])
-    image_data = d.get('image_data','') or context.get('image_data','')
 
     if not question: return jsonify({'error':'Keine Frage gestellt'}), 400
     if not report_text: return jsonify({'error':'Kein Befund vorhanden'}), 400
 
-    has_image = bool(image_data and len(image_data) > 100)
-
     system = f"""Du bist ein erfahrener ECVDI-Diplomate für Veterinärradiologie.
-Ein Tierarzt stellt Rückfragen zu einem Röntgenbild und dem dazugehörigen KI-Befund.
-{"Das originale Röntgenbild wurde dir zur direkten Begutachtung mitgeschickt. Analysiere es bei jeder Antwort erneut und beziehe dich auf das, was du konkret im Bild siehst." if has_image else ""}
+Ein Tierarzt hat einen KI-generierten Befundbericht erhalten und stellt nun Rückfragen.
 
 Befund-Kontext: {context.get('species','Hund')}, {context.get('region','Thorax')}, Modus: {context.get('mode','single')}
 {('Patient: '+context['pet_name']) if context.get('pet_name') else ''}
 
-Der ursprüngliche KI-Befundbericht:
+Der ursprüngliche Befundbericht:
 ---
 {report_text}
 ---
 
 Beantworte die Fragen des Tierarztes auf Deutsch, präzise und fachlich korrekt.
-- Schaue dir das Röntgenbild direkt an und beschreibe was du siehst — verlasse dich nicht nur auf den Textbefund.
+- Beziehe dich immer auf den konkreten Befund oben.
 - Erkläre Fachbegriffe wenn nötig.
 - Gib konkrete, praxisrelevante Antworten.
 - Halte die Antworten kurz und fokussiert (max 200 Wörter).
 - Wenn du dir bei etwas unsicher bist, sage es ehrlich."""
 
-    # Bisherige Chat-History (ohne Bild — Bild kommt bei jeder Frage neu)
-    text_history = []
-    for h in history[-8:]:
-        text_history.append({'role':h['role'] if h['role'] in ('user','assistant') else 'user', 'content':h['text']})
+    messages = []
+    for h in history[-10:]:
+        messages.append({'role':h['role'] if h['role'] in ('user','assistant') else 'user', 'content':h['text']})
 
     answer = None
 
-    # Try OpenAI GPT-4o Vision (Primär)
+    # Try OpenAI (Primär)
     if OPENAI_API_KEY and not answer:
         try:
             from openai import OpenAI
             oc = OpenAI(api_key=OPENAI_API_KEY)
-            oai_msgs = [{'role':'system','content':system}]
-            # History ohne Bild
-            for m in text_history[:-1] if text_history else []:
-                oai_msgs.append({'role':m['role'],'content':m['content']})
-            # Aktuelle Frage MIT Bild (falls vorhanden)
-            if has_image:
-                user_content = [
-                    {'type':'image_url','image_url':{'url':f'data:image/jpeg;base64,{image_data}','detail':'high'}},
-                    {'type':'text','text':question}
-                ]
-            else:
-                user_content = question
-            oai_msgs.append({'role':'user','content':user_content})
+            oai_msgs = [{'role':'system','content':system}] + [{'role':m['role'],'content':m['content']} for m in messages]
             resp = oc.chat.completions.create(model='gpt-4o', max_tokens=800, messages=oai_msgs)
             answer = resp.choices[0].message.content
         except Exception as e:
             app.logger.warning(f'Chat OpenAI Fehler: {e}')
 
-    # Try Anthropic Claude Vision (Backup)
+    # Try Anthropic (Backup)
     if ANTHROPIC_API_KEY and not answer:
         try:
             client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            anth_msgs = []
-            for m in text_history[:-1] if text_history else []:
-                anth_msgs.append({'role':m['role'],'content':m['content']})
-            if has_image:
-                anth_msgs.append({'role':'user','content':[
-                    {'type':'image','source':{'type':'base64','media_type':'image/jpeg','data':image_data}},
-                    {'type':'text','text':question}
-                ]})
-            else:
-                anth_msgs.append({'role':'user','content':question})
-            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=anth_msgs)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=800, system=system, messages=messages)
             answer = resp.content[0].text
         except Exception as e:
             app.logger.warning(f'Chat Anthropic Fehler: {e}')
 
-    # Try Gemini Vision (Letzter Ausweg)
+    # Try Gemini (Letzter Ausweg)
     if GEMINI_API_KEY and not answer:
         try:
             import google.generativeai as genai
-            from PIL import Image as PILImage
             genai.configure(api_key=GEMINI_API_KEY)
             model = genai.GenerativeModel('gemini-2.0-flash')
-            parts = []
-            if has_image:
-                img_bytes = __import__('base64').b64decode(image_data)
-                img = PILImage.open(io.BytesIO(img_bytes))
-                parts.append(img)
-            chat_text = system + '\n\n'
-            for m in text_history:
-                chat_text += f"{m['role']}: {m['content']}\n"
-            chat_text += f"user: {question}"
-            parts.append(chat_text)
-            resp = model.generate_content(parts)
+            chat_text = system + '\n\n' + '\n'.join([f"{m['role']}: {m['content']}" for m in messages])
+            resp = model.generate_content(chat_text)
             answer = resp.text
         except Exception as e:
             app.logger.warning(f'Chat Gemini Fehler: {e}')
@@ -2576,33 +1737,27 @@ def get_reports():
     join = ' LEFT JOIN users u ON r.user_id=u.id' if is_admin else ''
     select_extra = ',u.name as user_name,u.praxis' if is_admin else ''
 
-    # Explicit column list — NEVER include image_data in list queries.
-    # image_data can be 500KB–2MB per report; it's lazy-loaded separately via /image endpoint.
-    safe_cols = (
-        "r.id, r.user_id, r.pet_name, r.species, r.region, r.mode, "
-        "r.severity, r.report_text, r.image_hash, r.quality_score, r.created_at, "
-        "CASE WHEN (r.image_data IS NOT NULL AND r.image_data != '') THEN 1 ELSE 0 END AS has_image"
-    )
-    try:
-        # patient_id added later via ALTER TABLE — may not exist on all DBs
-        safe_cols += ", COALESCE(r.patient_id, '') AS patient_id"
-    except Exception:
-        pass
-
     # If page param provided, use pagination; otherwise return all (backward compat)
     if page is not None:
         page = max(page, 1)
+        # Get total count
         count_row = db_dict(db_fetchone(conn, f'SELECT COUNT(*) as n FROM reports r{join}{where}', params))
-        total = (count_row or {}).get('n', 0)
+        total = count_row['n']
         pages = math.ceil(total / per_page) if per_page > 0 else 1
         offset = (page - 1) * per_page
-        rows = db_fetchall(conn, f'SELECT {safe_cols}{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?', params + [per_page, offset])
+        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?', params + [per_page, offset])
         conn.close()
-        return jsonify({'reports': rows or [], 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
+        for r in rows:
+            r['has_image'] = bool(r.get('image_data'))
+            r.pop('image_data', None)
+        return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
     else:
-        rows = db_fetchall(conn, f'SELECT {safe_cols}{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC', params)
+        rows = db_fetchall(conn, f'SELECT r.*{select_extra} FROM reports r{join}{where} ORDER BY r.created_at DESC', params)
         conn.close()
-        return jsonify({'reports': rows or []})
+        for r in rows:
+            r['has_image'] = bool(r.get('image_data'))
+            r.pop('image_data', None)
+        return jsonify({'reports': rows})
 
 @app.route('/api/reports/<rid>/image')
 @require_auth
@@ -2618,66 +1773,35 @@ def get_report_image(rid):
         return jsonify({'error':'Kein Bild vorhanden'}), 404
     return jsonify({'image_data':r['image_data']})
 
-# Disk-based thumbnail cache
-_THUMB_CACHE_DIR = os.path.join(os.path.dirname(__file__), '.thumb_cache')
-os.makedirs(_THUMB_CACHE_DIR, exist_ok=True)
-
-def _thumb_cache_path(rid):
-    return os.path.join(_THUMB_CACHE_DIR, f'{rid}.jpg.b64')
-
-def _thumb_cache_get(rid):
-    p = _thumb_cache_path(rid)
-    try:
-        if os.path.exists(p):
-            with open(p, 'r') as f:
-                return f.read()
-    except Exception:
-        pass
-    return None
-
-def _thumb_cache_set(rid, thumb_b64):
-    try:
-        with open(_thumb_cache_path(rid), 'w') as f:
-            f.write(thumb_b64)
-    except Exception:
-        pass
-
 @app.route('/api/reports/<rid>/thumbnail')
 @require_auth
 def get_report_thumbnail(rid):
-    """Generate a small thumbnail (120px) from the report image. Cached on disk."""
-    # Auth check first (lightweight)
+    """Generate a small thumbnail (120px) from the report image"""
     conn = get_db()
-    auth_row = db_dict(db_fetchone(conn, 'SELECT user_id, image_data FROM reports WHERE id=?', (rid,)))
+    rows = db_fetchall(conn, 'SELECT image_data,user_id FROM reports WHERE id=?',(rid,))
     conn.close()
-    if not auth_row:
-        return jsonify({'error': 'Befund nicht gefunden'}), 404
-    if auth_row['user_id'] != request.user['id'] and request.user['role'] != 'admin':
-        return jsonify({'error': 'Kein Zugriff'}), 403
-    if not auth_row.get('image_data'):
-        return jsonify({'error': 'Kein Bild vorhanden'}), 404
-
-    # Return cached thumbnail if available on disk
-    cached = _thumb_cache_get(rid)
-    if cached:
-        return jsonify({'thumbnail': cached})
-
+    if not rows: return jsonify({'error':'Befund nicht gefunden'}), 404
+    r = rows[0]
+    if r['user_id'] != request.user['id'] and request.user['role'] != 'admin':
+        return jsonify({'error':'Kein Zugriff'}), 403
+    if not r.get('image_data'):
+        return jsonify({'error':'Kein Bild vorhanden'}), 404
     try:
         import base64, io
         from PIL import Image
-        img_bytes = base64.b64decode(auth_row['image_data'])
+        img_bytes = base64.b64decode(r['image_data'])
         img = Image.open(io.BytesIO(img_bytes))
         img.thumbnail((120, 120), Image.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format='JPEG', quality=60)
         thumb_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-        _thumb_cache_set(rid, thumb_b64)
         return jsonify({'thumbnail': thumb_b64})
     except ImportError:
-        return jsonify({'thumbnail': auth_row['image_data']})
+        # Pillow not installed — return first chars of original as fallback
+        return jsonify({'thumbnail': r['image_data']})
     except Exception as e:
         app.logger.warning(f'Thumbnail-Fehler: {e}')
-        return jsonify({'thumbnail': auth_row['image_data']})
+        return jsonify({'thumbnail': r['image_data']})
 
 @app.route('/api/reports/<rid>', methods=['DELETE'])
 @require_auth
@@ -2706,8 +1830,7 @@ def create_checkout():
     d    = request.json or {}
     plan = d.get('plan','starter')
 
-    price_map = {'starter': STRIPE_PRICE_STARTER, 'praxis': STRIPE_PRICE_PRAXIS, 'professional': STRIPE_PRICE_PRO}
-    price_id = price_map.get(plan, '')
+    price_id = STRIPE_PRICE_PRO if plan == 'professional' else STRIPE_PRICE_STARTER
     if not price_id:
         return jsonify({'error':f'Stripe Preis-ID für {plan} fehlt.'}), 503
 
@@ -2724,7 +1847,7 @@ def create_checkout():
         conn = get_db()
         db_execute(conn, 'INSERT INTO payments (id,user_id,stripe_session_id,plan,amount,status,created_at) VALUES (?,?,?,?,?,?,?)',
                      ('pay_'+nid(), request.user['id'], session.id, plan,
-                      {'starter':4900,'praxis':12900,'professional':49900}.get(plan,4900), 'pending', now()))
+                      4900 if plan=='starter' else 17900, 'pending', now()))
         conn.commit(); conn.close()
 
         return jsonify({'checkout_url': session.url})
@@ -2754,7 +1877,7 @@ def stripe_webhook():
         cust_id  = sess.get('customer','')
 
         if uid:
-            limit = {'starter':50,'praxis':300,'professional':999999}.get(plan,5)
+            limit = 50 if plan == 'starter' else 999999
             conn = get_db()
             db_execute(conn, 'UPDATE users SET plan=?,analyses_limit=?,stripe_customer_id=?,stripe_subscription_id=? WHERE id=?',
                          (plan,limit,cust_id,sub_id,uid))
@@ -2766,7 +1889,7 @@ def stripe_webhook():
     elif event['type'] == 'customer.subscription.deleted':
         sub = event['data']['object']
         conn = get_db()
-        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=5 WHERE stripe_subscription_id=?",
+        db_execute(conn, "UPDATE users SET plan=?,analyses_limit=20 WHERE stripe_subscription_id=?",
                      ('trial',sub['id']))
         conn.commit(); conn.close()
 
@@ -2810,107 +1933,6 @@ def admin_stats():
     conn.close()
     return jsonify(stats)
 
-@app.route('/api/admin/live')
-@require_admin
-def admin_live():
-    """Live-Tracking: aktive Nutzer, Analysen, Echtzeit-Feed."""
-    conn = get_db()
-    # Online in last 30 min (sessions not expired + created recently)
-    if USE_POSTGRES:
-        online_rows = db_fetchall(conn, """
-            SELECT DISTINCT u.id, u.name, u.email, u.praxis, u.plan, u.last_login
-            FROM sessions s JOIN users u ON s.user_id=u.id
-            WHERE s.expires_at > %s AND u.role != 'admin'
-            ORDER BY u.last_login DESC LIMIT 50
-        """, (now(),))
-        recent_analyses = db_fetchall(conn, """
-            SELECT r.id, r.species, r.region, r.severity, r.created_at,
-                   u.name as user_name, u.praxis
-            FROM reports r LEFT JOIN users u ON r.user_id=u.id
-            ORDER BY r.created_at DESC LIMIT 20
-        """, ())
-        today_count = db_dict(db_fetchone(conn, """
-            SELECT COUNT(*) as n FROM reports WHERE DATE(created_at) = CURRENT_DATE
-        """, ()))['n']
-        hour_count = db_dict(db_fetchone(conn, """
-            SELECT COUNT(*) as n FROM reports
-            WHERE created_at > NOW() - INTERVAL '1 hour'
-        """, ()))['n']
-    else:
-        online_rows = db_fetchall(conn, """
-            SELECT DISTINCT u.id, u.name, u.email, u.praxis, u.plan, u.last_login
-            FROM sessions s JOIN users u ON s.user_id=u.id
-            WHERE s.expires_at > ? AND u.role != 'admin'
-            ORDER BY u.last_login DESC LIMIT 50
-        """, (now(),))
-        recent_analyses = db_fetchall(conn, """
-            SELECT r.id, r.species, r.region, r.severity, r.created_at,
-                   u.name as user_name, u.praxis
-            FROM reports r LEFT JOIN users u ON r.user_id=u.id
-            ORDER BY r.created_at DESC LIMIT 20
-        """, ())
-        today_count = db_dict(db_fetchone(conn, """
-            SELECT COUNT(*) as n FROM reports WHERE date(created_at) = date('now')
-        """, ()))['n']
-        hour_count = db_dict(db_fetchone(conn, """
-            SELECT COUNT(*) as n FROM reports
-            WHERE created_at > datetime('now', '-1 hour')
-        """, ()))['n']
-    conn.close()
-    return jsonify({
-        'online': online_rows or [],
-        'online_count': len(online_rows) if online_rows else 0,
-        'recent_analyses': recent_analyses or [],
-        'today_count': today_count,
-        'hour_count': hour_count,
-        'timestamp': now()
-    })
-
-
-@app.route('/api/admin/feedback-stats')
-@require_admin
-def admin_feedback_stats():
-    """Kundenfeedback-Statistiken aus report_feedback."""
-    conn = get_db()
-    total_row = db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM report_feedback", ()))
-    total = total_row['n'] if total_row else 0
-    if total == 0:
-        conn.close()
-        return jsonify({'total': 0, 'avg_rating': 0, 'correct_pct': 0,
-                        'distribution': {}, 'recent': []})
-    avg_row = db_dict(db_fetchone(conn, "SELECT AVG(CAST(rating AS FLOAT)) as avg FROM report_feedback WHERE rating IS NOT NULL", ()))
-    avg_rating = round(float(avg_row['avg'] or 0), 1)
-    correct_row = db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM report_feedback WHERE correct=1", ()))
-    correct_total_row = db_dict(db_fetchone(conn, "SELECT COUNT(*) as n FROM report_feedback WHERE correct IS NOT NULL", ()))
-    correct_pct = round(correct_row['n'] / correct_total_row['n'] * 100) if correct_total_row['n'] > 0 else 0
-    dist_rows = db_fetchall(conn, "SELECT rating, COUNT(*) as n FROM report_feedback WHERE rating IS NOT NULL GROUP BY rating ORDER BY rating", ())
-    distribution = {str(r['rating']): r['n'] for r in (dist_rows or [])}
-    if USE_POSTGRES:
-        recent = db_fetchall(conn, """
-            SELECT rf.rating, rf.correct, rf.comment, rf.created_at,
-                   u.name as user_name, u.praxis
-            FROM report_feedback rf LEFT JOIN users u ON rf.user_id=u.id
-            WHERE rf.comment IS NOT NULL AND rf.comment != ''
-            ORDER BY rf.created_at DESC LIMIT 20
-        """, ())
-    else:
-        recent = db_fetchall(conn, """
-            SELECT rf.rating, rf.correct, rf.comment, rf.created_at,
-                   u.name as user_name, u.praxis
-            FROM report_feedback rf LEFT JOIN users u ON rf.user_id=u.id
-            WHERE rf.comment IS NOT NULL AND rf.comment != ''
-            ORDER BY rf.created_at DESC LIMIT 20
-        """, ())
-    conn.close()
-    return jsonify({
-        'total': total,
-        'avg_rating': avg_rating,
-        'correct_pct': correct_pct,
-        'distribution': distribution,
-        'recent': recent or []
-    })
-
-
 @app.route('/api/admin/customers')
 @require_admin
 def admin_customers():
@@ -2924,7 +1946,7 @@ def admin_customers():
 def admin_create_customer():
     d = request.json or {}
     uid = 'u_'+nid()
-    limit = 999999 if d.get('plan')=='professional' else (300 if d.get('plan')=='praxis' else (50 if d.get('plan')=='starter' else 5))
+    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
     conn = get_db()
     try:
         db_execute(conn, 'INSERT INTO users (id,email,password,name,praxis,plan,active,role,analyses_used,analyses_limit,email_verified,created_at) VALUES (?,?,?,?,?,?,1,?,0,?,1,?)',
@@ -2939,7 +1961,7 @@ def admin_create_customer():
 @require_admin
 def admin_update_customer(uid):
     d = request.json or {}
-    limit = 999999 if d.get('plan')=='professional' else (300 if d.get('plan')=='praxis' else (50 if d.get('plan')=='starter' else 5))
+    limit = 999999 if d.get('plan')=='professional' else (50 if d.get('plan')=='starter' else 20)
     conn = get_db()
     db_execute(conn, 'UPDATE users SET name=?,praxis=?,plan=?,active=?,analyses_limit=? WHERE id=?',
                  (d.get('name'),d.get('praxis'),d.get('plan'),int(d.get('active',1)),limit,uid))
@@ -3001,96 +2023,76 @@ def admin_reports():
     conn.close()
     return jsonify({'reports':rows})
 
-# ═══════════════════════════════════════════════════
-# PRAXIS BRANDING
-# ═══════════════════════════════════════════════════
+@app.route('/api/admin/debug/prompt-preview', methods=['POST'])
+@require_admin
+def debug_prompt_preview():
+    """Zeigt exakt was an OpenAI gesendet wird — zum Vergleich mit direktem ChatGPT."""
+    d = request.json or {}
+    species   = d.get('species', 'Hund')
+    region    = d.get('region', 'Thorax')
+    mode      = d.get('mode', 'single')
+    ctx       = d.get('context', '')
+    img_b64   = d.get('img_a', '')  # optional — nur für Größeninfo
 
-@app.route('/api/auth/branding', methods=['GET'])
-@require_auth
-def get_branding():
-    """Get practice branding settings for the current user."""
-    conn = get_db()
-    user = db_dict(db_fetchone(conn,
-        'SELECT name, praxis, practice_logo, practice_address, practice_phone, practice_website FROM users WHERE id=?',
-        (request.user['id'],)))
-    conn.close()
-    if not user:
-        return jsonify({'error': 'Benutzer nicht gefunden'}), 404
-    # Don't send full logo in list endpoint — just whether it's set
-    has_logo = bool(user.get('practice_logo'))
+    observe_prefix = (
+        "ZUERST — Freie Bildbeobachtung (bevor du irgendetwas strukturierst):\n"
+        "Schaue dir das Bild genau an und beschreibe in 4-6 Sätzen ungefiltert was du siehst. "
+        "Was springt dir sofort ins Auge? Was ist auffällig, ungewöhnlich oder pathologisch? "
+        "Beginne mit: 'Ich sehe...'\n\n"
+        "DANACH — Strukturierter Befundbericht auf Basis deiner Beobachtungen:\n"
+    )
+    prompts = {
+        'single':  observe_prefix + f'Erstelle den vollständigen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}.',
+        'compare': observe_prefix + f'Vergleiche Aufnahme A mit Aufnahme B eines {species} im Bereich {region}.',
+        'second':  observe_prefix + f'Erstelle eine kritische Zweitmeinung für einen {species} im Bereich {region}.',
+    }
+    user_prompt = prompts.get(mode, prompts['single'])
+    if ctx: user_prompt += f'\n\nKlinischer Kontext: {ctx}'
+
+    # Schritt-1-Prompt (freie Beobachtung — wie direktes ChatGPT)
+    step1_prompt = (
+        f"Du bist ein erfahrener Veterinärradiologe. "
+        f"Schaue dir dieses veterinärmedizinische Bild genau an. "
+        f"Beschreibe ausführlich und ehrlich was du siehst — wie wenn du einem Kollegen am Telefon erklärst was auf dem Bild ist. "
+        f"Keine Struktur, keine Abschnitte, einfach: was siehst du? Was fällt dir auf? Was ist normal, was ist auffällig? "
+        f"Sei so konkret wie möglich. Tierart: {species}, Region: {region}."
+    )
+
+    img_size_kb = round(len(img_b64) * 3 / 4 / 1024) if img_b64 else 0
+
     return jsonify({
-        'name': user.get('name', ''),
-        'praxis': user.get('praxis', ''),
-        'practice_address': user.get('practice_address', ''),
-        'practice_phone': user.get('practice_phone', ''),
-        'practice_website': user.get('practice_website', ''),
-        'has_logo': has_logo,
+        'info': 'Was OpenAI bei einer Animioo-Analyse erhält (Zwei-Schritt-Prozess)',
+        'schritt_1_freie_beobachtung': {
+            'beschreibung': 'Schritt 1: Wie direktes ChatGPT — kein System-Prompt, nur Bild + offene Frage',
+            'system_prompt': '(keiner — wie ChatGPT direkt)',
+            'user_prompt': step1_prompt,
+            'temperature': 0.2,
+            'max_tokens': 2000
+        },
+        'schritt_2_strukturierter_befund': {
+            'beschreibung': 'Schritt 2: System-Prompt + freie Beobachtung aus Schritt 1 als Basis → strukturierter Befund',
+            'system_prompt_zeichen': len(
+                "Du bist der weltweit führende Veterinärradiologe..."  # gekürzt
+            ),
+            'system_prompt_vorschau': 'Du bist der weltweit führende Veterinärradiologe — ECVDI-Diplomate...',
+            'user_prompt': user_prompt,
+            'assistant_turn': '[Freie Beobachtung aus Schritt 1 wird hier eingefügt]',
+            'final_instruction': 'Basierend auf deiner freien Beobachtung: Erstelle jetzt den strukturierten Befund...',
+            'temperature': 0.1,
+            'max_tokens': 8192
+        },
+        'bild_info': {
+            'groesse_kb': img_size_kb,
+            'format': 'PNG (verlustfrei)',
+            'max_dimension': '2048px',
+            'detail_level': 'high (OpenAI verarbeitet in 512x512 Tiles)'
+        },
+        'vergleich_mit_chatgpt': {
+            'chatgpt_direkt': 'Bild + "was siehst du?" → Modell denkt frei → sofortige freie Antwort',
+            'animioo_vorher': 'Bild + 600-Zeilen-Formatvorgabe → Modell füllt Template → oft generisch',
+            'animioo_jetzt': 'Schritt 1: frei beobachten (wie ChatGPT) → Schritt 2: Beobachtung strukturieren'
+        }
     })
-
-@app.route('/api/auth/branding', methods=['POST'])
-@require_auth
-def save_branding():
-    """Save practice branding settings."""
-    data = request.get_json() or {}
-    uid = request.user['id']
-
-    # Validate logo size if provided (max 500KB base64)
-    logo = data.get('practice_logo', None)
-    if logo is not None:
-        if len(logo) > 700_000:  # ~500KB base64
-            return jsonify({'error': 'Logo zu groß (max. 500 KB)'}), 400
-        # Compress/resize logo with Pillow if possible
-        if logo:
-            try:
-                import base64, io
-                from PIL import Image
-                raw = base64.b64decode(logo)
-                img = Image.open(io.BytesIO(raw)).convert('RGBA')
-                img.thumbnail((400, 200), Image.LANCZOS)
-                buf = io.BytesIO()
-                img.save(buf, format='PNG', optimize=True)
-                logo = base64.b64encode(buf.getvalue()).decode('utf-8')
-            except Exception:
-                pass  # Keep original if resize fails
-
-    conn = get_db()
-    updates = []
-    params = []
-
-    if 'praxis' in data:
-        updates.append('praxis=?'); params.append(str(data['praxis'])[:120])
-    if 'name' in data:
-        updates.append('name=?'); params.append(str(data['name'])[:100])
-    if 'practice_address' in data:
-        updates.append('practice_address=?'); params.append(str(data['practice_address'])[:200])
-    if 'practice_phone' in data:
-        updates.append('practice_phone=?'); params.append(str(data['practice_phone'])[:50])
-    if 'practice_website' in data:
-        updates.append('practice_website=?'); params.append(str(data['practice_website'])[:100])
-    if logo is not None:
-        updates.append('practice_logo=?'); params.append(logo)
-
-    if not updates:
-        conn.close()
-        return jsonify({'ok': True})
-
-    params.append(uid)
-    db_execute(conn, f"UPDATE users SET {','.join(updates)} WHERE id=?", params)
-    conn.commit()
-    conn.close()
-    audit('branding_updated', uid, 'Practice branding settings saved')
-    return jsonify({'ok': True})
-
-@app.route('/api/auth/branding/logo', methods=['DELETE'])
-@require_auth
-def delete_logo():
-    """Remove practice logo."""
-    conn = get_db()
-    db_execute(conn, "UPDATE users SET practice_logo='' WHERE id=?", (request.user['id'],))
-    conn.commit()
-    conn.close()
-    return jsonify({'ok': True})
-
 
 # ═══════════════════════════════════════════════════
 # DSGVO ENDPOINTS (Art. 17, 20, Consent)
@@ -3109,7 +2111,7 @@ def export_data():
             conn.close()
             return jsonify({'error': 'Benutzer nicht gefunden'}), 404
 
-        reports_raw = db_fetchall(conn, 'SELECT id,pet_name,species,region,mode,severity,quality_score,created_at FROM reports WHERE user_id=?', (uid,))
+        reports_raw = db_fetchall(conn, 'SELECT id,pet_name,species,created_at,status,summary FROM reports WHERE user_id=?', (uid,))
         reports = [db_dict(r) for r in reports_raw] if reports_raw else []
 
         session_count_row = db_fetchone(conn, 'SELECT COUNT(*) as cnt FROM sessions WHERE user_id=?', (uid,))
@@ -3211,12 +2213,9 @@ def contact():
 @app.route('/api/reports/<rid>/pdf')
 @require_auth
 def export_report_pdf(rid):
-    """Generate a branded PDF for a report."""
+    """Generate a professional PDF for a report."""
     conn = get_db()
     report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=?', (rid,)))
-    user   = db_dict(db_fetchone(conn,
-        'SELECT name, praxis, practice_logo, practice_address, practice_phone, practice_website FROM users WHERE id=?',
-        (request.user['id'],)))
     conn.close()
     if not report:
         return jsonify({'error': 'Befund nicht gefunden'}), 404
@@ -3228,189 +2227,85 @@ def export_report_pdf(rid):
     except ImportError:
         return jsonify({'error': 'PDF-Bibliothek (fpdf2) nicht installiert'}), 503
 
-    # Practice branding data
-    pb = user or {}
-    practice_name    = pb.get('praxis') or 'Animioo KI-Befundassistent'
-    practice_owner   = pb.get('name', '')
-    practice_address = pb.get('practice_address', '')
-    practice_phone   = pb.get('practice_phone', '')
-    practice_website = pb.get('practice_website', '')
-    practice_logo_b64 = pb.get('practice_logo', '')
-    has_branding = bool(pb.get('praxis') or pb.get('practice_address'))
-
-    # Write logo to temp file if present
-    logo_path = None
-    if practice_logo_b64:
-        try:
-            import base64, tempfile
-            logo_bytes = base64.b64decode(practice_logo_b64)
-            tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-            tmp.write(logo_bytes); tmp.close()
-            logo_path = tmp.name
-        except Exception:
-            logo_path = None
-
-    BLUE = (26, 86, 219)
-    NAVY = (15, 28, 53)
-    GRAY = (100, 116, 139)
-    LIGHT = (241, 245, 249)
-
-    class BrandedPDF(FPDF):
+    class AnimiooPDF(FPDF):
         def header(self):
-            # ── Top bar (navy) ──
-            self.set_fill_color(*NAVY)
-            self.rect(0, 0, 210, 36, 'F')
-
-            if logo_path:
-                # Logo left, practice info right
-                try:
-                    self.image(logo_path, x=10, y=4, h=26)
-                except Exception:
-                    pass
-                # Practice name on right
-                self.set_xy(90, 6)
-                self.set_font('Helvetica', 'B', 13)
-                self.set_text_color(255, 255, 255)
-                self.cell(110, 7, practice_name[:50], align='R', ln=True)
-                if practice_owner:
-                    self.set_x(90)
-                    self.set_font('Helvetica', '', 9)
-                    self.set_text_color(180, 200, 255)
-                    self.cell(110, 5, practice_owner[:60], align='R', ln=True)
-                info_parts = [x for x in [practice_phone, practice_website] if x]
-                if info_parts:
-                    self.set_x(90)
-                    self.set_font('Helvetica', '', 8)
-                    self.set_text_color(150, 175, 220)
-                    self.cell(110, 5, '  |  '.join(info_parts)[:70], align='R', ln=True)
-            else:
-                # Centered Animioo branding (no custom logo)
-                self.set_font('Helvetica', 'B', 16)
-                self.set_text_color(255, 255, 255)
-                self.set_y(6)
-                self.cell(0, 9, practice_name, align='C', ln=True)
-                if has_branding and practice_owner:
-                    self.set_font('Helvetica', '', 9)
-                    self.set_text_color(180, 200, 255)
-                    self.cell(0, 5, practice_owner, align='C', ln=True)
-
-            # ── Address bar (light blue strip) ──
-            if practice_address and has_branding:
-                self.set_fill_color(230, 238, 255)
-                self.rect(0, 36, 210, 8, 'F')
-                self.set_xy(10, 37)
-                self.set_font('Helvetica', '', 8)
-                self.set_text_color(*BLUE)
-                self.cell(0, 6, practice_address[:100], ln=True)
-                self.ln(10)
-            else:
-                self.ln(8)
+            self.set_fill_color(26, 86, 219)  # #1a56db
+            self.rect(0, 0, 210, 28, 'F')
+            self.set_font('Helvetica', 'B', 18)
+            self.set_text_color(255, 255, 255)
+            self.set_y(8)
+            self.cell(0, 10, 'Animioo KI-Befundassistent', align='C')
+            self.ln(18)
 
         def footer(self):
-            self.set_y(-14)
-            self.set_font('Helvetica', 'I', 7.5)
-            self.set_text_color(*GRAY)
-            disclaimer = 'Erstellt mit Animioo KI-Assistenz. Kein Ersatz fuer tieraerztliche Diagnose.'
-            self.cell(0, 5, disclaimer, align='C', ln=True)
-            self.set_y(-9)
-            self.set_font('Helvetica', '', 7.5)
-            page_txt = f'Seite {self.page_no()}/{{nb}}'
-            self.cell(0, 5, page_txt, align='R')
-            # Subtle Animioo badge bottom-left
-            self.set_x(10)
-            self.set_y(-9)
-            self.set_text_color(180, 180, 180)
-            self.cell(60, 5, 'animioo.de', align='L')
+            self.set_y(-15)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(128, 128, 128)
+            self.cell(0, 10, 'Animioo KI-Befundassistent -- Kein Ersatz fuer tieraerztliche Diagnose.', align='C')
+            self.cell(0, 10, f'Seite {self.page_no()}/{{nb}}', align='R')
 
-    pdf = BrandedPDF()
+    pdf = AnimiooPDF()
     pdf.alias_nb_pages()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.set_auto_page_break(auto=True, margin=20)
 
-    # ── Befund-Header Box ──
-    top_y = 50 if (practice_address and has_branding) else 44
-    pdf.set_y(top_y)
-
-    # Severity badge
-    sev_map  = {'low': ('NIEDRIG', (5, 150, 105), (236, 253, 245)),
-                'mid': ('MITTEL',  (180, 83, 9),  (255, 251, 235)),
-                'high':('HOCH',    (185, 28, 28), (254, 242, 242))}
-    sev_lbl, sev_fg, sev_bg = sev_map.get(report.get('severity', 'mid'), sev_map['mid'])
-
-    # Info box
-    pdf.set_fill_color(*LIGHT)
-    pdf.set_draw_color(203, 213, 225)
-    pdf.set_line_width(0.3)
-    pdf.rect(10, pdf.get_y(), 190, 30, 'FD')
-    pdf.set_xy(14, pdf.get_y() + 3)
-
-    # Left column: patient info
-    pdf.set_font('Helvetica', 'B', 9)
-    pdf.set_text_color(*NAVY)
-    pdf.cell(95, 5, 'BEFUND-INFORMATION', ln=False)
-    pdf.set_font('Helvetica', 'B', 9)
-    pdf.cell(0, 5, 'DRINGLICHKEIT', ln=True)
-
-    pdf.set_xy(14, pdf.get_y())
+    # ── Report Metadata ──
+    pdf.set_y(32)
     pdf.set_font('Helvetica', 'B', 11)
-    pet = report.get('pet_name', '')
-    title_parts = ([pet + ' —'] if pet else []) + [report.get('species',''), '·', report.get('region','')]
-    pdf.cell(95, 6, ' '.join(p for p in title_parts if p), ln=False)
+    pdf.set_text_color(26, 86, 219)
+    pdf.cell(0, 8, 'Befund-Metadaten', ln=True)
 
-    # Severity pill
-    pill_x = pdf.get_x()
-    pill_y = pdf.get_y() - 1
-    pdf.set_fill_color(*sev_bg)
-    pdf.rect(pill_x, pill_y, 40, 8, 'F')
-    pdf.set_font('Helvetica', 'B', 10)
-    pdf.set_text_color(*sev_fg)
-    pdf.set_xy(pill_x, pill_y + 1)
-    pdf.cell(40, 6, sev_lbl, align='C', ln=True)
+    pdf.set_font('Helvetica', '', 10)
+    pdf.set_text_color(60, 60, 60)
+    meta_items = [
+        ('Datum', report.get('created_at', '')[:19].replace('T', ' ')),
+        ('Tierart', report.get('species', '')),
+        ('Region', report.get('region', '')),
+        ('Modus', report.get('mode', '')),
+        ('Dringlichkeit', {'low': 'Niedrig', 'mid': 'Mittel', 'high': 'Hoch'}.get(report.get('severity', ''), report.get('severity', ''))),
+    ]
+    if report.get('pet_name'):
+        meta_items.insert(1, ('Patient', report['pet_name']))
 
-    pdf.set_xy(14, pdf.get_y())
-    pdf.set_font('Helvetica', '', 8.5)
-    pdf.set_text_color(*GRAY)
-    date_str = report.get('created_at', '')[:19].replace('T', ' ')
-    mode_map = {'single':'Einzelanalyse','compare':'Verlaufsanalyse','diff':'Bildvergleich','second':'Krit. Prüfung'}
-    mode_str = mode_map.get(report.get('mode',''), report.get('mode',''))
-    pdf.cell(0, 5, f'Datum: {date_str}  ·  Modus: {mode_str}', ln=True)
+    for label, value in meta_items:
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(35, 6, f'{label}:', ln=False)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(0, 6, str(value), ln=True)
 
-    pdf.ln(6)
-
-    # ── Separator ──
-    pdf.set_draw_color(*BLUE)
-    pdf.set_line_width(0.6)
+    pdf.ln(4)
+    # Separator line
+    pdf.set_draw_color(26, 86, 219)
+    pdf.set_line_width(0.5)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(5)
+    pdf.ln(4)
 
-    # ── Befundtext ──
+    # ── Report text ──
     pdf.set_font('Helvetica', 'B', 11)
-    pdf.set_text_color(*BLUE)
-    pdf.cell(0, 7, 'Befundbericht', ln=True)
-    pdf.ln(1)
+    pdf.set_text_color(26, 86, 219)
+    pdf.cell(0, 8, 'Befundbericht', ln=True)
 
     report_text = report.get('report_text', '')
+    # Parse markdown-style text into PDF
     pdf.set_text_color(30, 30, 30)
     for line in report_text.split('\n'):
         stripped = line.strip()
         if stripped.startswith('## '):
             pdf.ln(3)
             pdf.set_font('Helvetica', 'B', 11)
-            pdf.set_fill_color(239, 246, 255)
-            pdf.set_text_color(*BLUE)
-            pdf.multi_cell(0, 7, '  ' + stripped[3:], fill=True)
+            pdf.set_text_color(26, 86, 219)
+            pdf.multi_cell(0, 6, stripped[3:])
             pdf.set_text_color(30, 30, 30)
         elif stripped.startswith('### '):
             pdf.ln(2)
             pdf.set_font('Helvetica', 'B', 10)
-            pdf.set_text_color(*NAVY)
             pdf.multi_cell(0, 6, stripped[4:])
-            pdf.set_text_color(30, 30, 30)
         elif stripped.startswith('**') and stripped.endswith('**'):
             pdf.set_font('Helvetica', 'B', 10)
             pdf.multi_cell(0, 5, stripped.strip('*'))
             pdf.set_font('Helvetica', '', 10)
         elif stripped.startswith('|') and '|' in stripped[1:]:
+            # Table row — render as simple text
             cells = [c.strip() for c in stripped.split('|') if c.strip() and c.strip() != '---']
             if cells and not all(set(c) <= set('-| ') for c in cells):
                 pdf.set_font('Helvetica', '', 9)
@@ -3418,33 +2313,25 @@ def export_report_pdf(rid):
                 pdf.set_font('Helvetica', '', 10)
         elif stripped.startswith('- ') or stripped.startswith('* '):
             pdf.set_font('Helvetica', '', 10)
-            pdf.multi_cell(0, 5, '\u2022 ' + stripped[2:])
+            pdf.multi_cell(0, 5, '  ' + stripped)
         elif stripped.startswith('---'):
             pdf.ln(2)
-            pdf.set_draw_color(203, 213, 225)
+            pdf.set_draw_color(180, 180, 180)
             pdf.line(10, pdf.get_y(), 200, pdf.get_y())
             pdf.ln(2)
         elif stripped:
+            # Handle inline bold
             clean = stripped.replace('**', '')
             pdf.set_font('Helvetica', '', 10)
             pdf.multi_cell(0, 5, clean)
         else:
             pdf.ln(2)
 
-    # Cleanup temp logo file
-    if logo_path:
-        try:
-            import os as _os; _os.unlink(logo_path)
-        except Exception:
-            pass
-
-    # Output
-    pet_slug = (report.get('pet_name') or report.get('species') or 'Befund').replace(' ', '-')
-    filename = f'Befund-{pet_slug}-{rid[:8]}.pdf'
+    # Output PDF
     pdf_bytes = pdf.output()
     response = make_response(pdf_bytes)
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.headers['Content-Disposition'] = f'attachment; filename="Animioo-Befund-{rid}.pdf"'
     return response
 
 # ═══════════════════════════════════════════════════
@@ -3495,373 +2382,170 @@ def get_report_feedback(rid):
 
     rows = db_fetchall(conn, 'SELECT * FROM report_feedback WHERE report_id=? ORDER BY created_at DESC', (rid,))
     conn.close()
-    # Return latest feedback as single object (frontend expects object, not list)
-    return jsonify({'feedback': rows[0] if rows else None})
+    return jsonify({'feedback': rows})
 
 # ═══════════════════════════════════════════════════
-# PRAXIS-TEAMS
+# API-KEY MANAGEMENT
 # ═══════════════════════════════════════════════════
-
-@app.route('/api/teams', methods=['GET'])
+@app.route('/api/auth/api-key')
 @require_auth
-def list_teams():
-    uid = request.user['id']
+def get_api_key():
+    """Get or generate an API key for the current user."""
     conn = get_db()
-    # Teams where user is owner OR member
-    teams = db_fetchall(conn, '''
-        SELECT DISTINCT t.id, t.name, t.owner_id, t.created_at
-        FROM teams t
-        LEFT JOIN team_members tm ON t.id = tm.team_id
-        WHERE t.owner_id=? OR tm.user_id=?
-        ORDER BY t.created_at DESC
-    ''', (uid, uid))
-    result = []
-    for team in (teams or []):
-        t = dict(team)
-        members = db_fetchall(conn, '''
-            SELECT tm.id, tm.user_id, tm.role, tm.joined_at, u.name, u.email
-            FROM team_members tm
-            LEFT JOIN users u ON tm.user_id=u.id
-            WHERE tm.team_id=?
-        ''', (t['id'],))
-        t['member_count'] = len(members or [])
-        result.append(t)
-    conn.close()
-    return jsonify({'teams': result})
-
-
-@app.route('/api/teams', methods=['POST'])
-@require_auth
-def create_team():
-    d = request.json or {}
-    name = d.get('name', '').strip()
-    if not name:
-        return jsonify({'error': 'Teamname erforderlich'}), 400
-    uid = request.user['id']
-    tid = 't_' + nid()
-    mid = 'tm_' + nid()
-    conn = get_db()
-    try:
-        db_execute(conn, 'INSERT INTO teams (id, name, owner_id, created_at) VALUES (?,?,?,?)',
-                   (tid, name, uid, now()))
-        db_execute(conn, 'INSERT INTO team_members (id, team_id, user_id, role, invited_by, joined_at) VALUES (?,?,?,?,?,?)',
-                   (mid, tid, uid, 'owner', uid, now()))
+    user = db_dict(db_fetchone(conn, 'SELECT api_key FROM users WHERE id=?', (request.user['id'],)))
+    api_key = user.get('api_key', '') if user else ''
+    if not api_key:
+        api_key = 'ak_' + secrets.token_hex(24)
+        db_execute(conn, 'UPDATE users SET api_key=? WHERE id=?', (api_key, request.user['id']))
         conn.commit()
-    except Exception as e:
-        try: conn.rollback()
-        except: pass
-        conn.close()
-        return jsonify({'error': str(e)}), 500
     conn.close()
-    audit('Team erstellt', uid, f'{name} ({tid})')
-    return jsonify({'id': tid, 'ok': True}), 201
-
-
-@app.route('/api/teams/<tid>', methods=['GET'])
-@require_auth
-def get_team(tid):
-    uid = request.user['id']
-    conn = get_db()
-    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
-    if not team:
-        conn.close()
-        return jsonify({'error': 'Team nicht gefunden'}), 404
-    # Check membership
-    member = db_fetchone(conn, 'SELECT id FROM team_members WHERE team_id=? AND user_id=?', (tid, uid))
-    if not member and team['owner_id'] != uid and request.user.get('role') != 'admin':
-        conn.close()
-        return jsonify({'error': 'Kein Zugriff'}), 403
-    members = db_fetchall(conn, '''
-        SELECT tm.id, tm.user_id, tm.role, tm.invited_by, tm.joined_at,
-               u.name, u.email, u.praxis
-        FROM team_members tm
-        LEFT JOIN users u ON tm.user_id=u.id
-        WHERE tm.team_id=?
-        ORDER BY tm.joined_at ASC
-    ''', (tid,))
-    conn.close()
-    team['members'] = members or []
-    return jsonify({'team': team})
-
-
-@app.route('/api/teams/<tid>/members', methods=['POST'])
-@require_auth
-def add_team_member(tid):
-    uid = request.user['id']
-    d = request.json or {}
-    email = d.get('email', '').strip().lower()
-    if not email:
-        return jsonify({'error': 'E-Mail erforderlich'}), 400
-    conn = get_db()
-    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
-    if not team:
-        conn.close()
-        return jsonify({'error': 'Team nicht gefunden'}), 404
-    # Only owner or admin can invite
-    caller_member = db_dict(db_fetchone(conn, 'SELECT role FROM team_members WHERE team_id=? AND user_id=?', (tid, uid)))
-    caller_role = caller_member['role'] if caller_member else None
-    if team['owner_id'] != uid and caller_role not in ('owner', 'admin') and request.user.get('role') != 'admin':
-        conn.close()
-        return jsonify({'error': 'Nur Owner oder Admin darf Mitglieder einladen'}), 403
-    # Find invited user
-    invite_user = db_dict(db_fetchone(conn, 'SELECT id FROM users WHERE email=? AND active=1', (email,)))
-    if not invite_user:
-        conn.close()
-        return jsonify({'error': 'Kein aktiver User mit dieser E-Mail gefunden'}), 404
-    inv_uid = invite_user['id']
-    # Check if already member
-    existing = db_fetchone(conn, 'SELECT id FROM team_members WHERE team_id=? AND user_id=?', (tid, inv_uid))
-    if existing:
-        conn.close()
-        return jsonify({'error': 'User ist bereits Mitglied dieses Teams'}), 409
-    mid = 'tm_' + nid()
-    role_to_assign = d.get('role', 'member')
-    if role_to_assign not in ('admin', 'member'):
-        role_to_assign = 'member'
-    db_execute(conn, 'INSERT INTO team_members (id, team_id, user_id, role, invited_by, joined_at) VALUES (?,?,?,?,?,?)',
-               (mid, tid, inv_uid, role_to_assign, uid, now()))
-    conn.commit(); conn.close()
-    audit('Team-Mitglied eingeladen', uid, f'{email} -> {tid}')
-    return jsonify({'ok': True, 'id': mid}), 201
-
-
-@app.route('/api/teams/<tid>/members/<invited_uid>', methods=['DELETE'])
-@require_auth
-def remove_team_member(tid, invited_uid):
-    uid = request.user['id']
-    conn = get_db()
-    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
-    if not team:
-        conn.close()
-        return jsonify({'error': 'Team nicht gefunden'}), 404
-    caller_member = db_dict(db_fetchone(conn, 'SELECT role FROM team_members WHERE team_id=? AND user_id=?', (tid, uid)))
-    caller_role = caller_member['role'] if caller_member else None
-    if team['owner_id'] != uid and caller_role not in ('owner', 'admin') and request.user.get('role') != 'admin':
-        conn.close()
-        return jsonify({'error': 'Nur Owner oder Admin darf Mitglieder entfernen'}), 403
-    # Cannot remove owner
-    target_member = db_dict(db_fetchone(conn, 'SELECT role FROM team_members WHERE team_id=? AND user_id=?', (tid, invited_uid)))
-    if target_member and target_member['role'] == 'owner':
-        conn.close()
-        return jsonify({'error': 'Owner kann nicht entfernt werden'}), 400
-    db_execute(conn, 'DELETE FROM team_members WHERE team_id=? AND user_id=?', (tid, invited_uid))
-    conn.commit(); conn.close()
-    audit('Team-Mitglied entfernt', uid, f'{invited_uid} from {tid}')
-    return jsonify({'ok': True})
-
-
-@app.route('/api/teams/<tid>', methods=['DELETE'])
-@require_auth
-def delete_team(tid):
-    uid = request.user['id']
-    conn = get_db()
-    team = db_dict(db_fetchone(conn, 'SELECT * FROM teams WHERE id=?', (tid,)))
-    if not team:
-        conn.close()
-        return jsonify({'error': 'Team nicht gefunden'}), 404
-    if team['owner_id'] != uid and request.user.get('role') != 'admin':
-        conn.close()
-        return jsonify({'error': 'Nur der Owner darf ein Team löschen'}), 403
-    db_execute(conn, 'DELETE FROM team_members WHERE team_id=?', (tid,))
-    db_execute(conn, 'DELETE FROM teams WHERE id=?', (tid,))
-    conn.commit(); conn.close()
-    audit('Team gelöscht', uid, tid)
-    return jsonify({'ok': True})
-
+    return jsonify({'api_key': api_key})
 
 # ═══════════════════════════════════════════════════
-# E-MAIL-BEFUNDVERSAND
+# PRAXISMANAGEMENT-INTEGRATION API (v1)
 # ═══════════════════════════════════════════════════
+@app.route('/api/v1/analyse', methods=['POST'])
+@require_api_key
+@limiter.limit("10 per minute")
+def v1_analyse():
+    """External API: analyse an image via multipart/form-data with API key auth."""
+    user = request.user
 
-def markdown_to_html(text):
-    """Simple Markdown -> HTML conversion for report email."""
-    import re
-    lines = text.split('\n')
-    html_lines = []
-    for line in lines:
-        # ## Heading
-        if line.startswith('## '):
-            line = '<h2>' + line[3:] + '</h2>'
-        # **bold**
-        line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
-        html_lines.append(line)
-    return '<br>\n'.join(html_lines)
+    if user['role'] != 'admin':
+        if user['plan'] in ('trial',) and user['analyses_used'] >= user['analyses_limit']:
+            return jsonify({'error': 'Analyse-Kontingent aufgebraucht', 'upgrade_required': True}), 402
+        if user['plan'] == 'starter' and user['analyses_used'] >= 50:
+            return jsonify({'error': 'Monatliches Kontingent erreicht', 'upgrade_required': True}), 402
 
+    import base64
 
-@app.route('/api/reports/<rid>/send-email', methods=['POST'])
-@require_auth
-def send_report_email(rid):
-    """Sendet einen Befund per E-Mail an eine angegebene Adresse."""
-    if not SMTP_HOST or not SMTP_USER:
-        return jsonify({'error': 'E-Mail-Versand nicht konfiguriert'}), 503
+    # Accept either multipart form or JSON
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        image_file = request.files.get('image')
+        if not image_file:
+            return jsonify({'error': 'Kein Bild hochgeladen (multipart field "image" erwartet)'}), 400
+        img_a = base64.b64encode(image_file.read()).decode('utf-8')
+        species = request.form.get('species', 'Hund')
+        region = request.form.get('region', 'Thorax')
+    else:
+        d = request.json or {}
+        img_a = d.get('image', '')
+        species = d.get('species', 'Hund')
+        region = d.get('region', 'Thorax')
 
+    if not img_a:
+        return jsonify({'error': 'Kein Bild-Daten'}), 400
+
+    # Reuse the main analyse logic by forwarding internally
+    # Build the JSON body and call the analyse function indirectly
+    from flask import g
+    # Store original json and set up the request data
+    request._v1_data = {
+        'img_a': img_a, 'species': species, 'region': region,
+        'mode': 'single', 'context': '', 'focus_mode': 'general', 'focus_text': '',
+        'pet_name': '', 'img_b': ''
+    }
+
+    # Check cache
+    img_h = image_hash(img_a)
+    conn = get_db()
+    cached = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE image_hash=? AND user_id=?', (img_h, user['id'])))
+    conn.close()
+    if cached:
+        result = {k: cached.get(k, '') for k in ['id', 'report_text', 'severity', 'species', 'region', 'mode', 'created_at']}
+        result['cached'] = True
+        return jsonify(result)
+
+    # Call AI (simplified — use same providers)
+    if not ANTHROPIC_API_KEY and not OPENAI_API_KEY and not GEMINI_API_KEY:
+        return jsonify({'error': 'KI nicht konfiguriert'}), 503
+
+    import time as _time
+
+    system_prompt = "Du bist ein erfahrener Veterinärradiologe. Erstelle einen vollständigen Befundbericht auf Deutsch."
+    msgs = [
+        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': img_a}},
+        {'type': 'text', 'text': f'Erstelle einen veterinärmedizinischen Befundbericht für einen {species} im Bereich {region}.'}
+    ]
+
+    text = None
+    # Try OpenAI
+    if OPENAI_API_KEY and not text:
+        try:
+            from openai import OpenAI
+            oc = OpenAI(api_key=OPENAI_API_KEY)
+            oai_content = []
+            for m in msgs:
+                if m['type'] == 'image':
+                    oai_content.append({'type': 'image_url', 'image_url': {'url': f"data:{m['source']['media_type']};base64,{m['source']['data']}", 'detail': 'high'}})
+                else:
+                    oai_content.append({'type': 'text', 'text': m['text']})
+            resp = oc.chat.completions.create(model='gpt-4o', max_tokens=4096, temperature=0,
+                messages=[{'role': 'system', 'content': system_prompt}, {'role': 'user', 'content': oai_content}])
+            text = resp.choices[0].message.content
+        except Exception as e:
+            app.logger.warning(f'v1 OpenAI Fehler: {e}')
+
+    # Try Anthropic
+    if ANTHROPIC_API_KEY and not text:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model='claude-sonnet-4-20250514', max_tokens=4096, temperature=0,
+                system=system_prompt, messages=[{'role': 'user', 'content': msgs}])
+            text = resp.content[0].text
+        except Exception as e:
+            app.logger.warning(f'v1 Anthropic Fehler: {e}')
+
+    if not text:
+        return jsonify({'error': 'KI-Analyse fehlgeschlagen'}), 503
+
+    tl = text.lower()
+    sev = 'high' if ('**hoch**' in tl or '**notfall**' in tl) else ('low' if '**niedrig**' in tl else 'mid')
+
+    required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']
+    sections_found = sum(1 for s in required_sections if s in tl)
+    quality_score = sections_found
+
+    rid = 'r_' + nid()
+    conn = get_db()
+    db_execute(conn, 'INSERT INTO reports (id,user_id,pet_name,species,region,mode,severity,report_text,image_data,image_hash,quality_score,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+               (rid, user['id'], '', species, region, 'single', sev, text, img_a, img_h, quality_score, now()))
+    db_execute(conn, 'UPDATE users SET analyses_used=analyses_used+1 WHERE id=?', (user['id'],))
+    conn.commit(); conn.close()
+
+    audit('v1_Analyse', user['id'], f'{species}/{region}')
+    return jsonify({'id': rid, 'report_text': text, 'severity': sev, 'species': species, 'region': region,
+                    'quality_score': quality_score, 'created_at': now()})
+
+@app.route('/api/v1/reports')
+@require_api_key
+def v1_list_reports():
+    """External API: list reports for API key user."""
+    page = request.args.get('page', 1, type=int)
+    per_page = min(max(request.args.get('per_page', 20, type=int), 1), 100)
+    page = max(page, 1)
+
+    conn = get_db()
+    count_row = db_dict(db_fetchone(conn, 'SELECT COUNT(*) as n FROM reports WHERE user_id=?', (request.user['id'],)))
+    total = count_row['n']
+    pages = math.ceil(total / per_page) if per_page > 0 else 1
+    offset = (page - 1) * per_page
+    rows = db_fetchall(conn, 'SELECT id,pet_name,species,region,mode,severity,quality_score,created_at FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                       (request.user['id'], per_page, offset))
+    conn.close()
+    return jsonify({'reports': rows, 'total': total, 'page': page, 'per_page': per_page, 'pages': pages})
+
+@app.route('/api/v1/reports/<rid>')
+@require_api_key
+def v1_get_report(rid):
+    """External API: get a single report by ID."""
     conn = get_db()
     report = db_dict(db_fetchone(conn, 'SELECT * FROM reports WHERE id=? AND user_id=?', (rid, request.user['id'])))
     conn.close()
     if not report:
         return jsonify({'error': 'Befund nicht gefunden'}), 404
-
-    d = request.json or {}
-    to_email = d.get('to_email', '').strip()
-    message = d.get('message', '').strip()
-
-    if not to_email or '@' not in to_email:
-        return jsonify({'error': 'Gültige Ziel-E-Mail erforderlich'}), 400
-
-    pet_name = report.get('pet_name') or ''
-    species = report.get('species') or ''
-    region = report.get('region') or ''
-    created_at = (report.get('created_at') or '')[:19].replace('T', ' ')
-    report_text = report.get('report_text') or ''
-    report_html = markdown_to_html(report_text)
-
-    personal_message_html = ''
-    if message:
-        personal_message_html = f'''
-        <div style="background:#f0f9ff;border-left:4px solid #1a56db;padding:15px 20px;margin:20px 0;border-radius:0 6px 6px 0;">
-            <p style="margin:0;color:#1e3a5f;font-style:italic;">{message}</p>
-        </div>'''
-
-    html_body = f'''<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family:Inter,Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px;color:#1e293b;">
-    <div style="background:#1a56db;padding:20px 30px;border-radius:8px 8px 0 0;">
-        <h1 style="color:#fff;margin:0;font-size:22px;">Animioo KI-Befundassistent</h1>
-        <p style="color:#bfdbfe;margin:5px 0 0;">Veterinärradiologischer Befundbericht</p>
-    </div>
-    <div style="background:#f8fafc;padding:20px 30px;border:1px solid #e2e8f0;border-top:none;">
-        <table style="width:100%;border-collapse:collapse;margin-bottom:15px;">
-            <tr><td style="padding:4px 0;color:#64748b;width:120px;">Datum:</td><td style="padding:4px 0;font-weight:600;">{created_at}</td></tr>
-            {'<tr><td style="padding:4px 0;color:#64748b;">Patient:</td><td style="padding:4px 0;font-weight:600;">' + pet_name + '</td></tr>' if pet_name else ''}
-            <tr><td style="padding:4px 0;color:#64748b;">Tierart:</td><td style="padding:4px 0;">{species}</td></tr>
-            <tr><td style="padding:4px 0;color:#64748b;">Region:</td><td style="padding:4px 0;">{region}</td></tr>
-        </table>
-        {personal_message_html}
-    </div>
-    <div style="background:#fff;padding:25px 30px;border:1px solid #e2e8f0;border-top:none;line-height:1.7;font-size:14px;">
-        {report_html}
-    </div>
-    <div style="background:#f1f5f9;padding:15px 30px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
-        <p style="margin:0;font-size:11px;color:#94a3b8;">
-            Animioo KI-Befundassistent &mdash; Kein Ersatz für tierärztliche Diagnose.<br>
-            Dieser Befund wurde von <strong>{request.user.get('name','')}</strong> ({request.user.get('praxis','')}) per E-Mail versandt.
-        </p>
-    </div>
-</body>
-</html>'''
-
-    subject_pet = f' – {pet_name}' if pet_name else ''
-    subject = f'Animioo Befundbericht{subject_pet} ({species}, {region})'
-    ok = send_email(to_email, subject, html_body)
-    if not ok:
-        return jsonify({'error': 'E-Mail-Versand fehlgeschlagen. Bitte Konfiguration prüfen.'}), 500
-    audit('Befund per E-Mail versandt', request.user['id'], f'{rid} -> {to_email}')
-    return jsonify({'ok': True})
-
-
-
-# ═══════════════════════════════════════════════════
-# BEFUND-VERLAUF PRO PATIENT
-# ═══════════════════════════════════════════════════
-
-@app.route('/api/patients/<pid>/reports', methods=['GET'])
-@require_auth
-def patient_reports(pid):
-    """Gibt alle Befunde eines Patienten zurück, sortiert nach Datum."""
-    uid = request.user['id']
-    conn = get_db()
-    # Verify patient belongs to user
-    patient = db_dict(db_fetchone(conn, 'SELECT id, name FROM patients WHERE id=? AND user_id=?', (pid, uid)))
-    if not patient:
-        conn.close()
-        return jsonify({'error': 'Patient nicht gefunden'}), 404
-    rows = db_fetchall(conn, '''
-        SELECT id, species, region, mode, severity, pet_name, created_at, report_text
-        FROM reports
-        WHERE patient_id=? AND user_id=?
-        ORDER BY created_at DESC
-    ''', (pid, uid))
-    conn.close()
-    reports = []
-    for r in (rows or []):
-        entry = dict(r)
-        rt = entry.get('report_text') or ''
-        entry['preview'] = rt[:200]
-        del entry['report_text']
-        reports.append(entry)
-    return jsonify({'reports': reports, 'patient': patient})
-
-
-# ═══════════════════════════════════════════════════
-# SUPPORT TICKETS
-# ═══════════════════════════════════════════════════
-
-@app.route('/api/support', methods=['POST'])
-@require_auth
-@limiter.limit("5 per hour")
-def create_support_ticket():
-    """Nutzer erstellt ein Support-Ticket."""
-    d = request.json or {}
-    subject = d.get('subject', '').strip()[:200]
-    message = d.get('message', '').strip()
-    if not message:
-        return jsonify({'error': 'Nachricht erforderlich'}), 400
-    u = request.user
-    tid = 'st_' + nid()
-    conn = get_db()
-    db_execute(conn, '''INSERT INTO support_tickets
-        (id, user_id, user_email, user_name, subject, message, status, admin_reply, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?)''',
-        (tid, u['id'], u.get('email',''), u.get('name',''), subject, message, 'open', '', now(), now()))
-    conn.commit(); conn.close()
-    audit('Support-Ticket erstellt', u['id'], subject or message[:60])
-    return jsonify({'id': tid, 'ok': True}), 201
-
-
-@app.route('/api/support', methods=['GET'])
-@require_auth
-def get_my_support_tickets():
-    """Gibt alle Tickets des eingeloggten Nutzers zurück."""
-    conn = get_db()
-    rows = db_fetchall(conn, 'SELECT * FROM support_tickets WHERE user_id=? ORDER BY created_at DESC', (request.user['id'],))
-    conn.close()
-    return jsonify({'tickets': rows or []})
-
-
-@app.route('/api/admin/support', methods=['GET'])
-@require_admin
-def admin_list_support():
-    """Admin: alle offenen Support-Tickets."""
-    status = request.args.get('status', '')
-    conn = get_db()
-    if status:
-        rows = db_fetchall(conn, "SELECT * FROM support_tickets WHERE status=? ORDER BY created_at DESC", (status,))
-    else:
-        rows = db_fetchall(conn, "SELECT * FROM support_tickets ORDER BY created_at DESC LIMIT 100")
-    conn.close()
-    return jsonify({'tickets': rows or []})
-
-
-@app.route('/api/admin/support/<tid>', methods=['PUT'])
-@require_admin
-def admin_update_support(tid):
-    """Admin: Ticket beantworten oder Status ändern."""
-    d = request.json or {}
-    status = d.get('status', '').strip()
-    reply = d.get('admin_reply', '').strip()
-    conn = get_db()
-    if status and reply:
-        db_execute(conn, 'UPDATE support_tickets SET status=?, admin_reply=?, updated_at=? WHERE id=?',
-                   (status, reply, now(), tid))
-    elif status:
-        db_execute(conn, 'UPDATE support_tickets SET status=?, updated_at=? WHERE id=?', (status, now(), tid))
-    elif reply:
-        db_execute(conn, 'UPDATE support_tickets SET admin_reply=?, updated_at=? WHERE id=?', (reply, now(), tid))
-    conn.commit(); conn.close()
-    audit('Support-Ticket aktualisiert', request.user['id'], tid)
-    return jsonify({'ok': True})
-
+    report.pop('image_data', None)
+    return jsonify({'report': report})
 
 # ═══════════════════════════════════════════════════
 # ERROR HANDLER
@@ -3879,7 +2563,6 @@ def internal_error(e):
 # DEBUG: DB Health Check (temporär)
 # ═══════════════════════════════════════════════════
 @app.route('/api/db-check')
-@require_admin
 def db_check():
     """Debug: Prüft welche Spalten in reports/users existieren"""
     try:

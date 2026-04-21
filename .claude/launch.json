@@ -4,8 +4,8 @@
     {
       "name": "animioo",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["server.py"],
-      "port": 5000
+      "runtimeArgs": ["/Users/jeromekwa/Documents/GitHub/petscan1/server.py"],
+      "port": 5001
     }
   ]
 }
