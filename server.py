@@ -1488,96 +1488,44 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
                 return None
         return None
 
-    # ── Helper: OpenAI — ZWEI-SCHRITT-ANALYSE (wie direktes ChatGPT) ──
-    # Schritt 1: Modell schaut frei ohne Formatvorgabe (= wie "was siehst du?" in ChatGPT)
-    # Schritt 2: Freie Beobachtung + Strukturvorgabe → fertiger Befundbericht
-    # Ergebnis: Modell beschreibt wirklich was es sieht, statt Template zu füllen
+    # ── Helper: OpenAI — direkter Call wie ChatGPT ──
+    # Keine Zwei-Schritt-Logik, keine komplizierte Struktur.
+    # Genau so wie wenn man das Bild direkt in ChatGPT hochlädt.
     def try_openai():
         if not OPENAI_API_KEY: return None
         from openai import OpenAI
         oc = OpenAI(api_key=OPENAI_API_KEY)
 
-        # Bild-Inhalt für beide Schritte vorbereiten
-        img_content = []
+        # Bild + Prompt als user-Nachricht — genau wie direktes ChatGPT
+        user_content = []
         for m in msgs:
             if m['type'] == 'image':
-                img_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
+                user_content.append({
+                    'type': 'image_url',
+                    'image_url': {
+                        'url': f"data:{m['source']['media_type']};base64,{m['source']['data']}",
+                        'detail': 'high'
+                    }
+                })
             else:
-                img_content.append({'type':'text','text':m['text']})
+                user_content.append({'type': 'text', 'text': m['text']})
 
         try:
-            # ── SCHRITT 1: Freie Bildbeobachtung (kein Format-Zwang) ──
-            # Exakt so wie der User ChatGPT direkt fragt: "was siehst du?"
-            obs_content = []
-            # Klinischer Kontext kommt VOR dem Bild → Modell liest Bild mit Fragestellung im Kopf
-            ctx_intro = f"Tierart: {species} | Region: {region}"
-            if ctx:
-                ctx_intro += f"\n\nKlinische Angaben vom Tierarzt:\n{ctx}"
-            obs_content.append({'type':'text','text':(
-                f"Du bist ein erfahrener Veterinärradiologe.\n\n"
-                f"{ctx_intro}\n\n"
-                f"Schaue dir das folgende veterinärmedizinische Bild genau an. "
-                f"Beschreibe ehrlich und konkret was du siehst — wie wenn du einem Kollegen am Telefon erklärst was auf dem Bild ist. "
-                f"Keine Struktur, keine Abschnitte. Einfach: Was siehst du? Was fällt auf? Was ist normal, was auffällig?"
-            )})
-            for m in msgs:
-                if m['type'] == 'image':
-                    obs_content.append({'type':'image_url','image_url':{'url':f"data:{m['source']['media_type']};base64,{m['source']['data']}",'detail':'high'}})
-
-            obs_resp = oc.chat.completions.create(
+            resp = oc.chat.completions.create(
                 model='gpt-4o',
-                max_tokens=600,   # kurz halten → schnell (3-5s statt 15s)
-                temperature=0.2,
-                messages=[{'role':'user','content':obs_content}]
+                max_tokens=4096,
+                temperature=0.15,
+                messages=[
+                    {'role': 'system', 'content': system},
+                    {'role': 'user',   'content': user_content}
+                ]
             )
-            free_observation = obs_resp.choices[0].message.content
-            app.logger.info(f'OpenAI Schritt 1 (freie Beobachtung): {len(free_observation)} Zeichen')
-
-            # ── SCHRITT 2: Strukturierter Befund basierend auf echter Beobachtung ──
-            # Jetzt mit dem Systemtext und der bereits gesehenen Beobachtung als Basis
-            struct_messages = [
-                {'role': 'system', 'content': system},
-                {'role': 'user', 'content': img_content},
-                {'role': 'assistant', 'content': f'Meine freie Bildbeobachtung:\n\n{free_observation}'},
-                {'role': 'user', 'content': (
-                    'Basierend auf deiner freien Beobachtung oben: '
-                    'Erstelle jetzt den vollständigen strukturierten Befundbericht im vorgegebenen Format. '
-                    'Bleibe dabei 100% treu zu deinen tatsächlichen Beobachtungen — '
-                    'erfinde keine Befunde und lass keine echten Befunde weg.'
-                )}
-            ]
-
-            for attempt in range(3):
-                try:
-                    resp = oc.chat.completions.create(
-                        model='gpt-4o',
-                        max_tokens=8192,
-                        temperature=0.1,
-                        messages=struct_messages
-                    )
-                    final_text = resp.choices[0].message.content
-                    app.logger.info(f'OpenAI Schritt 2 (Befund): {len(final_text)} Zeichen')
-                    return final_text
-                except Exception as e:
-                    app.logger.warning(f'OpenAI Schritt 2 Fehler (Versuch {attempt+1}): {e}')
-                    if attempt < 2:
-                        _time.sleep(2 * (attempt + 1))
-                        continue
-                    # Fallback: Schritt-1-Beobachtung direkt als Befund verwenden
-                    app.logger.warning('OpenAI Schritt 2 fehlgeschlagen, verwende freie Beobachtung')
-                    return free_observation
+            result = resp.choices[0].message.content
+            app.logger.info(f'OpenAI Analyse: {len(result)} Zeichen')
+            return result
         except Exception as e:
-            app.logger.warning(f'OpenAI Zwei-Schritt-Analyse fehlgeschlagen: {e}')
-            # Fallback auf Single-Call wenn Zwei-Schritt nicht klappt
-            try:
-                resp = oc.chat.completions.create(
-                    model='gpt-4o', max_tokens=8192, temperature=0.15,
-                    messages=[{'role':'system','content':system},{'role':'user','content':img_content}]
-                )
-                return resp.choices[0].message.content
-            except Exception as e2:
-                app.logger.warning(f'OpenAI Single-Call Fallback auch fehlgeschlagen: {e2}')
-                return None
+            app.logger.warning(f'OpenAI Analyse fehlgeschlagen: {e}')
+            return None
 
     # ── Helper: Google Gemini ──
     def try_gemini():
