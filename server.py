@@ -1404,8 +1404,43 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
         except: pass
         return 'image/jpeg'
 
-    mime_a = detect_media_type(img_a)
-    mime_b = detect_media_type(img_b) if img_b else 'image/jpeg'
+    # ── Server-seitige Bildkomprimierung (PNG > 3MB → JPEG, max 1536px) ──
+    # Schützt gegen API-Limits: Anthropic max ~3.75MB, OpenAI max 20MB
+    # Ein 2048x2048 PNG kann leicht 10-20MB sein → Claude/Anthropic verweigert dann
+    def compress_for_api(b64: str) -> tuple:
+        """Gibt (compressed_b64, mime_type) zurück. Komprimiert nur wenn nötig."""
+        if not b64:
+            return b64, 'image/jpeg'
+        approx_bytes = len(b64) * 3 // 4
+        mime = detect_media_type(b64)
+        # Unter 3MB → direkt verwenden
+        if approx_bytes <= 3 * 1024 * 1024:
+            return b64, mime
+        try:
+            import base64 as _b64, io
+            from PIL import Image
+            img = Image.open(io.BytesIO(_b64.b64decode(b64)))
+            # Graustufen-Röntgen → RGB für JPEG
+            if img.mode in ('RGBA', 'LA', 'P', 'L'):
+                img = img.convert('RGB')
+            # Runterskalieren wenn > 1536px
+            w, h = img.size
+            max_dim = 1536
+            if w > max_dim or h > max_dim:
+                r = min(max_dim / w, max_dim / h)
+                img = img.resize((int(w * r), int(h * r)), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=88, optimize=True)
+            compressed = _b64.b64encode(buf.getvalue()).decode('utf-8')
+            new_bytes = len(compressed) * 3 // 4
+            app.logger.info(f'Bild komprimiert: {approx_bytes//1024}KB PNG → {new_bytes//1024}KB JPEG')
+            return compressed, 'image/jpeg'
+        except Exception as e:
+            app.logger.warning(f'Bildkomprimierung fehlgeschlagen (nutze Original): {e}')
+            return b64, mime
+
+    img_a, mime_a = compress_for_api(img_a)
+    img_b, mime_b = compress_for_api(img_b) if img_b else (img_b, 'image/jpeg')
 
     prompt = prompts.get(mode, prompts['single'])
     if ctx: prompt += f'\n\nKlinischer Kontext vom Tierarzt: {ctx}'
@@ -1435,7 +1470,7 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
         for attempt in range(3):
             try:
                 resp = client.messages.create(
-                    model='claude-sonnet-4-20250514',
+                    model='claude-opus-4-5',
                     max_tokens=8192,   # mehr Raum für ausführliche Befunde
                     temperature=0.15,  # leichte Kreativität für besseres Reasoning
                     system=system,
@@ -1564,6 +1599,28 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
             app.logger.warning(f'Gemini Fehler: {e}')
             return None
 
+    # ── Verweigerungs-Erkennung: KI sagt "kann Bild nicht sehen" → kein gültiger Befund ──
+    REFUSAL_PHRASES = [
+        'ich kann das bild nicht sehen',
+        'kann das bild nicht sehen oder analysieren',
+        'ich kann keine bilder analysieren',
+        'leider kann ich das bild',
+        'cannot analyze the image',
+        'cannot see the image',
+        'unable to view',
+        'unable to see',
+        'i cannot see',
+        'i\'m unable to',
+        'ich sehe leider kein',
+        'no image was provided',
+        'kein bild hochgeladen',
+    ]
+    def is_refusal(t):
+        if not t or len(t) < 80:
+            return True
+        tl = t.lower()
+        return any(p in tl for p in REFUSAL_PHRASES)
+
     # ── Multi-Provider Fallback (OpenAI primär, Claude Backup, Gemini letzter Ausweg) ──
     providers = [
         ('OpenAI', try_openai),
@@ -1574,12 +1631,16 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
     used_provider = None
     for pname, pfunc in providers:
         app.logger.info(f'Versuche KI-Provider: {pname}')
-        text = pfunc()
-        if text:
+        result = pfunc()
+        if result and not is_refusal(result):
+            text = result
             used_provider = pname
             app.logger.info(f'Analyse erfolgreich mit: {pname}')
             break
-        app.logger.warning(f'{pname} fehlgeschlagen, versuche nächsten Provider...')
+        if result and is_refusal(result):
+            app.logger.warning(f'{pname} hat Verweigerungsantwort zurückgegeben, versuche nächsten Provider...')
+        else:
+            app.logger.warning(f'{pname} fehlgeschlagen, versuche nächsten Provider...')
 
     if not text:
         return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
