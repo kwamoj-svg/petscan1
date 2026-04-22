@@ -1594,7 +1594,15 @@ empfohlen zur besseren Beurteilung des Mediastinums")]
         return jsonify({'error':'Alle KI-Server sind derzeit nicht erreichbar. Bitte in einigen Minuten erneut versuchen.'}), 503
 
     tl   = text.lower()
-    sev  = 'high' if ('**hoch**' in tl or '**high**' in tl or '**notfall**' in tl) else ('low' if ('**niedrig**' in tl or '**low**' in tl) else 'mid')
+    # NOTFALL hat höchste Priorität, dann hoch/mittel/niedrig
+    if '**notfall**' in tl or 'notfall' in tl[:500]:
+        sev = 'notfall'
+    elif '**hoch**' in tl or '**high**' in tl:
+        sev = 'high'
+    elif '**niedrig**' in tl or '**low**' in tl:
+        sev = 'low'
+    else:
+        sev = 'mid'
 
     # ── Qualitätskontrolle ──
     required_sections = ['diagnose', 'differenzialdiagnosen', 'befund', 'therapie']

@@ -134,15 +134,19 @@ a{color:inherit;text-decoration:none;}
 .sev-low{background:var(--green-dim);border-color:var(--green-mid);}
 .sev-mid{background:var(--amber-dim);border-color:#fde68a;}
 .sev-high{background:var(--red-dim);border-color:#fecaca;}
+.sev-notfall{background:#7f1d1d;border-color:#991b1b;animation:notfall-pulse 1.2s ease-in-out infinite;}
+@keyframes notfall-pulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}50%{box-shadow:0 0 0 8px rgba(220,38,38,0);}}
 .sev-lbl{font-size:12px;font-weight:800;letter-spacing:.3px;}
 .sev-low .sev-lbl{color:var(--green);}
 .sev-mid .sev-lbl{color:var(--amber);}
 .sev-high .sev-lbl{color:var(--red);}
+.sev-notfall .sev-lbl{color:#fca5a5;font-size:14px;letter-spacing:1px;}
 .sev-track{flex:1;height:5px;background:rgba(0,0,0,.07);border-radius:3px;}
 .sev-fill{height:100%;border-radius:3px;}
 .sev-low .sev-fill{background:var(--green);width:20%;}
 .sev-mid .sev-fill{background:var(--amber);width:60%;}
 .sev-high .sev-fill{background:var(--red);width:95%;}
+.sev-notfall .sev-fill{background:#fca5a5;width:100%;}
 .result-body{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:22px;box-shadow:var(--sh);margin-bottom:14px;line-height:1.75;}
 .result-body h2{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--text);padding:10px 0 7px;border-bottom:1px solid var(--border);margin-bottom:10px;}
 .result-body h3{font-size:13.5px;font-weight:700;color:var(--navy2);margin:12px 0 5px;}
@@ -457,7 +461,7 @@ a{color:inherit;text-decoration:none;}
 <script>
 var ME = null;
 var AN = {species:'Hund', region:'Thorax', mode:'single', imgA:null, imgB:null, petName:'', focusMode:'general',
-          patAlter:'', patGewicht:'', patRasse:'', patGeschlecht:''};
+          patAlter:'', patGewicht:'', patRasse:'', patGeschlecht:'', projektion:'', symptome:[]};
 var CACHED = [];
 var ALL_REPORTS = [];
 
@@ -902,7 +906,41 @@ function renderAnalyse() {
     + ALL_REGIONS.map(function(rv){ return '<button class="rg-btn'+(AN.region===rv[1]?' on':'')+'" data-v="'+rv[1]+'" data-l="'+rv[0]+'" onclick="setRg(this,\''+rv[1]+'\')">'+rv[0]+'</button>'; }).join('')
     + '</div></div>'
     // Analysis Focus
-    + '<div><div class="an-lbl">3 · Analyse-Fokus</div>'
+    // Projektion
+    + '<div>'
+    + '<div class="an-lbl" style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<span>3 · Projektion</span>'
+    + '<span style="font-size:10px;color:var(--text3);font-weight:500;">Für genaue Analyse wichtig</span>'
+    + '</div>'
+    + '<select id="proj-sel" onchange="AN.projektion=this.value"'
+    + ' style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);background:var(--surface);">'
+    + '<option value="">– Projektion auswählen –</option>'
+    + '<option value="Links lateral (LL)">Links lateral (LL)</option>'
+    + '<option value="Rechts lateral (RL)">Rechts lateral (RL)</option>'
+    + '<option value="Ventrodorsal (VD)">Ventrodorsal (VD)</option>'
+    + '<option value="Dorsoventral (DV)">Dorsoventral (DV)</option>'
+    + '<option value="Anterior-Posterior (AP)">Anterior-Posterior (AP)</option>'
+    + '<option value="Craniocaudal (CrCd)">Craniocaudal (CrCd)</option>'
+    + '<option value="Caudocranial (CdCr)">Caudocranial (CdCr)</option>'
+    + '<option value="Mediolateral (ML)">Mediolateral (ML)</option>'
+    + '<option value="Lateromedial (LM)">Lateromedial (LM)</option>'
+    + '<option value="Schrägaufnahme / Oblique">Schrägaufnahme / Oblique</option>'
+    + '<option value="Nicht erkennbar">Nicht erkennbar</option>'
+    + '</select></div>'
+    // Symptome
+    + '<div>'
+    + '<div class="an-lbl" style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<span>4 · Symptome</span>'
+    + '<span style="font-size:10px;color:var(--text3);font-weight:500;">Mehrfachauswahl möglich</span>'
+    + '</div>'
+    + '<div id="symp-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">'
+    + ['Husten','Dyspnoe','Erbrechen','Lahmheit','Apathie','Fressunlust','Bauchschmerzen','PU/PD','Trauma/Unfall','Krampfanfall','Nasenausfluss','Gewichtsverlust','Schwellung','Strangurie'].map(function(s){
+        return '<label style="display:flex;align-items:center;gap:5px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;cursor:pointer;background:var(--surface);transition:all .12s;" class="symp-lbl">'
+          +'<input type="checkbox" value="'+s+'" onchange="toggleSymptom(\''+s+'\',this.checked)" style="accent-color:var(--blue);width:12px;height:12px;">'+s+'</label>';
+      }).join('')
+    + '</div></div>'
+    // Analyse-Fokus
+    + '<div><div class="an-lbl">5 · Analyse-Fokus</div>'
     + '<div class="mode-g" id="focus-mode">'
     + '<div class="mode-btn on" onclick="setFocus(\'general\',this)">Allgemeine Analyse</div>'
     + '<div class="mode-btn" onclick="setFocus(\'specific\',this)">Spezifische Analyse</div>'
@@ -911,14 +949,14 @@ function renderAnalyse() {
     + '<textarea class="ctx" id="focus-text" placeholder="Wonach soll die KI gezielt suchen?\nz.B. Fraktur am Radius, Gelenkspalt, Herzsilhouette, Fremdkörper …" style="min-height:60px;"></textarea>'
     + '</div></div>'
     // Mode
-    + '<div><div class="an-lbl">4 · Analyse-Modus</div><div class="mode-g">'
+    + '<div><div class="an-lbl">6 · Analyse-Modus</div><div class="mode-g">'
     + [['Einzelbild','single'],['Verlauf','compare'],['Vergleich','diff'],['Zweitmeinung','second']].map(function(mv){
         return '<button class="mode-btn'+(AN.mode===mv[1]?' on':'')+'" onclick="setMode(this,\''+mv[1]+'\')">'+mv[0]+'</button>';
       }).join('')
     + '</div>'
     + '</div>'
     // Upload
-    + '<div><div class="an-lbl">5 · Röntgenbild hochladen</div>'
+    + '<div><div class="an-lbl">7 · Röntgenbild hochladen</div>'
     + '<div class="uz" id="uz-a" onclick="document.getElementById(\'fi-a\').click()" style="margin-bottom:6px">'
     + '<input type="file" id="fi-a" accept="image/*,.dcm,.dicom">'
     + '<span class="uz-tag">AUFNAHME A</span>'
@@ -934,14 +972,14 @@ function renderAnalyse() {
     // Context
     + '<div>'
     + '<div class="an-lbl" style="display:flex;align-items:center;justify-content:space-between;">'
-    + '<span>6 · Klinische Angaben</span>'
+    + '<span>8 · Klinische Angaben</span>'
     + '<span style="font-size:10px;font-weight:500;color:var(--blue);background:var(--blue-dim);padding:2px 6px;border-radius:4px;">Je mehr → besserer Befund</span>'
     + '</div>'
     + '<textarea class="ctx" id="ctx" placeholder="Klinische Angaben — je mehr, desto besser der Befund:\nz.B. Alter, Rasse · Symptome + Dauer · Verdacht · Vorbefunde"></textarea>'
     + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5;">Rasse · Alter · Symptome · Dauer · Vordiagnose · Laborwerte</div>'
     + '</div>'
     + '<div style="margin-top:8px;">'
-    + '<div class="an-lbl">7 · Klinische Frage <span style="font-weight:400;color:var(--text3)">(optional)</span></div>'
+    + '<div class="an-lbl">9 · Klinische Frage <span style="font-weight:400;color:var(--text3)">(optional)</span></div>'
     + '<textarea class="ctx" id="ctx-question" placeholder="Was soll die KI konkret beantworten?\nz.B. Fraktur ausschließen · Metastasen-Suche · Herzgröße beurteilen · Fremdkörper?" style="min-height:50px;"></textarea>'
     + '</div>'
     // Button
@@ -1060,6 +1098,21 @@ function removeImg(k,e) {
     +'<div class="uz-text">'+(k==='a'?'JPG, PNG, DICOM (.dcm)':'Vergleichsaufnahme')+'</div>';
   uz.onclick=function(){ document.getElementById('fi-'+k).click(); };
   setupUploads();
+}
+
+function toggleSymptom(val, checked) {
+  if (checked) { if (AN.symptome.indexOf(val) < 0) AN.symptome.push(val); }
+  else { AN.symptome = AN.symptome.filter(function(s){ return s !== val; }); }
+  // Visual feedback
+  document.querySelectorAll('.symp-lbl').forEach(function(lbl){
+    var cb = lbl.querySelector('input');
+    if (cb && cb.value === val) {
+      lbl.style.borderColor = checked ? 'var(--blue)' : 'var(--border)';
+      lbl.style.background = checked ? 'var(--blue-dim)' : 'var(--surface)';
+      lbl.style.color = checked ? 'var(--blue)' : '';
+      lbl.style.fontWeight = checked ? '600' : '';
+    }
+  });
 }
 
 // RUN ANALYSIS
@@ -1214,17 +1267,19 @@ function runAnalysis() {
   var ctx=document.getElementById('ctx');
   var ctxQ=document.getElementById('ctx-question');
   var focusTxt=document.getElementById('focus-text');
-  // Build patient info prefix from optional fields
+  // Build patient info prefix from optional + required fields
   var patInfo = [];
+  if (AN.patRasse) patInfo.push('Rasse/Typ: ' + AN.patRasse);
   if (AN.patAlter) patInfo.push('Alter: ' + AN.patAlter);
   if (AN.patGewicht) patInfo.push('Gewicht: ' + AN.patGewicht);
-  if (AN.patRasse) patInfo.push('Rasse/Typ: ' + AN.patRasse);
   if (AN.patGeschlecht) patInfo.push('Geschlecht: ' + AN.patGeschlecht);
-  var patPrefix = patInfo.length ? patInfo.join(', ') + '\n' : '';
-  // Kombiniere klinische Angaben + klinische Frage zu einem vollständigen Kontext
+  if (AN.projektion) patInfo.push('Projektion: ' + AN.projektion);
+  var patPrefix = patInfo.length ? patInfo.join(' · ') + '\n' : '';
+  var sympPrefix = AN.symptome.length ? 'Symptome: ' + AN.symptome.join(', ') + '\n' : '';
+  // Kombiniere alle Angaben zu einem vollständigen Kontext
   var ctxVal = ctx ? ctx.value.trim() : '';
   var ctxQVal = ctxQ ? ctxQ.value.trim() : '';
-  var fullContext = patPrefix + ctxVal;
+  var fullContext = patPrefix + sympPrefix + ctxVal;
   if (ctxQVal) fullContext += (fullContext ? '\n\nKlinische Frage: ' : 'Klinische Frage: ') + ctxQVal;
   api('/api/analyse','POST',{
     species:AN.species, region:AN.region, mode:AN.mode,
@@ -1261,10 +1316,10 @@ function runAnalysis() {
 // RENDER RESULT
 function renderResult(r) {
   var modeLabel={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
-  var sevCls={low:'sev-low',mid:'sev-mid',high:'sev-high'}[r.severity]||'sev-mid';
-  var sevLbl={low:'NIEDRIG — Routinebefund',mid:'MITTEL — Zeitnahe Kontrolle',high:'HOCH — Sofortiger Handlungsbedarf'}[r.severity]||'MITTEL';
-  var sevBadge={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
-  var sevBadgeLbl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+  var sevCls={low:'sev-low',mid:'sev-mid',high:'sev-high',notfall:'sev-notfall'}[r.severity]||'sev-mid';
+  var sevLbl={low:'NIEDRIG — Routinebefund',mid:'MITTEL — Zeitnahe Kontrolle',high:'HOCH — Sofortiger Handlungsbedarf',notfall:'🚨 NOTFALL — SOFORT TIERARZT'}[r.severity]||'MITTEL';
+  var sevBadge={low:'b-g',mid:'b-a',high:'b-r',notfall:'b-r'}[r.severity]||'b-a';
+  var sevBadgeLbl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH',notfall:'🚨 NOTFALL'}[r.severity]||'MITTEL';
   var imgs='';
   if(r.img_a){
     imgs='<div style="display:flex;gap:10px;margin-bottom:16px;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;">'
@@ -1344,7 +1399,7 @@ function renderReports() {
     +'<input id="rep-q" type="text" placeholder="Befunde suchen — Tierart, Region ..." oninput="REP_PAGE=1;filterReps(this.value)"'
     +' style="flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--f);">'
     +'<select id="rep-sev" onchange="REP_PAGE=1;filterReps(document.getElementById(\'rep-q\').value)" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--f);">'
-    +'<option value="">Alle Dringlichkeiten</option><option value="high">HOCH</option><option value="mid">MITTEL</option><option value="low">NIEDRIG</option></select>'
+    +'<option value="">Alle Dringlichkeiten</option><option value="notfall">🚨 NOTFALL</option><option value="high">HOCH</option><option value="mid">MITTEL</option><option value="low">NIEDRIG</option></select>'
     +'<button class="abt ab-g" onclick="exportAllCSV()">CSV Export</button></div>'
     +'<div id="rep-list" style="flex:1;overflow-y:auto;padding:16px 20px;"><div style="color:var(--text3);padding:20px;text-align:center;">Lade Befunde ...</div></div></div>';
   api('/api/reports')
@@ -1383,8 +1438,8 @@ function filterReps(q) {
   el.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">'+filtered.length+' Befund'+(filtered.length!==1?'e':'')+' gefunden</div>'
     +pageItems.map(function(r){
       var ml={single:'Einzelanalyse',compare:'Verlauf',diff:'Vergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
-      var sb={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
-      var sl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+      var sb={low:'b-g',mid:'b-a',high:'b-r',notfall:'b-r'}[r.severity]||'b-a';
+      var sl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH',notfall:'🚨 NOTFALL'}[r.severity]||'MITTEL';
       var thumbId = 'thumb-'+r.id;
       return '<div class="report-item" onclick="openReport(\''+r.id+'\')"><div id="'+thumbId+'" style="width:48px;height:48px;border-radius:8px;background:var(--blue-dim);border:1px solid var(--blue-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">'+(r.has_image?'<div style="width:48px;height:48px;background:var(--s2);border-radius:8px;display:flex;align-items:center;justify-content:center;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>':'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>')+'</div>'
         +'<div class="ri-info"><div class="ri-title">'+(r.pet_name?r.pet_name+' -- ':'')+r.species+' · '+r.region+'</div><div class="ri-meta">'+fmtDate(r.created_at)+' · '+ml+'</div></div>'
@@ -1431,10 +1486,10 @@ function openReport(id) {
   var r=ALL_REPORTS.find(function(x){return x.id===id;})||CACHED.find(function(x){return x.id===id;});
   if(!r){ toast('Befund nicht gefunden','amber'); return; }
   var modeLabel={single:'Einzelanalyse',compare:'Verlaufsanalyse',diff:'Bildvergleich',second:'Zweitmeinung'}[r.mode]||r.mode;
-  var sevCls={low:'sev-low',mid:'sev-mid',high:'sev-high'}[r.severity]||'sev-mid';
-  var sevLbl={low:'NIEDRIG — Routinebefund',mid:'MITTEL — Zeitnahe Kontrolle',high:'HOCH — Sofortiger Handlungsbedarf'}[r.severity]||'MITTEL';
-  var sevBadge={low:'b-g',mid:'b-a',high:'b-r'}[r.severity]||'b-a';
-  var sevBadgeLbl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH'}[r.severity]||'MITTEL';
+  var sevCls={low:'sev-low',mid:'sev-mid',high:'sev-high',notfall:'sev-notfall'}[r.severity]||'sev-mid';
+  var sevLbl={low:'NIEDRIG — Routinebefund',mid:'MITTEL — Zeitnahe Kontrolle',high:'HOCH — Sofortiger Handlungsbedarf',notfall:'🚨 NOTFALL — SOFORT TIERARZT'}[r.severity]||'MITTEL';
+  var sevBadge={low:'b-g',mid:'b-a',high:'b-r',notfall:'b-r'}[r.severity]||'b-a';
+  var sevBadgeLbl={low:'NIEDRIG',mid:'MITTEL',high:'HOCH',notfall:'🚨 NOTFALL'}[r.severity]||'MITTEL';
   var ex=document.getElementById('rep-modal'); if(ex) ex.remove();
   var m=document.createElement('div');
   m.id='rep-modal';
