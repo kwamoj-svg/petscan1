@@ -6,6 +6,7 @@ import {
   AnalysisState,
   AnalysisReport,
   FormationData,
+  StatsData,
   VideoAnalysisResult,
 } from '@/types/analysis';
 import { STEP_MESSAGES } from '@/lib/constants';
@@ -76,7 +77,7 @@ export default function HomePage() {
       setState((prev) => ({ ...prev, league_result: leagueData }));
 
       // 2. Fetch stats if pipeline supports it
-      let statsData = undefined;
+      let statsData: StatsData | undefined = undefined;
       if (leagueData.pipeline === 'hybrid' || leagueData.pipeline === 'stats_and_video') {
         updateStep('searching_data');
         const statsRes = await fetch('/api/fetch-stats', {
