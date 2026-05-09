@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USERS & AUTH ─────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(CUSTOMER)
+  name         String
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  dealer  Dealer?
+  leads   Lead[]
+  configs Configuration[]
+}
+
+enum UserRole {
+  CUSTOMER
+  DEALER
+  ADMIN
+}
+
+// ─── DEALERS ──────────────────────────────────────────────
+
+model Dealer {
+  id          String       @id @default(cuid())
+  userId      String       @unique
+  companyName String
+  description String?      @db.Text
+  logoUrl     String?
+  website     String?
+  street      String?
+  city        String?
+  zipCode     String?
+  country     String       @default("DE")
+  latitude    Float?
+  longitude   Float?
+  tier        DealerTier   @default(BASIC)
+  isVerified  Boolean      @default(false)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boats         Boat[]
+  leads         Lead[]
+  subscription  Subscription?
+  specialties   DealerSpecialty[]
+
+  @@index([city])
+  @@index([country])
+  @@index([tier])
+}
+
+model DealerSpecialty {
+  id       String       @id @default(cuid())
+  dealerId String
+  category BoatCategory
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@unique([dealerId, category])
+}
+
+enum DealerTier {
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+// ─── BOATS ────────────────────────────────────────────────
+
+model Boat {
+  id          String       @id @default(cuid())
+  dealerId    String
+  name        String
+  brand       String
+  model       String
+  year        Int
+  condition   BoatCondition @default(NEW)
+  basePrice   Float
+  currency    String       @default("EUR")
+  category    BoatCategory
+  lengthM     Float
+  beamM       Float?
+  draftM      Float?
+  weightKg    Float?
+  engineType  String?
+  engineBrand String?
+  maxPowerHP  Int?
+  fuelType    FuelType?
+  hullMaterial String?
+  maxSpeed    Float?
+  cabins      Int          @default(0)
+  berths      Int          @default(0)
+  heads       Int          @default(0)
+  hasKitchen  Boolean      @default(false)
+  hasSoundSystem Boolean   @default(false)
+  hasSolarPanel Boolean    @default(false)
+  hasSmartSystem Boolean   @default(false)
+  useCase     UseCase[]
+  description String?      @db.Text
+  location    String?
+  isActive    Boolean      @default(true)
+  isFeatured  Boolean      @default(false)
+  viewCount   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  dealer  Dealer       @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  images  BoatImage[]
+  configs BoatOption[]
+  leads   Lead[]
+
+  @@index([dealerId])
+  @@index([category])
+  @@index([basePrice])
+  @@index([brand])
+  @@index([isFeatured])
+}
+
+model BoatImage {
+  id       String  @id @default(cuid())
+  boatId   String
+  url      String
+  alt      String?
+  isPrimary Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  boat Boat @relation(fields: [boatId], references: [id], onDelete: Cascade)
+
+  @@index([boatId])
+}
+
+model BoatOption {
+  id        String  @id @default(cuid())
+  boatId    String
+  group     String
+  name      String
+  price     Float   @default(0)
+  isDefault Boolean @default(false)
+
+  boat Boat @relation(fields: [boatId], references: [id], onDelete: Cascade)
+
+  @@index([boatId])
+}
+
+enum BoatCategory {
+  YACHT
+  SPORTBOAT
+  SAILBOAT
+  CATAMARAN
+  JETSKI
+  PONTOON
+  FISHING
+  HOUSEBOAT
+}
+
+enum BoatCondition {
+  NEW
+  USED
+  REFURBISHED
+}
+
+enum FuelType {
+  DIESEL
+  PETROL
+  ELECTRIC
+  HYBRID
+  NONE
+}
+
+enum UseCase {
+  LEISURE
+  CHARTER
+  LUXURY
+  FISHING
+  WATERSPORT
+  RACING
+  CRUISING
+}
+
+// ─── LEADS ────────────────────────────────────────────────
+
+model Lead {
+  id            String     @id @default(cuid())
+  leadNumber    String     @unique @default(cuid())
+  userId        String?
+  dealerId      String
+  boatId        String?
+  customerName  String
+  customerEmail String
+  customerPhone String?
+  message       String?    @db.Text
+  configData    Json?
+  totalPrice    Float?
+  budget        Float?
+  status        LeadStatus @default(NEW)
+  source        LeadSource @default(CONFIGURATOR)
+  priority      Int        @default(0)
+  notes         String?    @db.Text
+  contactedAt   DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user   User?   @relation(fields: [userId], references: [id])
+  dealer Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  boat   Boat?   @relation(fields: [boatId], references: [id])
+
+  @@index([dealerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([source])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  OFFER_SENT
+  NEGOTIATING
+  WON
+  LOST
+}
+
+enum LeadSource {
+  CONFIGURATOR
+  BOAT_LISTING
+  DIRECT_CONTACT
+  REFERRAL
+}
+
+// ─── CONFIGURATIONS ───────────────────────────────────────
+
+model Configuration {
+  id        String   @id @default(cuid())
+  userId    String?
+  sessionId String?
+  data      Json
+  totalPrice Float?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([sessionId])
+}
+
+// ─── SUBSCRIPTIONS ────────────────────────────────────────
+
+model Subscription {
+  id               String           @id @default(cuid())
+  dealerId         String           @unique
+  plan             SubscriptionPlan @default(BASIC)
+  status           SubStatus        @default(ACTIVE)
+  stripeCustomerId String?
+  stripeSubId      String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+}
+
+enum SubscriptionPlan {
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+enum SubStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIALING
+}
+
+// ─── ANALYTICS ────────────────────────────────────────────
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  type      String
+  entityId  String?
+  data      Json?
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([entityId])
+  @@index([createdAt])
+}
