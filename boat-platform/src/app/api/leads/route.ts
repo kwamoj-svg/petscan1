@@ -66,9 +66,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Kein passender Händler gefunden" }, { status: 404 });
   }
 
+  const { configData, ...restData } = parsed.data;
   const lead = await prisma.lead.create({
     data: {
-      ...parsed.data,
+      ...restData,
+      configData: configData ? JSON.parse(JSON.stringify(configData)) : undefined,
       dealerId,
       source: parsed.data.source ?? "CONFIGURATOR",
     },

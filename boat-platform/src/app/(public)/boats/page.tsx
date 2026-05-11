@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -33,7 +33,7 @@ interface BoatListItem {
   dealer: { companyName: string; city: string };
 }
 
-export default function BoatsPage() {
+function BoatsPageContent() {
   const searchParams = useSearchParams();
   const [boats, setBoats] = useState<BoatListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -150,5 +150,13 @@ export default function BoatsPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function BoatsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+      <BoatsPageContent />
+    </Suspense>
   );
 }

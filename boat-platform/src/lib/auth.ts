@@ -39,9 +39,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as Record<string, unknown>).role;
-        token.dealerId = (user as Record<string, unknown>).dealerId;
-        token.companyName = (user as Record<string, unknown>).companyName;
+        token.role = (user as unknown as Record<string, unknown>).role as string;
+        token.dealerId = (user as unknown as Record<string, unknown>).dealerId as string;
+        token.companyName = (user as unknown as Record<string, unknown>).companyName as string;
       }
       return token;
     },

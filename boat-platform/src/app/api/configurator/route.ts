@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   await prisma.configuration.create({
     data: {
-      data: parsed.data as Record<string, unknown>,
+      data: JSON.parse(JSON.stringify(parsed.data)),
       sessionId: req.headers.get("x-session-id") ?? undefined,
     },
   });

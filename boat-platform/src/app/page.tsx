@@ -1,199 +1,238 @@
+"use client";
+
 import Link from "next/link";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
+import { motion } from "framer-motion";
 
-const CATEGORIES = [
-  { key: "YACHT", label: "Yachten", icon: "M3 17h1l1-2h14l1 2h1M5 15l2-8h10l2 8M12 3v4", img: "https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=400&h=300&fit=crop" },
-  { key: "SPORTBOAT", label: "Sportboote", icon: "M13 10V3L4 14h7v7l9-11h-7z", img: "https://images.unsplash.com/photo-1605281317010-fe5ffe798166?w=400&h=300&fit=crop" },
-  { key: "SAILBOAT", label: "Segelboote", icon: "M3 17h1l1-2h14l1 2h1M5 15l2-8h10l2 8M12 3v4", img: "https://images.unsplash.com/photo-1540946485063-a40da27545f8?w=400&h=300&fit=crop" },
-  { key: "CATAMARAN", label: "Katamarane", icon: "M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4", img: "https://images.unsplash.com/photo-1559494007-9f5847c49d94?w=400&h=300&fit=crop" },
-  { key: "JETSKI", label: "Jetskis", icon: "M13 10V3L4 14h7v7l9-11h-7z", img: "https://images.unsplash.com/photo-1626447857058-2ba6a8868cb5?w=400&h=300&fit=crop" },
-  { key: "FISHING", label: "Angelboote", icon: "M3 17h1l1-2h14l1 2h1M5 15l2-8h10l2 8M12 3v4", img: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=300&fit=crop" },
-];
-
-const STATS = [
-  { value: "2.500+", label: "Boote gelistet" },
-  { value: "180+", label: "Verifizierte Händler" },
-  { value: "15.000+", label: "Erfolgreiche Vermittlungen" },
-  { value: "12", label: "Länder" },
-];
-
-const STEPS = [
-  { step: "01", title: "Konfigurieren", desc: "Wählen Sie Bootstyp, Größe, Motor und Ausstattung nach Ihren Wünschen." },
-  { step: "02", title: "Matchen", desc: "Unser Algorithmus findet die besten Boote und Händler für Ihre Konfiguration." },
-  { step: "03", title: "Angebot erhalten", desc: "Verifizierte Händler senden Ihnen individuelle Angebote direkt zu." },
-];
+const fadeUp = {
+  initial: { opacity: 0, y: 40 },
+  animate: { opacity: 1, y: 0 },
+};
 
 export default function HomePage() {
   return (
-    <>
-      <Navbar />
+    <div className="min-h-screen bg-[#050508] text-white overflow-hidden" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* ── HERO ─────────────────────────────────────── */}
-      <section className="relative min-h-screen overflow-hidden bg-slate-900">
+      {/* ═══ NAVBAR ═══ */}
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl bg-[#050508]/60 border-b border-white/[0.03]">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-300 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/10">
+              <span className="text-black text-sm font-bold tracking-tighter">BC</span>
+            </div>
+            <span className="text-white/80 font-extralight text-lg tracking-[0.1em]" style={{ fontFamily: "'Playfair Display', serif" }}>
+              BoatConnect
+            </span>
+          </Link>
+          <div className="hidden md:flex items-center gap-8">
+            <Link href="/configurator" className="text-gray-500 text-sm hover:text-white transition-colors">Experience</Link>
+            <Link href="/configurator3d" className="text-gray-500 text-sm hover:text-white transition-colors">3D Konfigurator</Link>
+            <Link href="/dealer/login" className="text-gray-500 text-sm hover:text-white transition-colors">Partner</Link>
+            <Link href="/configurator"
+              className="px-5 py-2 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-black text-sm font-medium hover:shadow-lg hover:shadow-amber-500/20 transition-all">
+              Start Your Match
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      {/* ═══ HERO ═══ */}
+      <section className="relative min-h-screen flex items-center justify-center">
         <div className="absolute inset-0">
           <img
             src="https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=1920&h=1080&fit=crop"
-            alt="Yacht auf dem Meer"
-            className="h-full w-full object-cover opacity-40"
+            alt="Luxury Yacht"
+            className="w-full h-full object-cover opacity-30"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-900/40 to-slate-900" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#050508] via-[#050508]/60 to-[#050508]" />
         </div>
 
-        <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col items-center justify-center px-4 text-center">
-          <div className="animate-fade-in">
-            <span className="mb-6 inline-block rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1.5 text-sm font-medium text-sky-300">
-              Die Nr. 1 Plattform für Bootskonfiguration
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-amber-500/[0.03] rounded-full blur-[200px]" />
+
+        <div className="relative z-10 text-center px-6 max-w-5xl mx-auto">
+          <motion.p {...fadeUp} transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-amber-400/60 text-xs tracking-[0.4em] uppercase mb-8">
+            AI-Powered Yacht Matching
+          </motion.p>
+
+          <motion.h1 {...fadeUp} transition={{ duration: 1, delay: 0.4 }}
+            className="text-5xl sm:text-6xl md:text-8xl font-extralight leading-[1.05] tracking-tight mb-8"
+            style={{ fontFamily: "'Playfair Display', serif" }}>
+            Find your perfect<br />
+            <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-amber-600 bg-clip-text text-transparent">
+              yacht experience
             </span>
-            <h1 className="mx-auto max-w-4xl text-5xl font-extrabold leading-tight tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Finden Sie Ihr{" "}
-              <span className="bg-gradient-to-r from-sky-400 to-blue-500 bg-clip-text text-transparent">
-                Traumboot
-              </span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-300 sm:text-xl">
-              Konfigurieren Sie Ihr Wunschboot, vergleichen Sie Angebote und lassen Sie sich
-              von verifizierten Händlern beraten — alles auf einer Plattform.
-            </p>
-          </div>
+          </motion.h1>
 
-          <div className="mt-10 flex flex-col gap-4 sm:flex-row animate-slide-up">
-            <Link href="/configurator" className="inline-flex items-center justify-center rounded-xl bg-sky-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/25 transition-all hover:bg-sky-600 hover:shadow-xl hover:shadow-sky-500/30 active:scale-[0.98]">
-              Boot konfigurieren
-              <svg className="ml-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-            <Link href="/boats" className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-8 py-4 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10 active:scale-[0.98]">
-              Boote entdecken
-            </Link>
-          </div>
+          <motion.p {...fadeUp} transition={{ duration: 0.8, delay: 0.6 }}
+            className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-12 font-light leading-relaxed">
+            Keine Suche. Keine Filter. Nur eine intelligente,
+            KI-gestützte Experience, die Ihr perfektes Boot findet.
+          </motion.p>
 
-          {/* Search Bar */}
-          <div className="mt-16 w-full max-w-3xl animate-slide-up">
-            <div className="flex flex-col gap-2 rounded-2xl bg-white/10 p-2 backdrop-blur-xl sm:flex-row">
-              <select className="flex-1 rounded-xl bg-white/10 px-4 py-3 text-sm text-white placeholder-slate-400 outline-none">
-                <option value="" className="text-slate-900">Bootstyp wählen</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c.key} value={c.key} className="text-slate-900">{c.label}</option>
-                ))}
-              </select>
-              <select className="flex-1 rounded-xl bg-white/10 px-4 py-3 text-sm text-white outline-none">
-                <option value="" className="text-slate-900">Budget</option>
-                <option value="50000" className="text-slate-900">Bis 50.000 €</option>
-                <option value="150000" className="text-slate-900">Bis 150.000 €</option>
-                <option value="500000" className="text-slate-900">Bis 500.000 €</option>
-                <option value="1000000" className="text-slate-900">Bis 1.000.000 €</option>
-                <option value="999999999" className="text-slate-900">Über 1.000.000 €</option>
-              </select>
-              <button className="rounded-xl bg-sky-500 px-8 py-3 text-sm font-semibold text-white transition hover:bg-sky-600">
-                Suchen
-              </button>
-            </div>
-          </div>
+          <motion.div {...fadeUp} transition={{ duration: 0.8, delay: 0.8 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/configurator"
+              className="group px-10 py-4 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold text-base tracking-wide hover:shadow-2xl hover:shadow-amber-500/25 transition-all duration-500 flex items-center gap-3">
+              Start Your Match
+              <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            </Link>
+            <Link href="/configurator3d"
+              className="px-10 py-4 rounded-full border border-white/[0.08] text-gray-300 font-light text-base hover:border-white/[0.15] hover:text-white transition-all duration-500 flex items-center gap-3 backdrop-blur-sm">
+              3D Konfigurator
+            </Link>
+          </motion.div>
         </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <svg className="h-6 w-6 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-          </svg>
-        </div>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2 }}
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+          <span className="text-gray-600 text-[9px] tracking-[0.3em] uppercase">Entdecken</span>
+          <motion.div animate={{ y: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 2 }}
+            className="w-5 h-8 rounded-full border border-white/[0.08] flex justify-center pt-1.5">
+            <div className="w-1 h-1.5 rounded-full bg-amber-500/60" />
+          </motion.div>
+        </motion.div>
       </section>
 
-      {/* ── STATS ────────────────────────────────────── */}
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-16 sm:px-6 lg:grid-cols-4 lg:px-8">
-          {STATS.map((stat) => (
-            <div key={stat.label} className="text-center">
-              <p className="text-3xl font-extrabold text-slate-900 sm:text-4xl">{stat.value}</p>
-              <p className="mt-1 text-sm font-medium text-slate-500">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* ═══ HOW IT WORKS ═══ */}
+      <section className="py-32 px-6">
+        <div className="max-w-6xl mx-auto">
+          <motion.div {...fadeUp} viewport={{ once: true }} className="text-center mb-20">
+            <p className="text-amber-400/50 text-xs tracking-[0.3em] uppercase mb-4">How It Works</p>
+            <h2 className="text-4xl md:text-5xl font-extralight tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Drei Schritte zu Ihrem<br /><span className="text-amber-400">perfekten Match</span>
+            </h2>
+          </motion.div>
 
-      {/* ── HOW IT WORKS ─────────────────────────────── */}
-      <section className="bg-slate-50 py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <span className="text-sm font-semibold uppercase tracking-wider text-sky-600">So funktioniert&apos;s</span>
-            <h2 className="section-title mt-2">In 3 Schritten zum Traumboot</h2>
-          </div>
-
-          <div className="mt-16 grid gap-8 sm:grid-cols-3">
-            {STEPS.map((s) => (
-              <div key={s.step} className="relative rounded-2xl bg-white p-8 shadow-sm">
-                <span className="text-5xl font-extrabold text-sky-100">{s.step}</span>
-                <h3 className="mt-4 text-xl font-bold text-slate-900">{s.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-500">{s.desc}</p>
-              </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { num: "01", title: "Erzählen Sie uns", desc: "Beantworten Sie luxuriös gestaltete Fragen zu Lifestyle, Budget und Wünschen." },
+              { num: "02", title: "KI analysiert", desc: "Unsere KI durchsucht tausende Boote nach Ihrem perfekten Match." },
+              { num: "03", title: "Ihr Match", desc: "Personalisierte Empfehlungen mit emotionalen Beschreibungen und direktem Kontakt." },
+            ].map((step, i) => (
+              <motion.div key={i} {...fadeUp} transition={{ delay: i * 0.2 }} viewport={{ once: true }}
+                className="group relative p-8 rounded-3xl border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] hover:border-white/[0.08] transition-all duration-700">
+                <span className="text-5xl font-extralight text-amber-400/30 mb-6 block" style={{ fontFamily: "'Playfair Display', serif" }}>{step.num}</span>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-amber-500/30 text-sm font-mono">{step.num}</span>
+                  <h3 className="text-white text-xl font-light">{step.title}</h3>
+                </div>
+                <p className="text-gray-500 text-sm leading-relaxed">{step.desc}</p>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── CATEGORIES ───────────────────────────────── */}
-      <section className="bg-white py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <span className="text-sm font-semibold uppercase tracking-wider text-sky-600">Kategorien</span>
-            <h2 className="section-title mt-2">Entdecken Sie alle Bootstypen</h2>
-          </div>
+      {/* ═══ CATEGORIES ═══ */}
+      <section className="py-20 px-6">
+        <div className="max-w-7xl mx-auto">
+          <motion.div {...fadeUp} viewport={{ once: true }} className="text-center mb-16">
+            <p className="text-amber-400/50 text-xs tracking-[0.3em] uppercase mb-4">Kategorien</p>
+            <h2 className="text-4xl md:text-5xl font-extralight tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Jede Klasse. <span className="text-amber-400">Jeder Traum.</span>
+            </h2>
+          </motion.div>
 
-          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {CATEGORIES.map((cat) => (
-              <Link
-                key={cat.key}
-                href={`/boats?category=${cat.key}`}
-                className="group relative overflow-hidden rounded-2xl"
-              >
-                <div className="aspect-[4/3]">
-                  <img
-                    src={cat.img}
-                    alt={cat.label}
-                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent" />
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 p-6">
-                  <h3 className="text-2xl font-bold text-white">{cat.label}</h3>
-                  <p className="mt-1 flex items-center text-sm text-sky-300 transition group-hover:translate-x-1">
-                    Jetzt entdecken
-                    <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                  </p>
-                </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Superyachten", img: "https://images.unsplash.com/photo-1621277224630-81a0a5df4a17?w=600&h=400&fit=crop", price: "ab 5M €" },
+              { label: "Motoryachten", img: "https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=600&h=400&fit=crop", price: "ab 200K €" },
+              { label: "Katamarane", img: "https://images.unsplash.com/photo-1559494007-9f5847c49d94?w=600&h=400&fit=crop", price: "ab 150K €" },
+              { label: "Segelboote", img: "https://images.unsplash.com/photo-1540946485063-a40da27545f8?w=600&h=400&fit=crop", price: "ab 30K €" },
+              { label: "Sportboote", img: "https://images.unsplash.com/photo-1605281317010-fe5ffe798166?w=600&h=400&fit=crop", price: "ab 20K €" },
+              { label: "Elektroboote", img: "https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=600&h=400&fit=crop", price: "ab 30K €" },
+              { label: "Jetskis", img: "https://images.unsplash.com/photo-1626447857058-2ba6a8868cb5?w=600&h=400&fit=crop", price: "ab 5K €" },
+              { label: "Explorer", img: "https://images.unsplash.com/photo-1605281317010-fe5ffe798166?w=600&h=400&fit=crop", price: "ab 1M €" },
+            ].map((cat, i) => (
+              <Link href="/configurator" key={i}>
+                <motion.div {...fadeUp} transition={{ delay: i * 0.05 }} viewport={{ once: true }}
+                  className="group relative rounded-2xl overflow-hidden cursor-pointer aspect-[4/3]">
+                  <img src={cat.img} alt={cat.label} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <h3 className="text-white text-sm font-medium">{cat.label}</h3>
+                    <p className="text-amber-400/70 text-xs">{cat.price}</p>
+                  </div>
+                </motion.div>
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── CTA SECTION ──────────────────────────────── */}
-      <section className="relative overflow-hidden bg-sky-600 py-24">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxNCAwIDYtMi42ODYgNi02cy0yLjY4Ni02LTYtNi02IDIuNjg2LTYgNiAyLjY4NiA2IDYgNnptMCAyYy00LjQxOCAwLTgtMy41ODItOC04czMuNTgyLTggOC04IDggMy41ODIgOCA4LTMuNTgyIDgtOCA4eiIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIuMDUiLz48L2c+PC9zdmc+')] opacity-30" />
-        <div className="relative mx-auto max-w-4xl px-4 text-center">
-          <h2 className="text-3xl font-extrabold text-white sm:text-5xl">
-            Bereit, Ihr Traumboot zu finden?
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-sky-100">
-            Nutzen Sie unseren intelligenten Konfigurator und erhalten Sie innerhalb von
-            24 Stunden individuelle Angebote.
-          </p>
-          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link href="/configurator" className="inline-flex items-center rounded-xl bg-white px-8 py-4 text-base font-semibold text-sky-600 shadow-lg transition hover:bg-sky-50 active:scale-[0.98]">
-              Jetzt konfigurieren
+      {/* ═══ CTA ═══ */}
+      <section className="py-32 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.div {...fadeUp} viewport={{ once: true }}>
+            <p className="text-amber-400/50 text-xs tracking-[0.3em] uppercase mb-6">Bereit?</p>
+            <h2 className="text-4xl md:text-6xl font-extralight tracking-tight mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Starten Sie Ihre<br />
+              <span className="bg-gradient-to-r from-amber-300 to-amber-600 bg-clip-text text-transparent">persönliche Experience</span>
+            </h2>
+            <p className="text-gray-500 text-base mb-12 max-w-lg mx-auto">
+              Unverbindlich. Kostenlos. KI-gestützt. In wenigen Minuten zu Ihrem perfekten Match.
+            </p>
+            <Link href="/configurator"
+              className="inline-flex items-center gap-3 px-12 py-5 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold text-lg tracking-wide hover:shadow-2xl hover:shadow-amber-500/25 transition-all duration-500">
+              Start Your Match
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
             </Link>
-            <Link href="/dealer/login" className="inline-flex items-center rounded-xl border border-white/30 px-8 py-4 text-base font-semibold text-white transition hover:bg-white/10 active:scale-[0.98]">
-              Sind Sie Händler?
-            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ═══ PARTNER SECTION ═══ */}
+      <section className="py-20 px-6 border-t border-white/[0.03]">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
+            <div>
+              <p className="text-amber-400/50 text-xs tracking-[0.3em] uppercase mb-4">B2B Platform</p>
+              <h3 className="text-3xl font-extralight mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
+                Hotels. Concierge. Broker. <span className="text-amber-400">Händler.</span>
+              </h3>
+              <p className="text-gray-500 text-sm leading-relaxed mb-8">
+                Werden Sie Teil unserer kuratierten Plattform. Erhalten Sie qualifizierte Leads,
+                nutzen Sie unser KI-Matching und erreichen Sie kaufbereite Kunden.
+              </p>
+              <Link href="/dealer/login" className="inline-flex items-center gap-2 text-amber-400 text-sm hover:text-amber-300 transition-colors">
+                Partner werden →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: "Hotels & Resorts", abbr: "H", desc: "Yacht-Experience für Gäste" },
+                { label: "Concierge", abbr: "C", desc: "KI-gestütztes Matching" },
+                { label: "Yachtbroker", abbr: "YB", desc: "Qualifizierte Kauf-Leads" },
+                { label: "Charterfirmen", abbr: "CF", desc: "Charter-Anfragen direkt" },
+              ].map((p, i) => (
+                <div key={i} className="p-5 rounded-2xl border border-white/[0.04] bg-white/[0.01]">
+                  <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400/10 to-amber-600/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-sm font-medium mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>{p.abbr}</span>
+                  <h4 className="text-white text-sm font-medium mb-1">{p.label}</h4>
+                  <p className="text-gray-600 text-xs">{p.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <Footer />
-    </>
+      {/* ═══ FOOTER ═══ */}
+      <footer className="py-12 px-6 border-t border-white/[0.03]">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-300 to-amber-600 flex items-center justify-center">
+              <span className="text-black text-[10px] font-bold">BC</span>
+            </div>
+            <span className="text-gray-600 text-sm">BoatConnect — AI Yacht Matching Platform</span>
+          </div>
+          <div className="flex gap-6 text-xs text-gray-600">
+            <Link href="/configurator" className="hover:text-white transition-colors">Experience</Link>
+            <Link href="/configurator3d" className="hover:text-white transition-colors">3D Konfigurator</Link>
+            <span>Impressum</span>
+            <span>Datenschutz</span>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
