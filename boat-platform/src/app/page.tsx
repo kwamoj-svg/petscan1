@@ -25,7 +25,6 @@ export default function HomePage() {
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <Link href="/configurator" className="text-gray-500 text-sm hover:text-white transition-colors">Experience</Link>
-            <Link href="/configurator3d" className="text-gray-500 text-sm hover:text-white transition-colors">3D Konfigurator</Link>
             <Link href="/dealer/login" className="text-gray-500 text-sm hover:text-white transition-colors">Partner</Link>
             <Link href="/configurator"
               className="px-5 py-2 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-black text-sm font-medium hover:shadow-lg hover:shadow-amber-500/20 transition-all">
@@ -76,9 +75,9 @@ export default function HomePage() {
               Start Your Match
               <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
             </Link>
-            <Link href="/configurator3d"
+            <Link href="/dealer/login"
               className="px-10 py-4 rounded-full border border-white/[0.08] text-gray-300 font-light text-base hover:border-white/[0.15] hover:text-white transition-all duration-500 flex items-center gap-3 backdrop-blur-sm">
-              3D Konfigurator
+              Partner werden
             </Link>
           </motion.div>
         </div>
@@ -227,7 +226,7 @@ export default function HomePage() {
           </div>
           <div className="flex gap-6 text-xs text-gray-600">
             <Link href="/configurator" className="hover:text-white transition-colors">Experience</Link>
-            <Link href="/configurator3d" className="hover:text-white transition-colors">3D Konfigurator</Link>
+            <Link href="/dealer/login" className="hover:text-white transition-colors">Partner</Link>
             <span>Impressum</span>
             <span>Datenschutz</span>
           </div>

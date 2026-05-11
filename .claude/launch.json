@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["/Users/jeromekwa/Documents/GitHub/petscan1/server.py"],
       "port": 5001
+    },
+    {
+      "name": "boatconnect",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "export NVM_DIR=$HOME/.nvm && . $NVM_DIR/nvm.sh && cd /Users/jeromekwa/Documents/GitHub/petscan1/.claude/worktrees/vibrant-wilson-b9bc65/boat-platform && npx next dev -p 3333"],
+      "port": 3333
     }
   ]
 }
